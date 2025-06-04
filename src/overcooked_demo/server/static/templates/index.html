@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, shrink-to-fit=no"
+    />
+
+    <!-- Bootstrap CSS -->
+    <link
+      rel="stylesheet"
+      href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css"
+      integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T"
+      crossorigin="anonymous"
+    />
+
+    <title>Overcooked Demo</title>
+    <link rel="Favicon" href="static/favicon.ico" />
+
+    <script src="static/lib/jquery-min.js" type="text/javascript"></script>
+    <script src="static/lib/d3.v3.min.js" type="text/javascript"></script>
+    <script src="static/lib/babel.min.js" type="text/javascript"></script>
+    <script
+      src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js"
+      integrity="sha384-UO2eT0CpHqdSJQ6hJty5KVphtPhzWj9WO1clHTMGa3JDZwrnQq4sF86dIHNDz0W1"
+      crossorigin="anonymous"
+    ></script>
+    <script
+      src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"
+      integrity="sha384-JjSmVgyd0p3pXB1rRibZUAYoIIy6OrQ6VrjIEaFf/nJGzIxFDsf4x0xIM+B07jRM"
+      crossorigin="anonymous"
+    ></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/2.3.0/socket.io.js"></script>
+    <script src="//cdn.jsdelivr.net/npm/phaser@3.23.0/dist/phaser.min.js"></script>
+
+    <script src="static/js/graphics.js" type="text/javascript"></script>
+    <!-- <script src="static/js/dummy_graphics.js" type="text/javascript"></script> -->
+    <script src="static/js/index.js" type="text/javascript"></script>
+
+    <link
+      rel="stylesheet"
+      href="static/css/bootstrap.min.css"
+      type="text/css"
+    />
+    <link rel="stylesheet" href="static/css/style.css" type="text/css" />
+  </head>
+  <body>
+    <div class="container-fluid">
+      <form>
+        <div class="container">
+          <div class="row text-center">
+            <div class="form-group col-lg-3">
+              <label for="playerZero" style="color: #1e6a9e">Player 1</label>
+              <select class="form-control" id="playerZero" name="playerZero">
+                <option value="human">Human Keyboard Input</option>
+                {% for agent_name in agent_names %}
+                <option value="{{agent_name}}">{{agent_name}}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="form-group col-lg-3">
+              <label for="playerOne" style="color: #44956b">Player 2</label>
+              <select class="form-control" id="playerOne" name="playerOne">
+                <option value="human">Human Keyboard Input</option>
+                {% for agent_name in agent_names %}
+                <option value="{{agent_name}}">{{agent_name}}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="form-group col-lg-2">
+              <label for="layout">Layout</label>
+              <select class="form-control" id="layout" name="layout">
+                {% for layout in layouts %}
+                <option value="{{layout}}">{{layout}}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="form-group col-lg-2">
+              <label for="gameTime">Game Length (sec)</label>
+              <input
+                type="number"
+                id="gameTime"
+                value="30"
+                min="1"
+                max="1800"
+                name="gameTime"
+              />
+            </div>
+            <div class="form-group col-lg-2">
+              <label for="showPotential">Show Potential?</label>
+              <input type="checkbox" id="showPotential" name="showPotential" />
+              <label
+                for="oldDynamics"
+                data-toggle="tooltip"
+                data-placement="top"
+                title="If checked, the soup will start cooking automatically when all ingredients are put in the pot instead of requiring an extra interaction. This was the design in the Neurips2019 paper."
+                >Old dynamics?</label
+              >
+              <input type="checkbox" id="oldDynamics" name="oldDynamics" />
+              <label
+                for="dataCollection"
+                data-toggle="tooltip"
+                data-placement="top"
+                title="Whether to store the trajectories of both agents that will participate in this game"
+                >Collect Data?</label
+              >
+              <input
+                type="checkbox"
+                id="dataCollection"
+                name="dataCollection"
+                checked
+              />
+            </div>
+          </div>
+        </div>
+      </form>
+      <h4 id="instructions" class="text-center">
+        <a href="./instructions">Instructions</a>
+      </h4>
+      <h4 id="tutorial" class="text-center">
+        <a href="./tutorial">Tutorial</a>
+      </h4>
+      <div id="lobby" class="text-center" style="display: none">
+        <h4 class="text-center">Game Lobby</h4>
+        Waiting for game to start...
+      </div>
+      <div id="waiting" class="text-center" style="display: none">
+        Waiting for game to be created. Please be patient...
+      </div>
+      <div id="control" class="text-center">
+        <button id="create">Create Game</button>
+        <button id="join">Join Existing Game</button>
+        <button id="leave" style="display: none">Leave</button>
+      </div>
+      <div id="overcooked-container" class="text-center">
+        <h4 id="game-title" style="display: none">Game in Progress</h4>
+        <h4 id="game-over" style="display: none">Game Over</h4>
+        <div id="overcooked"></div>
+        <div id="error-exit" style="display: none">
+          Game ended unexpectedly (probably due to another user disconnecting)
+        </div>
+      </div>
+
+      <div id="task-section" class="container mt-5 pt-4">
+        <h4 class="mb-4">Define Your Task</h4>
+        <!-- Task Title -->
+        <div class="form-group">
+          <label for="taskTitle">Enter Task Title</label>
+          <input
+            id="taskTitle"
+            class="form-control"
+            placeholder="e.g. Serving Onion Soup"
+          />
+        </div>
+        <!-- Predefine Subtasks -->
+        <div class="form-group">
+          <label>Predefine Subtasks</label>
+          <div class="row">
+            <div class="col-md-8">
+              <div class="d-flex">
+                <input
+                  id="subtaskInput"
+                  class="form-control"
+                  placeholder="Enter a subtask..."
+                />
+                <button id="createSubtaskBtn" class="btn btn-primary ml-2">
+                  Create
+                </button>
+              </div>
+            </div>
+            <div class="col-md-4">
+              <button id="askLlmBtn" class="btn btn-light-orange btn-block">
+                Ask LLM
+              </button>
+            </div>
+          </div>
+          <small class="form-text text-muted mt-2">
+            Create subtasks individually or ask LLM to generate them from your
+            task title.
+          </small>
+        </div>
+        <!-- Draggable Subtask Cards -->
+        <div class="form-group">
+          <label>Subtasks (drag to reorder)</label>
+          <div
+            id="subtaskContainer"
+            class="mt-2"
+            style="
+              min-height: 60px;
+              border: 2px dashed #dee2e6;
+              border-radius: 5px;
+              padding: 15px;
+            "
+          >
+            <p class="text-muted text-center mb-0" id="emptyMessage">
+              No subtasks yet. Create some above!
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <style>
+      /* Container: full‐width vertical list with clearer drop‐area */
+      #subtaskContainer {
+        min-height: 80px;
+        border: 2px dashed #ced4da;
+        border-radius: 6px;
+        padding: 12px;
+        background-color: #fafbfc;
+        transition: background-color 0.2s, border-color 0.2s;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      #subtaskContainer.drag-over {
+        background-color: #e3f2fd;
+        border-color: #2196f3;
+      }
+
+      /* Empty‑state text */
+      #emptyMessage {
+        color: #6c757d;
+        text-align: center;
+        margin: 0 auto;
+      }
+
+      /* Subtask card: block‑level, full width */
+      .subtask-card {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        background: #ffffff;
+        border: 1px solid #ced4da;
+        border-radius: 6px;
+        padding: 10px 14px;
+        cursor: grab;
+        transition: box-shadow 0.2s, background 0.2s;
+      }
+
+      .subtask-card:hover {
+        background: #f1f3f5;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+      }
+
+      .subtask-card.dragging {
+        opacity: 0.6;
+        cursor: grabbing;
+        background: #eef4fb;
+      }
+
+      /* Number badge */
+      .subtask-number {
+        flex-shrink: 0;
+        background: #007bff;
+        color: #fff;
+        border-radius: 50%;
+        width: 24px;
+        height: 24px;
+        text-align: center;
+        font-size: 13px;
+        line-height: 24px;
+        font-weight: 600;
+        margin-right: 12px;
+      }
+
+      /* Text area grows to fill remaining space */
+      .subtask-text {
+        flex-grow: 1;
+        font-size: 14px;
+        color: #333;
+        word-break: break-word;
+      }
+
+      /* Delete button */
+      .subtask-delete {
+        flex-shrink: 0;
+        margin-left: 12px;
+        width: 22px;
+        height: 22px;
+        background: #dc3545;
+        color: #fff;
+        border: none;
+        border-radius: 50%;
+        font-size: 14px;
+        line-height: 22px;
+        text-align: center;
+        cursor: pointer;
+        transition: background 0.2s;
+      }
+
+      .subtask-delete:hover {
+        background: #c82333;
+      }
+
+      /* “Create” button spacing */
+      #createSubtaskBtn {
+        min-width: 100px;
+      }
+
+      /* Optional: lighten the “Ask LLM” button to match new palette */
+      .btn-light-orange {
+        background-color: #ffe0b2;
+        border-color: #ffcc80;
+        color: #37474f;
+      }
+      .btn-light-orange:hover {
+        background-color: #ffcc80;
+        border-color: #ffb74d;
+        color: #212121;
+      }
+
+      .subtask-edit {
+        flex-shrink: 0;
+        margin-left: 6px;
+        background: transparent;
+        color: black;
+        border: none;
+        font-size: 20px;
+        line-height: 1;
+        cursor: pointer;
+        transition: color 0.2s;
+      }
+      .subtask-edit:hover {
+        color: gray;
+      }
+
+      .subtask-edit-input {
+        font-size: 14px;
+        padding: 4px 6px;
+        border: 1px solid #ced4da;
+        border-radius: 4px;
+      }
+    </style>
+
+    <script>
+      document.addEventListener("DOMContentLoaded", function () {
+        let draggedElement = null;
+
+        // Hide/show task section based on game state
+        function hideTaskSection() {
+          document.getElementById("task-section").style.display = "none";
+        }
+
+        function showTaskSection() {
+          document.getElementById("task-section").style.display = "block";
+        }
+
+        // Override the existing create button functionality
+        document
+          .getElementById("create")
+          .addEventListener("click", function () {
+            hideTaskSection();
+          });
+
+        document.getElementById("leave").addEventListener("click", function () {
+          showTaskSection();
+        });
+
+        // Create subtask functionality
+        function createSubtaskCard(text) {
+          const container = document.getElementById("subtaskContainer");
+          const emptyMessage = document.getElementById("emptyMessage");
+
+          // Hide empty message
+          if (emptyMessage) {
+            emptyMessage.style.display = "none";
+          }
+
+          const card = document.createElement("div");
+          card.className = "subtask-card";
+          card.draggable = true;
+
+          const subtaskNumber =
+            container.querySelectorAll(".subtask-card").length + 1;
+          card.innerHTML = `
+        <span class="subtask-number">${subtaskNumber}</span>
+        <span class="subtask-text">${text}</span>
+        <button class="subtask-edit" onclick="editSubtask(this)" title="Edit">&#9998;</button>  <!-- NEW -->
+        <button class="subtask-delete" onclick="removeSubtask(this)">&times;</button>
+      `;
+
+          // Add drag event listeners
+          card.addEventListener("dragstart", function (e) {
+            draggedElement = this;
+            this.classList.add("dragging");
+            e.dataTransfer.effectAllowed = "move";
+          });
+
+          card.addEventListener("dragend", function (e) {
+            this.classList.remove("dragging");
+            draggedElement = null;
+            updateSubtaskNumbers();
+          });
+
+          container.appendChild(card);
+        }
+
+        function updateSubtaskNumbers() {
+          const container = document.getElementById("subtaskContainer");
+          const cards = container.querySelectorAll(".subtask-card");
+          cards.forEach((card, index) => {
+            const numberSpan = card.querySelector(".subtask-number");
+            numberSpan.textContent = index + 1;
+          });
+        }
+
+        function removeSubtask(button) {
+          const card = button.parentElement;
+          card.remove();
+
+          // Update numbering after removal
+          updateSubtaskNumbers();
+
+          // Show empty message if no cards left
+          const container = document.getElementById("subtaskContainer");
+          const cards = container.querySelectorAll(".subtask-card");
+          if (cards.length === 0) {
+            const empty = document.getElementById("emptyMessage");
+            if (empty) {
+              empty.style.display = "block";
+            }
+          }
+        }
+
+        // Expose removeSubtask to global scope so inline onclick can call it
+        window.removeSubtask = removeSubtask;
+
+        function editSubtask(button) {
+          // NEW
+          const card = button.parentElement;
+          const textSpan = card.querySelector(".subtask-text");
+          const oldText = textSpan.textContent.trim();
+
+          // Replace the <span> with an <input>
+          const input = document.createElement("input");
+          input.type = "text";
+          input.className = "subtask-edit-input";
+          input.value = oldText;
+          input.style.flexGrow = "1";
+          input.addEventListener("keypress", function (e) {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              saveEdit();
+            }
+          });
+
+          function saveEdit() {
+            const newText = input.value.trim();
+            if (newText) {
+              textSpan.textContent = newText;
+            }
+            card.replaceChild(textSpan, input);
+          }
+
+          // Swap span → input, then focus
+          card.replaceChild(input, textSpan);
+          input.focus();
+
+          // When input loses focus, save
+          input.addEventListener("blur", saveEdit);
+        }
+
+        // Expose to global:
+        window.editSubtask = editSubtask;
+
+        // Create subtask button
+        document
+          .getElementById("createSubtaskBtn")
+          .addEventListener("click", function (e) {
+            e.preventDefault();
+            const input = document.getElementById("subtaskInput");
+            const text = input.value.trim();
+            if (text) {
+              createSubtaskCard(text);
+              input.value = "";
+            }
+          });
+
+        // Enter key in input
+        document
+          .getElementById("subtaskInput")
+          .addEventListener("keypress", function (e) {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              document.getElementById("createSubtaskBtn").click();
+            }
+          });
+
+        // Ask LLM functionality
+        document
+          .getElementById("askLlmBtn")
+          .addEventListener("click", async function (e) {
+            e.preventDefault();
+            const taskTitle = document.getElementById("taskTitle").value.trim();
+            if (!taskTitle) {
+              alert("Please enter a task title first");
+              return;
+            }
+
+            // Gather existing subtasks from cards
+            const container = document.getElementById("subtaskContainer");
+            const cards = container.querySelectorAll(".subtask-card");
+            const existingSubtasks = Array.from(cards).map((card) => {
+              return card.querySelector(".subtask-text").textContent.trim();
+            });
+
+            // Disable button while waiting
+            const btn = document.getElementById("askLlmBtn");
+            btn.disabled = true;
+            btn.textContent = "Generating…";
+
+            const payload = {
+              taskName: taskTitle,
+              existingSubtasks: existingSubtasks,
+              notes: "", // adjust if you add a notes field
+            };
+
+            try {
+              const resp = await fetch("/generate_subtasks", {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify(payload),
+              });
+
+              if (!resp.ok) {
+                throw new Error(`Server returned ${resp.status}`);
+              }
+
+              const data = await resp.json();
+              if (data.error) {
+                throw new Error(data.error);
+              }
+
+              const subtasks = data.subtasks || [];
+
+              // Hide the “No subtasks yet” message if it exists, then clear the container
+              const empty = document.getElementById("emptyMessage");
+              if (empty) {
+                empty.style.display = "none";
+              }
+              container.innerHTML = "";
+
+              // Populate new cards
+              subtasks.forEach((subtask) => {
+                createSubtaskCard(subtask);
+              });
+            } catch (err) {
+              console.error("Error generating subtasks:", err);
+              alert("Failed to generate subtasks: " + err.message);
+            } finally {
+              btn.disabled = false;
+              btn.textContent = "Ask LLM";
+            }
+          });
+
+        // Drag and drop for reordering
+        const container = document.getElementById("subtaskContainer");
+
+        container.addEventListener("dragover", function (e) {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = "move";
+          this.classList.add("drag-over");
+        });
+
+        container.addEventListener("dragleave", function (e) {
+          this.classList.remove("drag-over");
+        });
+
+        container.addEventListener("drop", function (e) {
+          e.preventDefault();
+          this.classList.remove("drag-over");
+
+          if (draggedElement) {
+            const afterElement = getDragAfterElement(
+              this,
+              e.clientX,
+              e.clientY
+            );
+
+            if (afterElement == null) {
+              this.appendChild(draggedElement);
+            } else {
+              this.insertBefore(draggedElement, afterElement);
+            }
+
+            // Update numbering after reordering
+            updateSubtaskNumbers();
+          }
+        });
+
+        function getDragAfterElement(container, x, y) {
+          const draggableElements = [
+            ...container.querySelectorAll(".subtask-card:not(.dragging)"),
+          ];
+
+          return draggableElements.reduce(
+            (closest, child) => {
+              const box = child.getBoundingClientRect();
+              const offset = y - box.top - box.height / 2;
+
+              if (offset < 0 && offset > closest.offset) {
+                return { offset: offset, element: child };
+              } else {
+                return closest;
+              }
+            },
+            { offset: Number.NEGATIVE_INFINITY }
+          ).element;
+        }
+      });
+    </script>
+
+    <noscript>
+      <h1>Warning: Javascript seems to be disabled</h1>
+      <p>This website requires that Javascript be enabled on your browser.</p>
+      <p>
+        Instructions for enabling Javascript in your browser can be found
+        <a href="http://support.google.com/bin/answer.py?hl=en&answer=23852"
+          >here</a
+        >
+      </p>
+    </noscript>
+  </body>
+</html>

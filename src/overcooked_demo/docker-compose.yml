@@ -1,0 +1,39 @@
+version: "3.8"
+
+services:
+  ollama:
+    image: ollama/overcooked_subtask_model:latest
+    container_name: ollama-model
+    pull_policy: "never"
+    ports:
+      - "11434:11434"
+    networks:
+      - overcook-net
+
+  app:
+    build:
+      context: ./server
+      args:
+        BUILD_ENV: "${BUILD_ENV:-production}"
+        OVERCOOKED_BRANCH: "${OVERCOOKED_BRANCH:-master}"
+        GRAPHICS: "${GRAPHICS:-overcooked_graphics_v2.2.js}"
+      shm_size: "5gb"
+    container_name: overcooked-app
+    depends_on:
+      - ollama
+    environment:
+      FLASK_ENV: "${BUILD_ENV:-production}"
+    ports:
+      - "80:5000"
+    volumes:
+      - ./server:/app
+      - data:/app/data
+    networks:
+      - overcook-net
+
+volumes:
+  data:
+
+networks:
+  overcook-net:
+    driver: bridge

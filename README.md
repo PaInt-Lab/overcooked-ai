@@ -1,145 +1,93 @@
-![MDP python tests](https://github.com/HumanCompatibleAI/overcooked_ai/workflows/.github/workflows/pythontests.yml/badge.svg) ![overcooked-ai codecov](https://codecov.io/gh/HumanCompatibleAI/overcooked_ai/branch/master/graph/badge.svg) [![PyPI version](https://badge.fury.io/py/overcooked-ai.svg)](https://badge.fury.io/py/overcooked-ai) [!["Open Issues"](https://img.shields.io/github/issues-raw/HumanCompatibleAI/overcooked_ai.svg)](https://github.com/HumanCompatibleAI/minerl/overcooked_ai) [![GitHub issues by-label](https://img.shields.io/github/issues-raw/HumanCompatibleAI/overcooked_ai/bug.svg?color=red)](https://github.com/HumanCompatibleAI/overcooked_ai/issues?utf8=%E2%9C%93&q=is%3Aissue+is%3Aopen+label%3Abug) [![Downloads](https://pepy.tech/badge/overcooked-ai)](https://pepy.tech/project/overcooked-ai)
-[![arXiv](https://img.shields.io/badge/arXiv-1910.05789-bbbbbb.svg)](https://arxiv.org/abs/1910.05789)
-
-# Overcooked-AI 🧑‍🍳🤖
-
-<p align="center">
-  <!-- <img src="overcooked_ai_js/images/screenshot.png" width="350"> -->
-  <img src="./images/layouts.gif" width="100%"> 
-  <i>5 of the available layouts. New layouts are easy to hardcode or generate programmatically.</i>
-</p>
-
-## Introduction 🥘
-
-Overcooked-AI is a benchmark environment for fully cooperative human-AI task performance, based on the wildly popular video game [Overcooked](http://www.ghosttowngames.com/overcooked/).
-
-The goal of the game is to deliver soups as fast as possible. Each soup requires placing up to 3 ingredients in a pot, waiting for the soup to cook, and then having an agent pick up the soup and delivering it. The agents should split up tasks on the fly and coordinate effectively in order to achieve high reward.
-
-You can **try out the game [here](https://humancompatibleai.github.io/overcooked-demo/)** (playing with some previously trained DRL agents). To play with your own trained agents using this interface, or to collect more human-AI or human-human data, you can use the code [here](https://github.com/HumanCompatibleAI/overcooked_ai/tree/master/src/overcooked_demo). You can find some human-human and human-AI gameplay data already collected [here](https://github.com/HumanCompatibleAI/overcooked_ai/tree/master/src/human_aware_rl/static/human_data).
-
-**NOTE + LOOKING FOR CONTRIBUTORS:** DRL and BC implementations are now deprecated. We used to include code for training BC and PPO agents in the `human_aware_rl` directory. See [this issue](https://github.com/HumanCompatibleAI/overcooked_ai/issues/162) for more details.
-
-This benchmark was build in the context of a 2019 paper: *[On the Utility of Learning about Humans for Human-AI Coordination](https://arxiv.org/abs/1910.05789)*. Also see our [blog post](https://bair.berkeley.edu/blog/2019/10/21/coordination/).
-
-## Research Papers using Overcooked-AI 📑
+# Overcooked-AI
 
 
-- Carroll, Micah, Rohin Shah, Mark K. Ho, Thomas L. Griffiths, Sanjit A. Seshia, Pieter Abbeel, and Anca Dragan. ["On the utility of learning about humans for human-ai coordination."](https://arxiv.org/abs/1910.05789) NeurIPS 2019.
-- Charakorn, Rujikorn, Poramate Manoonpong, and Nat Dilokthanakul. [“Investigating Partner Diversification Methods in Cooperative Multi-Agent Deep Reinforcement Learning.”](https://www.rujikorn.com/files/papers/diversity_ICONIP2020.pdf) Neural Information Processing. ICONIP 2020.
-- Knott, Paul, Micah Carroll, Sam Devlin, Kamil Ciosek, Katja Hofmann, Anca D. Dragan, and Rohin Shah. ["Evaluating the Robustness of Collaborative Agents."](https://arxiv.org/abs/2101.05507) AAMAS 2021.
-- Nalepka, Patrick, Jordan P. Gregory-Dunsmore, James Simpson, Gaurav Patil, and Michael J. Richardson. ["Interaction Flexibility in Artificial Agents Teaming with Humans."](https://www.researchgate.net/publication/351533529_Interaction_Flexibility_in_Artificial_Agents_Teaming_with_Humans) Cogsci 2021.
-- Fontaine, Matthew C., Ya-Chuan Hsu, Yulun Zhang, Bryon Tjanaka, and Stefanos Nikolaidis. [“On the Importance of Environments in Human-Robot Coordination”](http://arxiv.org/abs/2106.10853) RSS 2021.
-- Zhao, Rui, Jinming Song, Hu Haifeng, Yang Gao, Yi Wu, Zhongqian Sun, Yang Wei. ["Maximum Entropy Population Based Training for Zero-Shot Human-AI Coordination"](https://arxiv.org/abs/2112.11701). NeurIPS Cooperative AI Workshop, 2021.
-- Sarkar, Bidipta, Aditi Talati, Andy Shih, and Dorsa Sadigh. [“PantheonRL: A MARL Library for Dynamic Training Interactions”](https://iliad.stanford.edu/pdfs/publications/sarkar2022pantheonrl.pdf). AAAI 2022.
-- Ribeiro, João G., Cassandro Martinho, Alberto Sardinha, Francisco S. Melo. ["Assisting Unknown Teammates in Unknown Tasks: Ad Hoc Teamwork under Partial Observability"](https://arxiv.org/abs/2201.03538).
-- Xihuai Wang, Shao Zhang, Wenhao Zhang, Wentao Dong, Jingxiao Chen, Ying Wen and Weinan Zhang. NeurIPS 2024. [“ZSC-Eval: An Evaluation Toolkit and Benchmark for Multi-agent Zero-shot Coordination”](https://arxiv.org/abs/2310.05208v2).
 
+## Getting started
 
-## Installation ☑️
+To make it easy for you to get started with GitLab, here's a list of recommended next steps.
 
-### Installing from PyPI 🗜
+Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
 
-You can install the pre-compiled wheel file using pip.
-```
-pip install overcooked-ai
-```
-Note that PyPI releases are stable but infrequent. For the most up-to-date development features, build from source. We recommend using [uv](https://docs.astral.sh/uv/getting-started/installation/) to install the package, so that you can use the provided lockfile to ensure no minimal package version issues.
+## Add your files
 
-
-### Building from source 🔧
-
-Clone the repo 
-```
-git clone https://github.com/HumanCompatibleAI/overcooked_ai.git
-```
-
-Using uv (recommended):
-```
-uv venv
-uv sync
-```
-
-
-### Verifying Installation 📈
-
-When building from source, you can verify the installation by running the Overcooked unit test suite. The following commands should all be run from the `overcooked_ai` project root directory:
+- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
+- [ ] [Add files using the command line](https://docs.gitlab.com/ee/gitlab-basics/add-file.html#add-a-file-using-the-command-line) or push an existing Git repository with the following command:
 
 ```
-python testing/overcooked_test.py
+cd existing_repo
+git remote add origin https://rs-loy-gitlab.concordia.ca/v_rizzut/overcooked-ai.git
+git branch -M main
+git push -uf origin main
 ```
 
+## Integrate with your tools
 
+- [ ] [Set up project integrations](https://rs-loy-gitlab.concordia.ca/v_rizzut/overcooked-ai/-/settings/integrations)
 
+## Collaborate with your team
 
-If you're thinking of using the planning code extensively, you should run the full testing suite that verifies all of the Overcooked accessory tools (this can take 5-10 mins): 
-```
-python -m unittest discover -s testing/ -p "*_test.py"
-```
+- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
+- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
+- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
+- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
+- [ ] [Set auto-merge](https://docs.gitlab.com/ee/user/project/merge_requests/merge_when_pipeline_succeeds.html)
 
-See this [notebook](Overcooked%20Tutorial.ipynb) for a quick guide on getting started using the environment.
+## Test and Deploy
 
-## Code Structure Overview 🗺
+Use the built-in continuous integration in GitLab.
 
-`overcooked_ai_py` contains:
+- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/index.html)
+- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
+- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
+- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
+- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
 
-`mdp/`:
-- `overcooked_mdp.py`: main Overcooked game logic
-- `overcooked_env.py`: environment classes built on top of the Overcooked mdp
-- `layout_generator.py`: functions to generate random layouts programmatically
+***
 
-`agents/`:
-- `agent.py`: location of agent classes
-- `benchmarking.py`: sample trajectories of agents (both trained and planners) and load various models
+# Editing this README
 
-`planning/`:
-- `planners.py`: near-optimal agent planning logic
-- `search.py`: A* search and shortest path logic
+When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
 
-`overcooked_demo` contains:
+## Suggestions for a good README
 
-`server/`:
-- `app.py`: The Flask app 
-- `game.py`: The main logic of the game. State transitions are handled by overcooked.Gridworld object embedded in the game environment
-- `move_agents.py`: A script that simplifies copying checkpoints to [agents](src/overcooked_demo/server/static/assets/agents/) directory. Instruction of how to use can be found inside the file or by running `python move_agents.py -h`
+Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
 
-`up.sh`: Shell script to spin up the Docker server that hosts the game 
+## Name
+Choose a self-explaining name for your project.
 
-`human_aware_rl` contains (NOTE: this is not supported anymore, see bottom of the README for more info):
+## Description
+Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
 
-`ppo/`:
-- `ppo_rllib.py`: Primary module where code for training a PPO agent resides. This includes an rllib compatible wrapper on `OvercookedEnv`, utilities for converting rllib `Policy` classes to Overcooked `Agent`s, as well as utility functions and callbacks
-- `ppo_rllib_client.py` Driver code for configuing and launching the training of an agent. More details about usage below
-- `ppo_rllib_from_params_client.py`: train one agent with PPO in Overcooked with variable-MDPs 
-- `ppo_rllib_test.py` Reproducibility tests for local sanity checks
-- `run_experiments.sh` Script for training agents on 5 classical layouts
-- `trained_example/` Pretrained model for testing purposes
+## Badges
+On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
 
-`rllib/`:
-- `rllib.py`: rllib agent and training utils that utilize Overcooked APIs
-- `utils.py`: utils for the above
-- `tests.py`: preliminary tests for the above
+## Visuals
+Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
 
-`imitation/`:
-- `behavior_cloning_tf2.py`:  Module for training, saving, and loading a BC model
-- `behavior_cloning_tf2_test.py`: Contains basic reproducibility tests as well as unit tests for the various components of the bc module.
+## Installation
+Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
 
-`human/`:
-- `process_data.py` script to process human data in specific formats to be used by DRL algorithms
-- `data_processing_utils.py` utils for the above
+## Usage
+Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
 
-`utils.py`: utils for the repo
+## Support
+Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
 
+## Roadmap
+If you have ideas for releases in the future, it is a good idea to list them in the README.
 
-## Raw Data :ledger:
+## Contributing
+State if you are open to contributions and what your requirements are for accepting them.
 
-The raw data used during BC training is >100 MB, which makes it inconvenient to distribute via git. The code uses pickled dataframes for training and testing, but in case one needs to original data it can be found [here](https://drive.google.com/drive/folders/1aGV8eqWeOG5BMFdUcVoP2NHU_GFPqi57?usp=share_link) 
+For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
 
-## Deprecated: Behavior Cloning and Reinforcement Learning 
+You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
 
+## Authors and acknowledgment
+Show your appreciation to those who have contributed to the project.
 
+## License
+For open source projects, say how it is licensed.
 
-
-
-## Further Issues and questions ❓
-
-If you have issues or questions, you can contact [Micah Carroll](https://micahcarroll.github.io) at mdc@berkeley.edu.
+## Project status
+If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.

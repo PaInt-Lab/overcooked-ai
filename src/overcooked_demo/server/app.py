@@ -437,7 +437,7 @@ def generate_subtasks():
       {
         "taskName": "Make Onion Soup",
         "existingSubtasks": ["Get onions", "Peel onions"],
-        "notes": "User prefers chopping first"
+        "notes": ""
       }
     Returns JSON: { "subtasks": [ "Get onions", "Peel onions", "Boil onions", ... ] }
     """

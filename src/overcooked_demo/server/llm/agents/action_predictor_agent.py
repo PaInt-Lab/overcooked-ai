@@ -55,23 +55,32 @@ class ActionPredictorAgent(Agent):
         my_pos = state.player_positions[self.agent_index]
         goal = self._task_to_goal(robot_task, my_pos)
 
-        if hasattr(self.planner, 'get_next_action'):
-            move = self.planner.get_next_action(state, goal, self.agent_index)
-            planner_method = 'get_next_action'
-        elif hasattr(self.planner, 'get_action'):
-            move = self.planner.get_action(state, goal, self.agent_index)
-            planner_method = 'get_action'
+        # 5. Use planner.get_plan to map goal -> primitive actions
+        if hasattr(self.planner, 'get_plan'):
+            try:
+                plan = self.planner.get_plan(my_pos, goal)
+            except KeyError:
+                plan = []
+            if plan:
+                move = plan[0]
+            else:
+                move = Action.STAY
+            planner_method = 'get_plan'
+        elif hasattr(self.planner, 'action_plan_from_positions'):
+            plan = self.planner.action_plan_from_positions(my_pos, goal)
+            move = plan[0] if plan else Action.STAY
+            planner_method = 'action_plan_from_positions'
         else:
             move = Action.STAY
             planner_method = 'fallback_STAY'
 
         return move, {
-            'high_level': robot_task,
-            'human_task': human_task, # for debugging - to see what the human task was
-            'planner_method': planner_method, # for debugging - to see which planner method was used
-            'prompt': prompt,
-            'response': response
-        }
+            "high_level": robot_task,
+            "human_task": human_task,
+            "planner_method": planner_method,
+            "prompt": prompt,
+            "response": response
+        } 
 
     def actions(self, states, agent_indices):
         results = []

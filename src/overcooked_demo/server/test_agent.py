@@ -37,7 +37,7 @@ from llm.agents.action_predictor_agent import ActionPredictorAgent
 
 def main():
     # 1) Build the MDP
-    layout = "cramped_room"
+    layout = "cramped_corridor"
     mdp = OvercookedGridworld.from_layout_name(layout)
 
     # 2) Instantiate Env properly via from_mdp
@@ -64,6 +64,12 @@ def main():
     agent.set_mdp(mdp)
 
     print("Planner methods:", [m for m in dir(agent.planner) if not m.startswith("_")])
+
+    # Debug the counter_goals mapping
+    print("Counter goals keys:", list(agent.planner.counter_goals.keys()))
+    for key, tiles in agent.planner.counter_goals.items():
+        print(f"  {key!r}: {tiles}")
+
 
     # 6) Run the agent once and print
     move, info = agent.action(state)

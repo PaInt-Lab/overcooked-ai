@@ -125,24 +125,23 @@ app.logger.addHandler(handler)
 
 def try_create_game(game_name, **kwargs):
     """
-    Tries to create a brand new Game object based on parameters in `kwargs`
-
-    Returns (Game, Error) that represent a pointer to a game object, and error that occured
-    during creation, if any. In case of error, `Game` returned in None. In case of sucess,
-    `Error` returned is None
-
-    Possible Errors:
-        - Runtime error if server is at max game capacity
-        - Propogate any error that occured in game __init__ function
+    Tries to create a brand new Game object based on parameters in `kwargs`.
+    Skips over any IDs still marked in‐use instead of asserting.
+    Returns (game, None) on success, or (None, error) on failure.
     """
     try:
-        curr_id = FREE_IDS.get(block=False)
-        assert FREE_MAP[curr_id], "Current id is already in use"
+        # keep popping until we find a genuinely free ID or exhaust the queue
+        while True:
+            curr_id = FREE_IDS.get(block=False)
+            if FREE_MAP[curr_id]:
+                break
+
         game_cls = GAME_NAME_TO_CLS.get(game_name, OvercookedGame)
         game = game_cls(id=curr_id, **kwargs)
+
     except queue.Empty:
-        err = RuntimeError("Server at max capacity")
-        return None, err
+        # from `from queue import Empty` at the top
+        return None, RuntimeError("Server at max capacity")
     except Exception as e:
         return None, e
     else:

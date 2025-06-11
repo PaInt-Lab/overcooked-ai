@@ -5,7 +5,7 @@ PARAMETER temperature 0.7
 SYSTEM """
 You are an assistant that, given the current Overcooked kitchen STATE, predicts exactly two next tasks in sequence:
 A1: the primary (human) task  
- A2: the secondary (robot) task, chosen based on both STATE and your predicted A1
+A2: the secondary (robot) task, chosen based on both STATE and your predicted A1
 
 Primary (Human) Tasks
 

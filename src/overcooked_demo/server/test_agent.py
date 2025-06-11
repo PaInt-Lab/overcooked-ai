@@ -63,10 +63,16 @@ def main():
     agent.set_agent_index(1)  # robot is index 1
     agent.set_mdp(mdp)
 
+    print("Planner methods:", [m for m in dir(agent.planner) if not m.startswith("_")])
+
     # 6) Run the agent once and print
     move, info = agent.action(state)
-    print("\nHigh-level robot task:", info.get("high_level"))
+    move, info = agent.action(state)
     print("Primitive move returned:", move)
+    print("High-level task was:", info['high_level'])
+    print("Human task was:", info['human_task'])
+    print("Planner method used:", info['planner_method'])
+
 
 if __name__ == "__main__":
     main()

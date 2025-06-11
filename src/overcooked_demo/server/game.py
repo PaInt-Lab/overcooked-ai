@@ -673,8 +673,11 @@ class OvercookedGame(Game):
         return obj_dict
 
     def get_policy(self, npc_id, idx=0):
-        if npc_id == "OverCookedLLM":
-            return ActionPredictorAgent(model_name="overcooked_action_predictor_model")
+        if npc_id == "overcooked_llm":
+            agent = ActionPredictorAgent(model_name="action_predictor_model")
+            agent.set_agent_index(idx)
+            agent.set_mdp(self.mdp)
+            return agent
         if npc_id.lower().startswith("rllib"):
             try:
                 # Loading rllib agents requires additional helpers

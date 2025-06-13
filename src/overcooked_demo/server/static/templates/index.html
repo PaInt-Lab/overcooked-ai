@@ -198,6 +198,16 @@
             </p>
           </div>
         </div>
+        <!-- after your #subtaskContainer div -->
+        <div
+          id="confirmSequenceContainer"
+          class="text-center mt-3"
+          style="display: none"
+        >
+          <button id="confirmSequence" class="btn btn-success">
+            Confirm Sequence
+          </button>
+        </div>
       </div>
     </div>
 
@@ -333,6 +343,12 @@
         border: 1px solid #ced4da;
         border-radius: 4px;
       }
+
+      .subtask-card.confirmed {
+        background-color: #e6f9e6;
+        border-color: #a3dca3;
+        cursor: default !important;
+      }
     </style>
 
     <script>
@@ -396,6 +412,8 @@
           });
 
           container.appendChild(card);
+
+          updateConfirmButtonVisibility();
         }
 
         function updateSubtaskNumbers() {
@@ -423,6 +441,7 @@
               empty.style.display = "block";
             }
           }
+          updateConfirmButtonVisibility();
         }
 
         // Expose removeSubtask to global scope so inline onclick can call it
@@ -556,6 +575,38 @@
               btn.disabled = false;
               btn.textContent = "Ask LLM";
             }
+
+            document
+              .getElementById("confirmSequence")
+              .addEventListener("click", async () => {
+                const cards = document.querySelectorAll(".subtask-card");
+                const sequence = [];
+                cards.forEach((card) => {
+                  card.classList.add("confirmed");
+                  card.draggable = false;
+                  card.style.pointerEvents = "none";
+                  sequence.push(
+                    card.querySelector(".subtask-text").textContent.trim()
+                  );
+                });
+                // disable button
+                const btn = document.getElementById("confirmSequence");
+                btn.disabled = true;
+
+                // send to backend
+                try {
+                  const resp = await fetch("/confirm_subtasks", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ subtasks: sequence }),
+                  });
+                  if (!resp.ok) throw new Error(resp.statusText);
+                  // optionally handle success
+                } catch (err) {
+                  console.error("Confirmation failed:", err);
+                  alert("Failed to confirm sequence");
+                }
+              });
           });
 
         // Drag and drop for reordering
@@ -612,6 +663,43 @@
             { offset: Number.NEGATIVE_INFINITY }
           ).element;
         }
+
+        let isConfirmed = false;
+        const confirmContainer = document.getElementById(
+          "confirmSequenceContainer"
+        );
+        const confirmBtn = document.getElementById("confirmSequence");
+
+        function updateConfirmButtonVisibility() {
+          confirmContainer.style.display = container.querySelectorAll(
+            ".subtask-card"
+          ).length
+            ? "block"
+            : "none";
+          updateConfirmButtonVisibility();
+        }
+
+        function toggleConfirm() {
+          isConfirmed = !isConfirmed;
+          document.querySelectorAll(".subtask-card").forEach((card) => {
+            card.classList.toggle("confirmed", isConfirmed);
+            card.draggable = !isConfirmed;
+          });
+          confirmBtn.textContent = isConfirmed
+            ? "Edit Sequence"
+            : "Confirm Sequence";
+          if (isConfirmed) {
+            const seq = [...container.querySelectorAll(".subtask-card")].map(
+              (c) => c.querySelector(".subtask-text").textContent.trim()
+            );
+            fetch("/confirm_subtasks", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ subtasks: seq }),
+            }).catch(console.error);
+          }
+        }
+        confirmBtn.addEventListener("click", toggleConfirm);
       });
     </script>
 

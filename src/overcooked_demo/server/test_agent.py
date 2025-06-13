@@ -66,9 +66,9 @@ def main():
     print("Planner methods:", [m for m in dir(agent.planner) if not m.startswith("_")])
 
     # Debug the counter_goals mapping
-    print("Counter goals keys:", list(agent.planner.counter_goals.keys()))
-    for key, tiles in agent.planner.counter_goals.items():
-        print(f"  {key!r}: {tiles}")
+    # print("Counter goals keys:", list(agent.planner.counter_goals.keys()))
+    # for key, tiles in agent.planner.counter_goals.items():
+    #     print(f"  {key!r}: {tiles}")
 
 
     # 6) Run the agent once and print

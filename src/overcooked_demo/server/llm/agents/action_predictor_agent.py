@@ -86,14 +86,20 @@ class ActionPredictorAgent(Agent):
         my_pos = state.player_positions[self.agent_index]
         goal = self._task_to_goal(robot_task, my_pos)
 
+        # pull orientation from state.to_dict()
+        orientations = state.to_dict()["players"][self.agent_index]["orientation"]
+        start = (my_pos, tuple(orientations))
+        # for goal we usually don’t care about final orientation, so repeat it
+        goal_pair = (goal, tuple(orientations))
+
         # 5. Use planner.get_plan or action_plan_from_positions
-        if hasattr(self.planner, 'get_plan'):
+        if hasattr(self.planner, "get_plan"):
             try:
-                plan = self.planner.get_plan(my_pos, goal)
+                action_plan, _, _ = self.planner.get_plan(start, goal_pair)
             except KeyError:
-                plan = []
-            move = plan[0] if plan else Action.STAY # get_plan doesn't return a list like action_plan_from_positions so i gotta fix this
-            planner_method = 'get_plan'
+                action_plan = []
+            move = action_plan[0] if action_plan else Action.STAY
+            planner_method = "get_plan"
         elif hasattr(self.planner, 'action_plan_from_positions'):
             plan = self.planner.action_plan_from_positions(my_pos, goal)
             move = plan[0] if plan else Action.STAY

@@ -353,6 +353,24 @@
 
     <script>
       document.addEventListener("DOMContentLoaded", function () {
+        const createBtn = document.getElementById("create");
+        // true = useCapture
+        createBtn.addEventListener(
+          "click",
+          (e) => {
+            if (!isConfirmed) {
+              e.preventDefault();
+              e.stopImmediatePropagation();
+              alert(
+                "Please create and confirm a subtask sequence before using the overcooked model."
+              );
+              return;
+            }
+            hideTaskSection();
+          },
+          true
+        );
+
         let draggedElement = null;
 
         // Hide/show task section based on game state
@@ -575,38 +593,6 @@
               btn.disabled = false;
               btn.textContent = "Ask LLM";
             }
-
-            document
-              .getElementById("confirmSequence")
-              .addEventListener("click", async () => {
-                const cards = document.querySelectorAll(".subtask-card");
-                const sequence = [];
-                cards.forEach((card) => {
-                  card.classList.add("confirmed");
-                  card.draggable = false;
-                  card.style.pointerEvents = "none";
-                  sequence.push(
-                    card.querySelector(".subtask-text").textContent.trim()
-                  );
-                });
-                // disable button
-                const btn = document.getElementById("confirmSequence");
-                btn.disabled = true;
-
-                // send to backend
-                try {
-                  const resp = await fetch("/confirm_subtasks", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ subtasks: sequence }),
-                  });
-                  if (!resp.ok) throw new Error(resp.statusText);
-                  // optionally handle success
-                } catch (err) {
-                  console.error("Confirmation failed:", err);
-                  alert("Failed to confirm sequence");
-                }
-              });
           });
 
         // Drag and drop for reordering

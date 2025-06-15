@@ -19,10 +19,12 @@ from threading import Lock
 
 import game
 from flask import Flask, jsonify, render_template, request
-from llm.orchestrator.router import route_generate_subtasks
 from flask_socketio import SocketIO, emit, join_room, leave_room
 from game import Game, OvercookedGame, OvercookedTutorial
 from utils import ThreadSafeDict, ThreadSafeSet
+
+from llm.orchestrator.router import route_generate_subtasks
+from llm.agents.subtask_classifier import classify_subtasks, group_events
 
 ### Thoughts -- where I'll log potential issues/ideas as they come up
 # Should make game driver code more error robust -- if overcooked randomlly errors we should catch it and report it to user
@@ -450,7 +452,35 @@ def generate_subtasks():
         return jsonify({"subtasks": subtasks}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    
+@app.route("/confirm_subtasks", methods=["POST"])
+def confirm_subtasks():
+    """
+    Expects JSON payload:
+      {
+        "taskName": "...",
+        "subtasks": [...],
+        "notes": "..."
+      }
+    Returns:
+      { "status":"success", "events":[...] }
+    """
+    payload = request.get_json() or {}
+    subtasks = payload.get("subtasks", [])
 
+    try:
+        # 1. Tag
+        tagged = classify_subtasks(subtasks)
+
+        # 2. Group
+        events = group_events(tagged)
+
+        # 3. Return sequence
+        return jsonify({"status": "success", "events": events}), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    
 
 
 #########################

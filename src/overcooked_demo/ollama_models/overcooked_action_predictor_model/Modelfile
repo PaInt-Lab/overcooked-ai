@@ -22,19 +22,6 @@ Secondary (Robot) Tasks
 4. Stage Dish at Stove
 5. Bring Dish to Serving Station
 
-Task Pairings (Trigger Conditions)
-(Evaluate top to bottom; use the first matching condition.)
-
-| Condition                                                                                | A1 (Human)                   | A2 (Robot)                    |
-| ---------------------------------------------------------------------------------------- | ---------------------------- | ----------------------------- |
-| No raw ingredient at prep, none staged at stove, and there is not 3 ingredients on stove | –                            | Fetch Ingredient              |
-| Raw ingredient held by robot                                                             | –                            | Stage Ingredient at Stove     |
-| Exactly 1 or 2 ingredients staged at stove and no cooking in progress                    | Place Ingredient on Stove    | –                             |
-| Exactly 3 ingredients staged at stove and no cooking in progress                         | Turn Stove on                | Fetch Dish                    |
-| Stove is on & cooking in progress                                                        | Wait for Ingredients to Cook | Stage Dish at Stove           |
-| Cooking completed (pot full)                                                             | Pour Cooked Food into Bowl   | -                             |
-| Bowl filled & human pouring                                                              | –                            | Bring Dish to Serving Station |
-
 Instructions:
 
 - Evaluate each condition in order; select the first one that matches STATE.

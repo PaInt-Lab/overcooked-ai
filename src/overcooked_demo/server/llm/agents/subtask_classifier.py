@@ -27,8 +27,10 @@ def classify_subtasks(
     prompt_lines.append("}")
 
     raw_input = json.dumps({"subtasks": subtasks})
+    print(f"Classifying subtasks: {raw_input}")
 
-    response = query_ollama("overcooked_subtask_classifier", raw_input)
+    response = query_ollama("overcooked_task_classifier", raw_input)
+    print(f"Response from classifier: {response}")
 
     data = json.loads(response)
     return data["tagged_subtasks"]
@@ -65,6 +67,12 @@ def group_events(tagged: list[dict]) -> list[dict]:
                 prev_s_set = s_set
 
             curr_s = []
+    
+    if curr_s:
+        events.append({
+            "secondary": [curr_s],
+            "primary": ["NOOP"]
+        })
 
     return events
 

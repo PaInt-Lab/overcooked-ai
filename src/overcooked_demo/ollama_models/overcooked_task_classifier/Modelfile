@@ -1,9 +1,6 @@
 FROM llama3.2
 
-# Ensure deterministic tagging
-
-PARAMETER temperature 0.0
-PARAMETER max_tokens 512
+PARAMETER temperature 0.7
 
 SYSTEM """
 You are a task‐classification assistant for an Overcooked-style environment.  
@@ -34,9 +31,8 @@ Guidelines:
    - `"action"`: the original subtask string
    - `"type"`: either `"primary"` or `"secondary"`
 4. Do _not_ include any extra text, comments, or explanation—only the JSON object.
-5. Use exact labels `"primary"` and `"secondary"` (all lowercase).  
-   """
+5. Use exact labels `"primary"` and `"secondary"` (all lowercase).
 
-USER """
+USER
 {subtasks}
 """

@@ -467,6 +467,7 @@ def confirm_subtasks():
     """
     payload = request.get_json() or {}
     subtasks = payload.get("subtasks", [])
+    print(f"Received subtasks: {subtasks}")
 
     try:
         # 1. Tag

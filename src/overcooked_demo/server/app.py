@@ -1,5 +1,8 @@
 import os
 import sys
+from uuid import uuid4
+
+from plan_session import PLAN_STORE, PlanSession
 
 # Import and patch the production eventlet server if necessary
 if os.getenv("FLASK_ENV", "production") == "production":
@@ -476,8 +479,11 @@ def confirm_subtasks():
         # 2. Group
         events = group_events(tagged)
 
-        # 3. Return sequence
-        return jsonify({"status": "success", "events": events}), 200
+        session_id = uuid4().hex
+        PLAN_STORE[session_id] = PlanSession(events)
+
+        # 3. Return sequence and session ID
+        return jsonify({"status": "success", "session_id": session_id, "events": events}), 200
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -547,11 +553,16 @@ def on_create(data):
             return
 
         params = data.get("params", {})
-
+        plan_id = data.get("plan_session_id")
         creation_params(params)
 
         game_name = data.get("game_name", "overcooked")
         _create_game(user_id, game_name, params)
+
+        game_id = get_curr_room(user_id)
+        game = get_game(game_id)
+        if plan_id:
+            game.plan_session_id = plan_id
 
 
 @socketio.on("join")

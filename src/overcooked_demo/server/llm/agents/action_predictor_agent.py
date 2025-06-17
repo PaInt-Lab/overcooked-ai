@@ -4,6 +4,7 @@ from overcooked_ai_py.mdp.overcooked_mdp import OvercookedGridworld
 from overcooked_ai_py.planning.planners import MotionPlanner, NO_COUNTERS_PARAMS
 from overcooked_ai_py.mdp.actions import Action
 from llm.ollama.ollama_client import query_ollama
+from plan_session import PLAN_STORE
 
 
 def serialize_state(state, mdp) -> str:
@@ -24,9 +25,8 @@ class ActionPredictorAgent(Agent):
     and secondary (A2) tasks, then uses MotionPlanner and raw terrain to convert the robot task into
     a low-level Action.
     """
-    def __init__(self, model_name: str = "overcooked_action_predictor_model"):
+    def __init__(self):
         super().__init__()
-        self.model_name = model_name
         self.mdp = None
         self.planner = None
         self.ingredient_spawns = []
@@ -72,15 +72,32 @@ class ActionPredictorAgent(Agent):
         ]
 
     def action(self, state):
-        # 1. Serialize using MDP terrain and full state dict
+        # 0. Grab the current high-level event
+        sec_list, prim_list = self.plan.current().values()
+
+        # 1. Serialize state
         serialized = serialize_state(state, self.mdp)
-        prompt = f"STATE: {serialized}"
+
+        # 2a. Build prompt with just the current event
+        prompt = (
+            f"EVENT Action's:\n"
+            f"  Secondary: {sec_list}\n"
+            f"  Primary:   {prim_list}\n\n"
+            f"STATE: {serialized}"
+        )
 
         # 2. Single LLM call
-        response = query_ollama(self.model_name, prompt)
+        response = query_ollama("overcooked_action_predictor_model", prompt)
 
-        # 3. Parse A1 and A2
-        human_task, robot_task = self._parse_response(response)
+        # 3. Parse JSON output
+        pred = json.loads(response)
+        complete      = pred.get("complete", False)
+        human_task    = pred.get("primary",   "–")
+        robot_task    = pred.get("secondary", "–")
+
+        # 3b. Advance the plan if the model says current event is done
+        if complete:
+            self.plan.advance()
 
         # 4. Map high-level robot task to goal coordinate
         my_pos = state.player_positions[self.agent_index]
@@ -124,7 +141,7 @@ class ActionPredictorAgent(Agent):
         return results
 
     @staticmethod
-    def _parse_response(response: str):
+    def _parse_response(response: str): 
         a1, a2 = '–', '–'
         for line in response.splitlines():
             if line.startswith('A1:'):
@@ -156,3 +173,6 @@ class ActionPredictorAgent(Agent):
             choices,
             key=lambda p: abs(p[0] - my_pos[0]) + abs(p[1] - my_pos[1])
         )
+    
+    def set_plan(self, session_id):
+        self.plan = PLAN_STORE[session_id]

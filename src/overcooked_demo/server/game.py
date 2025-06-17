@@ -677,6 +677,9 @@ class OvercookedGame(Game):
             agent = ActionPredictorAgent(model_name="action_predictor_model")
             agent.set_agent_index(idx)
             agent.set_mdp(self.mdp)
+            plan_id = getattr(self, "plan_session_id", None)
+            if plan_id:
+                agent.set_plan(plan_id)
             return agent
         if npc_id.lower().startswith("rllib"):
             try:

@@ -682,7 +682,12 @@
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ subtasks: seq }),
-            }).catch(console.error);
+            })
+              .then((r) => r.json())
+              .then((data) => {
+                window.planSessionId = data.session_id;
+              })
+              .catch(console.error);
           }
         }
         confirmBtn.addEventListener("click", toggleConfirm);

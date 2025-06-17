@@ -662,7 +662,6 @@
           ).length
             ? "block"
             : "none";
-          updateConfirmButtonVisibility();
         }
 
         function toggleConfirm() {
@@ -685,6 +684,7 @@
             })
               .then((r) => r.json())
               .then((data) => {
+                console.log("confirm_subtasks response:", data);
                 window.planSessionId = data.session_id;
               })
               .catch(console.error);

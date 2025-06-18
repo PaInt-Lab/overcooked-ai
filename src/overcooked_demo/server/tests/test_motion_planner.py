@@ -1,5 +1,5 @@
 # test_motion_planner.py
-from overcooked_ai_py.mdp.overcooked_mdp import OvercookedGridworld
+from overcooked_ai_py.mdp.overcooked_mdp import OvercookedGridworld, Action
 from llm.agents.action_predictor_agent import ActionPredictorAgent
 from overcooked_ai_py.planning.planners import NO_COUNTERS_PARAMS, MotionPlanner
 
@@ -32,22 +32,27 @@ my_goals = {
 
 planner = MotionPlanner(mdp, counter_goals=my_goals) # Eventually, instead of building everytime, can save a pickled version 
 
-print("All computed keys:")
-for k in planner.all_plans.keys():
-    print(k)
+# print("All computed keys:")
+# for k in planner.all_plans.keys():
+#     print(k)
 
 
 start_pos = (1,2)
 orient   = (0,1)
 start    = (start_pos, orient)
 
-# pick a fetch‐ingredient goal
-goal_pos = ingredient_spawns[0] 
-goal     = (goal_pos, orient)
+
+valid_goals = [
+    goal_and_or
+    for (start_and_or, goal_and_or) in planner.all_plans.keys()
+    if start_and_or == start
+]
+goal_pos, goal_orient = valid_goals[0]
+goal = (goal_pos, goal_orient)
 
 print(f"\n=== MOTION PLANNER DEBUG ===")
 print(f"Start cell: {start_pos}, orientation: {orient}")
-print(f"Goal cell:  {goal_pos}, orientation: {orient}\n")
+print(f"Goal cell:  {goal_pos}, orientation: {goal_orient}\n")
 
 plan, _, _ = planner.get_plan(start, goal)
 assert plan, "Planner returned empty plan!"
@@ -56,12 +61,12 @@ print("Plan to fetch ingredient:", plan , "\n")
 # Simulate following the plan
 state = mdp.get_standard_start_state()
 print("Initial full state:")
-print("  Player positions:", state.player_positions)
-print("  Pots:", [pot.ingredients for pot in state.pot_states], "\n")
+print("Player positions:", state.player_positions)
 
 step = 0
 for a in plan:
     step += 1
+    joint_action = [a, Action.STAY]  # mdp is expecting a join action, but we only care about one agent's action, so other agent stays still
     # unpack reward and done so we can print them
     state, reward, done = mdp.get_state_transition(state, [a])
     pos = state.player_positions[0]

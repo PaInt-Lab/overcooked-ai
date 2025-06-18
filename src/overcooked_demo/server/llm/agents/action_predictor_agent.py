@@ -72,10 +72,8 @@ class ActionPredictorAgent(Agent):
         ]
 
     def action(self, state):
-        # 1. Serialize state
         serialized = serialize_state(state, self.mdp)
 
-        # 2a. Build prompt with both CURRENT_EVENT and NEXT_EVENT
         curr_event = self.plan.current()
         curr_sec, curr_prim = curr_event["secondary"], curr_event["primary"]
 
@@ -96,10 +94,8 @@ class ActionPredictorAgent(Agent):
             f"STATE: {serialized}"
         )
 
-        # 2. Single LLM call
         response = query_ollama("overcooked_action_predictor_model", prompt)
 
-        # 3. Parse JSON output
         try:
             pred = json.loads(response)
         except (json.JSONDecodeError, TypeError):
@@ -110,11 +106,10 @@ class ActionPredictorAgent(Agent):
         human_task    = pred.get("primary",   "–")
         robot_task    = pred.get("secondary", "–")
 
-        # 3b. Advance the plan if the model says current event is done
         if complete:
             self.plan.advance()
 
-        # 4. Map high-level robot task to goal coordinate
+        #  Map high-level robot task to goal coordinate
         my_pos = state.player_positions[self.agent_index]
         goal = self._task_to_goal(robot_task, my_pos)
 
@@ -156,7 +151,11 @@ class ActionPredictorAgent(Agent):
         return results
 
     def _task_to_goal(self, task: str, my_pos: tuple) -> tuple:
-        # Map high-level tasks to spawn lists built from raw terrain
+        """ 
+        Given a canonical secondary or primary task (e.g. "Fetch Ingredient", 
+        "Stage Ingredient at Stove", etc.) and the agent’s current position,
+        returns the nearest tile associated with that task"""
+
         if task == "Fetch Ingredient":
             choices = self.ingredient_spawns
         elif task == "Stage Ingredient at Stove":

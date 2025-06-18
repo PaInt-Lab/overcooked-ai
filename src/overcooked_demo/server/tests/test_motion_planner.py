@@ -66,12 +66,10 @@ print("Player positions:", state.player_positions)
 step = 0
 for a in plan:
     step += 1
-    joint_action = [a, Action.STAY]  # mdp is expecting a join action, but we only care about one agent's action, so other agent stays still
-    # unpack reward and done so we can print them
-    state, reward, done = mdp.get_state_transition(state, [a])
+    joint_action = [a, Action.STAY]
+    state, reward = mdp.get_state_transition(state, joint_action)
     pos = state.player_positions[0]
     print(f" Step {step}: Action = {a}")
-    print(f"   New pos = {pos}, reward = {reward}, done = {done}")
+    print(f"   New pos = {pos}, reward = {reward}")
 
-print("\nFinal position:", pos, "  Expected goal:", goal_pos)
-print("Test complete.")
+print("Final position:", pos, "Expected:", goal_pos)

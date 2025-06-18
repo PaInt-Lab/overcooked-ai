@@ -46,7 +46,7 @@ class ActionPredictorAgent(Agent):
         )
         # Build spawn lists from terrain matrix
         terrain = mdp.terrain_mtx
-        self.ingredient_spawns = [ 
+        self.ingredient_spawns = [ # Eventually each type of ingredient dispenser should have its own spawn
             (i, j)
             for i, row in enumerate(terrain)
             for j, c in enumerate(row)
@@ -72,17 +72,27 @@ class ActionPredictorAgent(Agent):
         ]
 
     def action(self, state):
-        # 0. Grab the current high-level event
-        sec_list, prim_list = self.plan.current().values()
-
         # 1. Serialize state
         serialized = serialize_state(state, self.mdp)
 
-        # 2a. Build prompt with just the current event
+        # 2a. Build prompt with both CURRENT_EVENT and NEXT_EVENT
+        curr_event = self.plan.current()
+        curr_sec, curr_prim = curr_event["secondary"], curr_event["primary"]
+
+        # Look ahead to next event (or NOOP if none)
+        if self.plan.idx + 1 < len(self.plan.events):
+            next_event = self.plan.events[self.plan.idx + 1]
+            next_sec, next_prim = next_event["secondary"], next_event["primary"]
+        else:
+            next_sec, next_prim = ["NOOP"], ["NOOP"]
+
         prompt = (
-            f"EVENT Action's:\n"
-            f"  Secondary: {sec_list}\n"
-            f"  Primary:   {prim_list}\n\n"
+            f"CURRENT_EVENT:\n"
+            f"  primary:   {curr_prim}\n"
+            f"  secondary: {curr_sec}\n\n"
+            f"NEXT_EVENT:\n"
+            f"  primary:   {next_prim}\n"
+            f"  secondary: {next_sec}\n\n"
             f"STATE: {serialized}"
         )
 
@@ -90,7 +100,12 @@ class ActionPredictorAgent(Agent):
         response = query_ollama("overcooked_action_predictor_model", prompt)
 
         # 3. Parse JSON output
-        pred = json.loads(response)
+        try:
+            pred = json.loads(response)
+        except (json.JSONDecodeError, TypeError):
+            # if the LLM output is malformed, default to “not complete”
+            pred = {}
+
         complete      = pred.get("complete", False)
         human_task    = pred.get("primary",   "–")
         robot_task    = pred.get("secondary", "–")
@@ -139,16 +154,6 @@ class ActionPredictorAgent(Agent):
             self.set_agent_index(idx)
             results.append(self.action(state))
         return results
-
-    @staticmethod
-    def _parse_response(response: str): 
-        a1, a2 = '–', '–'
-        for line in response.splitlines():
-            if line.startswith('A1:'):
-                a1 = line.split('A1:', 1)[1].strip()
-            elif line.startswith('A2:'):
-                a2 = line.split('A2:', 1)[1].strip()
-        return a1, a2
 
     def _task_to_goal(self, task: str, my_pos: tuple) -> tuple:
         # Map high-level tasks to spawn lists built from raw terrain

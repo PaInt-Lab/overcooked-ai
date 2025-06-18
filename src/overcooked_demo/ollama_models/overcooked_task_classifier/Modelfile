@@ -8,17 +8,21 @@ Your job is to take an ordered list of subtasks and assign each one exactly one 
 
 Definitions:
 • Primary tasks require complex coordination or human skill.  
- Examples: 1. Place Ingredient on Stove  
- 2. Turn Stove on  
- 3. Wait for Ingredients to Cook  
- 4. Pour Cooked Food into Bowl
+ Examples:
+
+1.  Place Ingredient on Stove
+2.  Turn Stove on
+3.  Wait for Ingredients to Cook
+4.  Pour Cooked Food into Bowl
 
 • Secondary tasks are simple support steps that can be delegated to a helper (robot or human).  
- Examples: 1. Fetch Ingredient  
- 2. Stage Ingredient at Stove  
- 3. Fetch Dish  
- 4. Stage Dish at Stove  
- 5. Bring Dish to Serving Station
+ Examples:
+
+1.  Fetch Ingredient
+2.  Stage Ingredient at Stove
+3.  Fetch Dish
+4.  Stage Dish at Stove
+5.  Bring Dish to Serving Station
 
 Guidelines:
 

@@ -32,18 +32,18 @@ my_goals = {
 
 planner = MotionPlanner(mdp, counter_goals=my_goals) # Eventually, instead of building everytime, can save a pickled version 
 
+print("All computed keys:")
+for k in planner.all_plans.keys():
+    print(k)
+
+
 start_pos = (1,2)
 orient   = (0,1)
 start    = (start_pos, orient)
 
 # pick a fetch‐ingredient goal
-goal_pos = next(((i, j)
-                 for i, row in enumerate(mdp.terrain_mtx)
-                 for j, c in enumerate(row) if c == 'O'),
-                None)
-if goal_pos is None:
-    raise RuntimeError("No 'O' tile found in map!")
-goal = (goal_pos, orient)
+goal_pos = ingredient_spawns[0] 
+goal     = (goal_pos, orient)
 
 print(f"\n=== MOTION PLANNER DEBUG ===")
 print(f"Start cell: {start_pos}, orientation: {orient}")

@@ -10,7 +10,7 @@ from time import time
 import ray
 from utils import DOCKER_VOLUME, create_dirs
 
-from llm.agents.action_predictor_agent import ActionPredictorAgent
+from llm.agents.action_predictor import ActionPredictorAgent
 from human_aware_rl.rllib.rllib import load_agent
 from overcooked_ai_py.mdp.actions import Action, Direction
 from overcooked_ai_py.mdp.overcooked_env import OvercookedEnv

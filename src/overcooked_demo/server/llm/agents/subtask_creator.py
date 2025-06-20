@@ -43,5 +43,5 @@ class SubtaskAgent():
 
         full_prompt = "\n\n".join(prompt_lines)
 
-        response = query_ollama("overcooked_subtask_model", full_prompt)
+        response = query_ollama("subtask_creator", full_prompt)
         return response

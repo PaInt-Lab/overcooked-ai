@@ -1,6 +1,6 @@
 # test_motion_planner.py
 from overcooked_ai_py.mdp.overcooked_mdp import OvercookedGridworld, Action
-from llm.agents.action_predictor_agent import ActionPredictorAgent
+from llm.agents.action_predictor import ActionPredictorAgent
 from overcooked_ai_py.planning.planners import NO_COUNTERS_PARAMS, MotionPlanner
 
 mdp = OvercookedGridworld.from_layout_name("cramped_room")

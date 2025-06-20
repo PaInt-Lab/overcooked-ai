@@ -19,7 +19,7 @@
 #     assert goal in choices, f"{task} → {goal} not in {choices}"
 # print("All task→goal mappings valid")
 
-from llm.agents.action_predictor_agent import ActionPredictorAgent
+from llm.agents.action_predictor import ActionPredictorAgent
 from overcooked_ai_py.mdp.overcooked_mdp import OvercookedGridworld
 
 mdp = OvercookedGridworld.from_layout_name("cramped_room")

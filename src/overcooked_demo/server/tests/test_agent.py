@@ -33,7 +33,7 @@
 import json
 from overcooked_ai_py.mdp.overcooked_mdp import OvercookedGridworld
 from overcooked_ai_py.mdp.overcooked_env import OvercookedEnv
-from llm.agents.action_predictor_agent import ActionPredictorAgent
+from llm.agents.action_predictor import ActionPredictorAgent
 
 def main():
     # 1) Build the MDP

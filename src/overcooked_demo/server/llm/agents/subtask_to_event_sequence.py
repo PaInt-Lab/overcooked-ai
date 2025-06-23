@@ -31,7 +31,6 @@ def classify_subtasks(
     # print(f"Classifying subtasks: {raw_input}")
 
     response = query_ollama("task_tagger", raw_input)
-    print(f"Response from classifier: {response}")
 
     data = json.loads(response)
     return data["tagged_subtasks"]
@@ -79,41 +78,61 @@ def group_events(tagged: list[dict]) -> list[dict]:
 
 
 
-def normalize_events_via_llm(raw_events: list[dict]) -> list[dict]:
+
+def normalize_events(raw_events: list[dict]) -> list[dict]:
     """
     Batch-normalize every primary and secondary label in raw_events via the LLM.
     Returns a new event list with the exact same structure, but all labels
-    replaced by their canonical versions (or NOOP).
+    replaced by their canonical versions (or NOOP for secondary).
     """
-    # 1) Collect every unique label (in order) from primary & secondary
-    all_labels = []
-    for ev in raw_events:
-        for p in ev["primary"]:
-            if p not in all_labels:
-                all_labels.append(p)
-        for sec_list in ev["secondary"]:
-            for s in sec_list:
-                if s not in all_labels:
-                    all_labels.append(s)
 
-    # 2) Ask the LLM to normalize them in one shot
-    payload = json.dumps({"labels": all_labels})
+    # 1) Flatten the primaries and secondaries into two lists, preserving order
+    prim_labels = []
+    sec_labels  = []
+    for ev in raw_events:
+        prim_labels.extend(ev["primary"])
+        for sec_list in ev["secondary"]:
+            sec_labels.extend(sec_list)
+
+    # 2) Call the normalizer
+    payload = json.dumps({
+      "primary_labels":   prim_labels,
+      "secondary_labels": sec_labels
+    })
     resp = query_ollama("task_normalizer", payload)
     out = json.loads(resp)
-    normalized_list = out.get("normalized", [])
 
-    # 3) Build a lookup map
-    norm_map = {orig: norm for orig, norm in zip(all_labels, normalized_list)}
+    prim_norm = out.get("primary_normalized", [])
+    sec_norm  = out.get("secondary_normalized", [])
 
-    # 4) Reconstruct the events structure using that map
-    normalized_events = []
+    # 3) Rebuild events by consuming from those two arrays in order
+    normalized = []
+    p_idx = 0
+    s_idx = 0
     for ev in raw_events:
-        new_prims = [norm_map.get(p, "NOOP") for p in ev["primary"]]
-        new_secs  = [[norm_map.get(s, "NOOP") for s in sec_list]
-                     for sec_list in ev["secondary"]]
-        normalized_events.append({
-            "primary":   new_prims,
-            "secondary": new_secs
+        n_prims = []
+        for _ in ev["primary"]:
+            # safety bounds check
+            if p_idx < len(prim_norm):
+                n_prims.append(prim_norm[p_idx])
+            else:
+                n_prims.append("NOOP")
+            p_idx += 1
+
+        n_secs = []
+        for sec_list in ev["secondary"]:
+            this_sec_list = []
+            for _ in sec_list:
+                if s_idx < len(sec_norm):
+                    this_sec_list.append(sec_norm[s_idx])
+                else:
+                    this_sec_list.append("NOOP")
+                s_idx += 1
+            n_secs.append(this_sec_list)
+
+        normalized.append({
+            "primary":   n_prims,
+            "secondary": n_secs
         })
 
-    return normalized_events
+    return normalized

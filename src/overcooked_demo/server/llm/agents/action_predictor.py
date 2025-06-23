@@ -33,28 +33,28 @@ class ActionPredictorAgent(Agent):
         super().set_mdp(mdp)
         self.mdp = mdp
         terrain = mdp.terrain_mtx
-        ingredient_spawns = [(i, j)
+        self.ingredient_spawns = [(i, j)
                             for i, row in enumerate(terrain)
                             for j, c in enumerate(row)
                             if c in ('O', 'T')]
-        stove_tiles       = [(i, j)
+        self.stove_tiles       = [(i, j)
                             for i, row in enumerate(terrain)
                             for j, c in enumerate(row)
                             if c == 'P']
-        dish_spawns       = [(i, j)
+        self.dish_spawns       = [(i, j)
                             for i, row in enumerate(terrain)
                             for j, c in enumerate(row)
                             if c == 'D']
-        delivery_tiles    = [(i, j)
+        self.delivery_tiles    = [(i, j)
                             for i, row in enumerate(terrain)
                             for j, c in enumerate(row)
                             if c == 'S']
 
         my_goals = {
-            'ingredient': ingredient_spawns,
-            'pot':        stove_tiles,
-            'dish':       dish_spawns,
-            'delivery':   delivery_tiles
+            'ingredient': self.ingredient_spawns,
+            'pot':        self.stove_tiles,
+            'dish':       self.dish_spawns,
+            'delivery':   self.delivery_tiles
         }
 
         self.planner = MotionPlanner(mdp, counter_goals=my_goals) # Eventually, instead of building everytime, can save a pickled version 
@@ -66,6 +66,7 @@ class ActionPredictorAgent(Agent):
 
     def action(self, state):
         serialized = serialize_state(state, self.mdp)
+        terrain = self.mdp.terrain_mtx
 
         plan_lines = []
         for idx, ev in enumerate(self.plan.events):
@@ -75,9 +76,10 @@ class ActionPredictorAgent(Agent):
         plan_text = "\n".join(plan_lines)
 
         prompt = (
-            f"PLAN:\n{plan_text}\n\n"
+            f"\n\nTERRAIN:\n{terrain}\n\n"
             f"STATE: {serialized}"
-        )
+            f"PLAN:\n{plan_text}\n\n"
+        ) 
         response = query_ollama("action_predictor", prompt)
 
         try:
@@ -94,6 +96,7 @@ class ActionPredictorAgent(Agent):
 
         my_pos = state.player_positions[self.agent_index]
         goal = self._task_to_goal(robot_task, my_pos)
+        print(f"Goal for robot task '{robot_task}': {goal}")
 
         orientations = state.to_dict()["players"][self.agent_index]["orientation"]
         start_pair = (my_pos, tuple(orientations))
@@ -107,9 +110,9 @@ class ActionPredictorAgent(Agent):
 
         return move, {
             "event":    event_idx+1,  # back to 1-based for clarity
-            "human_task":   human_task,
+            # "human_task":   human_task,
             "robot_task":   robot_task,
-            "prompt":       prompt,
+            # "prompt":       prompt,
             "response":     response
         }
 
@@ -122,6 +125,8 @@ class ActionPredictorAgent(Agent):
         """
         if task == "Fetch Ingredient":
             choices = self.ingredient_spawns
+            print(f"Fetching ingredient from: {self.ingredient_spawns}")
+            print(f"Fetching ingredient from: {choices}")
         elif task == "Stage Ingredient at Stove":
             choices = self.stove_tiles
         elif task == "Fetch Dish":

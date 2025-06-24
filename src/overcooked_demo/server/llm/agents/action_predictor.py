@@ -17,49 +17,51 @@ def serialize_state(state, mdp) -> str:
     }
     return json.dumps(state_info)
 
+
 def _bfs_fallback(start, goal, terrain):
     """
-    Guaranteed path from start (r,c) to goal (r,c) on `terrain`,
-    returning a list of Direction.* moves.
+    Return a list of (delta_row, delta_col) moves to walk from start to goal on terrain,
+    ignoring orientation. Guaranteed to find a path if one exists.
     """
-    # Map delta→Direction
-    moves = {
-        ( 0,  1): Direction.EAST,
-        ( 0, -1): Direction.WEST,
-        ( 1,  0): Direction.SOUTH,
-        (-1,  0): Direction.NORTH
-    }
     H, W = len(terrain), len(terrain[0])
     visited = {start}
     parent = {}
-    q = deque([start])
+    queue = deque([start])
 
-    while q:
-        x, y = q.popleft()
-        if (x, y) == goal:
-            # Reconstruct move‐list
+    # Four cardinal directions: (delta_row, delta_col)
+    directions = [(0, 1), (0, -1), (1, 0), (-1, 0)]
+
+    while queue:
+        row, col = queue.popleft()
+        if (row, col) == goal:
+            # Reconstruct path of (dr, dc) tuples
             path = []
             cur = goal
             while cur != start:
                 prev = parent[cur]
-                dx, dy = cur[0] - prev[0], cur[1] - prev[1]
-                path.append(moves[(dx, dy)])
+                dr = cur[0] - prev[0]
+                dc = cur[1] - prev[1]
+                path.append((dr, dc))
+                print(f"Backtracking from {cur} to {prev} with move [{dr}, {dc}]")
+                print([cur[0], cur[1]], [prev[0], prev[1]])
+                print(cur[0] - prev[0], cur[1] - prev[1])
                 cur = prev
             return list(reversed(path))
 
-        for (dx, dy), dir_action in moves.items():
-            nx, ny = x + dx, y + dy
+        for dr, dc in directions:
+            new_row = row + dr
+            new_col = col + dc
             if (
-                0 <= nx < H and
-                0 <= ny < W and
-                terrain[nx][ny] != 'X' and
-                (nx, ny) not in visited
+                0 <= new_row < H and
+                0 <= new_col < W and
+                terrain[new_row][new_col] != 'X' and
+                (new_row, new_col) not in visited
             ):
-                visited.add((nx, ny))
-                parent[(nx, ny)] = (x, y)
-                q.append((nx, ny))
+                visited.add((new_row, new_col))
+                parent[(new_row, new_col)] = (row, col)
+                queue.append((new_row, new_col))
 
-    return []  # unreachable
+    return []
 
 class ActionPredictorAgent(Agent):
     def __init__(self):
@@ -137,15 +139,16 @@ class ActionPredictorAgent(Agent):
         event_idx = max(0, min(event_idx, len(self.plan.events)-1))
         human_task = pred.get("primary",   "–")
         robot_task = pred.get("secondary", "–")
-        print(f"Event {event_idx+1} → Human Task: {human_task}, Robot Task: {robot_task}")
+        # print(f"Event {event_idx+1} → Human Task: {human_task}, Robot Task: {robot_task}")
 
         my_pos = state.player_positions[self.agent_index]
         goal = self._task_to_goal(robot_task, my_pos)
-        print(f"Goal for robot task '{robot_task}': {goal}")
+        # print(f"Goal for robot task '{robot_task}': {goal}")
 
         orientations = state.to_dict()["players"][self.agent_index]["orientation"]
         start_pair = (my_pos, tuple(orientations))
         goal_pair  = (goal,  tuple(orientations))
+        print(f"Start pair: {start_pair}, Goal pair: {goal_pair}")
 
 
         # try:

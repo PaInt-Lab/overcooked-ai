@@ -35,7 +35,7 @@ def run_integration_test():
     pos_history = []
 
     # 3) Simulate ticks until plan exhausted or max steps
-    max_steps = 1
+    max_steps = 2
     for step in range(max_steps):
         move, info = agent.action(state)
         # print("Move action:", move, "Info:", info)

@@ -42,9 +42,6 @@ def _bfs_fallback(start, goal, terrain):
                 dr = cur[0] - prev[0]
                 dc = cur[1] - prev[1]
                 path.append((dr, dc))
-                print(f"Backtracking from {cur} to {prev} with move [{dr}, {dc}]")
-                print([cur[0], cur[1]], [prev[0], prev[1]])
-                print(cur[0] - prev[0], cur[1] - prev[1])
                 cur = prev
             return list(reversed(path))
 
@@ -139,79 +136,24 @@ class ActionPredictorAgent(Agent):
         event_idx = max(0, min(event_idx, len(self.plan.events)-1))
         human_task = pred.get("primary",   "–")
         robot_task = pred.get("secondary", "–")
-        # print(f"Event {event_idx+1} → Human Task: {human_task}, Robot Task: {robot_task}")
+        print(f"Event {event_idx+1} → Human Task: {human_task}, Robot Task: {robot_task}")
 
         my_pos = state.player_positions[self.agent_index]
         goal = self._task_to_goal(robot_task, my_pos)
-        # print(f"Goal for robot task '{robot_task}': {goal}")
 
         orientations = state.to_dict()["players"][self.agent_index]["orientation"]
         start_pair = (my_pos, tuple(orientations))
         goal_pair  = (goal,  tuple(orientations))
         print(f"Start pair: {start_pair}, Goal pair: {goal_pair}")
 
-
-        # try:
-        #     action_plan, _, _ = self.planner.get_plan(start_pair, goal_pair)
-        #     print(f"Action plan for robot task '{robot_task}': {action_plan}")
-        # except KeyError:
-        #     action_plan = []
-        # move = action_plan[0] if action_plan else Action.STAY
-
-        # try:
-        #     action_plan, _, _ = self.planner.get_plan(start_pair, goal_pair)
-        # except KeyError:
-        #     action_plan = self.planner.action_plan_from_positions(start_pair, goal_pair)
-
-        # inside your ActionPredictorAgent.action(...)
-        
-        # try:
-        #     action_plan, _, _ = self.planner.get_plan(start_pair, goal_pair)
-        # except KeyError:
-        #     # FALLBACK with correct signature:
-        #     # 1) list of positions → [goal]
-        #     # 2) full start motion‐state
-        #     # 3) full goal motion‐state
-        #     action_plan = self.planner.action_plan_from_positions(
-        #         [goal],        # <-- raw (x,y) position list
-        #         start_pair,    # <-- (pos,orient)
-        #         goal_pair      # <-- (pos,orient)
-        #     )
-
-
-        # # 3. Call the orientation-agnostic planner only
-        # action_plan = self.planner.action_plan_from_positions(
-        #     [goal],      # a list of raw (x,y) goal positions
-        #     start_pair,  # (pos,orient) start motion‐state
-        #     goal_pair    # (pos,orient) goal motion‐state
-        # )
-
-        # try:
-        #     # Plan A: exact orientation‐specific lookup
-        #     action_plan, _, _ = self.planner.get_plan(start_pair, goal_pair)
-        #     planner_method = "get_plan"
-        # except KeyError:
-        #     try:
-        #         # Plan B: orientation‐agnostic fallback
-        #         action_plan = self.planner.action_plan_from_positions(
-        #             [goal],     # list of raw (x,y) goal positions
-        #             start_pair, # (pos,orient)
-        #             goal_pair   # (pos,orient)
-        #         )
-        #         planner_method = "action_plan_from_positions"
-        #     except Exception as e:
-        #         # Anything goes wrong in Plan B → stay put
-        #         print("Planner fallback failed:", e)
-        #         action_plan = []
-        #         planner_method = "failed_fallback"
         try:
             # Plan A: orientation‐specific
             action_plan, _, _ = self.planner.get_plan(start_pair, goal_pair)
-            print("Action plan found using get_plan:", action_plan)
+            # print("Action plan found using get_plan:", action_plan)
         except KeyError:
             try:
                 # Plan B: orientation‐agnostic
-                action_plan = self.planner.action_plan_from_positions(
+                action_plan, _, _ = self.planner.action_plan_from_positions(
                     [goal], start_pair, goal_pair
                 )
                 print("Action plan found using action_plan_from_positions:", action_plan)

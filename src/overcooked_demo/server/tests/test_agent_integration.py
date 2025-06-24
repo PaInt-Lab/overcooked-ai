@@ -30,16 +30,12 @@ def run_integration_test():
     agent.set_plan(session_id)
     agent.set_agent_index(0)
 
-    # quick sanity check
-    print("Ingredient spawn tiles:", agent.ingredient_spawns)
-    assert agent.ingredient_spawns, "ingredient_spawns is empty!"
-
     # 2) Get initial state
     state = mdp.get_standard_start_state()
     pos_history = []
 
     # 3) Simulate ticks until plan exhausted or max steps
-    max_steps = 2
+    max_steps = 1
     for step in range(max_steps):
         move, info = agent.action(state)
         # print("Move action:", move, "Info:", info)

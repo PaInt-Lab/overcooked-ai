@@ -81,7 +81,7 @@ class ActionPredictorAgent(Agent):
                             for i, row in enumerate(terrain)
                             for j, c in enumerate(row)
                             if c in ('O', 'T')]
-        self.stove_tiles       = [(i, j)
+        self.stove_tiles       = [(i, j) # Need to manipulate this for the bot to place dishes next to stove
                             for i, row in enumerate(terrain)
                             for j, c in enumerate(row)
                             if c == 'P']
@@ -93,20 +93,77 @@ class ActionPredictorAgent(Agent):
                             for i, row in enumerate(terrain)
                             for j, c in enumerate(row)
                             if c == 'S']
+        staging_tiles = []
+        H, W = len(terrain), len(terrain[0])
+        for (r, c) in self.stove_tiles:
+            for dr, dc in [(0,1), (0,-1), (1,0), (-1,0)]:
+                nr, nc = r + dr, c + dc
+                # ensure we’re in bounds and it’s a counter‐wall ('X')
+                if 0 <= nr < H and 0 <= nc < W and terrain[nr][nc] == 'X':
+                    staging_tiles.append((nr, nc))
 
+        self.ingredient_frontier = self._compute_frontier(self.ingredient_spawns, terrain)
+        self.stove_frontier      = self._compute_frontier(self.stove_tiles,       terrain) 
+        self.dish_frontier       = self._compute_frontier(self.dish_spawns,       terrain)
+        self.delivery_frontier   = self._compute_frontier(self.delivery_tiles,    terrain)
+        self.staging_frontier    = self._compute_frontier(staging_tiles,          terrain)
+        
         my_goals = {
             'ingredient': self.ingredient_spawns,
             'pot':        self.stove_tiles,
             'dish':       self.dish_spawns,
             'delivery':   self.delivery_tiles
-        }
-
+        } # for the next step of testing we will test if we can add 'staging': self.staging_tiles as a goal so that when it hits the staging spot at the end of the plan it interacts
+        
         self.planner = MotionPlanner(mdp, counter_goals=my_goals) # Eventually, instead of building everytime, can save a pickled version 
-
 
     def set_plan(self, session_id: str):
         """Attach the full PlanSession to this agent."""
         self.plan = PLAN_STORE[session_id]
+
+    def _task_to_goal(self, task: str, my_pos: tuple) -> tuple:
+        """
+        Given a canonical task, return the nearest tile for that goal.
+        """
+        if task == "Fetch Ingredient":
+            choices = self.ingredient_frontier
+        elif task == "Stage Ingredient at Stove": 
+            choices = self.staging_frontier
+        elif task == "Fetch Dish":
+            choices = self.dish_frontier
+        elif task == "Stage Dish at Stove":  
+            choices = self.staging_frontier
+        elif task == "Bring Dish to Serving Station":
+            choices = self.delivery_tiles
+        else:
+            return my_pos
+
+        if not choices:
+            return my_pos
+
+        return min(
+            choices,
+            key=lambda p: abs(p[0]-my_pos[0]) + abs(p[1]-my_pos[1])
+        )
+    
+    def _compute_frontier(self, tiles, terrain):
+        """
+        Return the set of walkable tiles adjacent to any tile in 'tiles'.
+        """
+        H, W = len(terrain), len(terrain[0])
+        frontier = set()
+        WALKABLE = {' '}
+
+        for r, c in tiles:
+            for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+                nr, nc = r + dr, c + dc
+                if (
+                    0 <= nr < H and 
+                    0 <= nc < W and 
+                    terrain[nr][nc] in WALKABLE
+                ):
+                    frontier.add((nr, nc))
+        return list(frontier)
 
     def action(self, state):
         serialized = serialize_state(state, self.mdp)
@@ -175,31 +232,4 @@ class ActionPredictorAgent(Agent):
 
     def actions(self, states, agent_indices):
         return [self.action(s) for s in states]
-
-    def _task_to_goal(self, task: str, my_pos: tuple) -> tuple:
-        """
-        Given a canonical task, return the nearest tile for that goal.
-        """
-        if task == "Fetch Ingredient":
-            choices = self.ingredient_spawns
-        elif task == "Stage Ingredient at Stove":
-            choices = self.stove_tiles
-        elif task == "Fetch Dish":
-            choices = self.dish_spawns
-        elif task == "Stage Dish at Stove":
-            choices = self.stove_tiles
-        elif task == "Bring Dish to Serving Station":
-            choices = self.delivery_tiles
-        else:
-            return my_pos
-
-        if not choices:
-            return my_pos
-
-        return min(
-            choices,
-            key=lambda p: abs(p[0]-my_pos[0]) + abs(p[1]-my_pos[1])
-        )
-    
-
 

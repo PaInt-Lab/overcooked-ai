@@ -149,7 +149,7 @@ class ActionPredictorAgent(Agent):
         try:
             # Plan A: orientation‐specific
             action_plan, _, _ = self.planner.get_plan(start_pair, goal_pair)
-            # print("Action plan found using get_plan:", action_plan)
+            print("Action plan found using get_plan:", action_plan)
         except KeyError:
             try:
                 # Plan B: orientation‐agnostic
@@ -200,5 +200,6 @@ class ActionPredictorAgent(Agent):
             choices,
             key=lambda p: abs(p[0]-my_pos[0]) + abs(p[1]-my_pos[1])
         )
+    
 
 

@@ -35,8 +35,9 @@ def run_integration_test():
     pos_history = []
 
     # 3) Simulate ticks until plan exhausted or max steps
-    max_steps = 2
+    max_steps = 3
     for step in range(max_steps):
+        print(f"\n=== Tick {step + 1} ===")
         move, info = agent.action(state)
         # print("Move action:", move, "Info:", info)
         pos, ori = state.player_positions[0], state.to_dict()["players"][0]["orientation"]
@@ -48,7 +49,7 @@ def run_integration_test():
         joint_action = [move, Action.STAY]  # assume partner does nothing
         print(f"Joint action: {joint_action}")
         # print(f"Moving from {pos} with orientation {ori} using action {move}") #Move is empty here
-        state, _ = mdp.get_state_transition(state, joint_action)
+        state, reward = mdp.get_state_transition(state, joint_action)
 
         # Stop when the final task—Bring Dish to Serving Station—has been chosen
         if plan_goal == "Bring Dish to Serving Station":
@@ -58,6 +59,7 @@ def run_integration_test():
         print("Reached max steps without finishing plan.")
 
     print("\nPosition trace:", pos_history)
+    print("Final state:", state, "Reward:", reward)
 
 if __name__ == "__main__":
     run_integration_test()

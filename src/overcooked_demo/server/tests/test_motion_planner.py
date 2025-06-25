@@ -37,10 +37,9 @@ planner = MotionPlanner(mdp, counter_goals=my_goals) # Eventually, instead of bu
 #     print(k)
 
 
-start_pos = (1,2)
-orient   = (0,1)
+start_pos = (1, 2)
+orient   = (0, 1)
 start    = (start_pos, orient)
-
 
 valid_goals = [
     goal_and_or
@@ -70,6 +69,6 @@ for a in plan:
     state, reward = mdp.get_state_transition(state, joint_action)
     pos = state.player_positions[0]
     print(f" Step {step}: Action = {a}")
-    print(f"   New pos = {pos}, reward = {reward}")
 
+print(f" State {state}, reward = {reward}")
 print("Final position:", pos, "Expected:", goal_pos)

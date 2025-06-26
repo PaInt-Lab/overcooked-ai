@@ -121,7 +121,7 @@ class ActionPredictorAgent(Agent):
         """Attach the full PlanSession to this agent."""
         self.plan = PLAN_STORE[session_id]
 
-    def _task_to_goal(self, task: str, my_pos: tuple) -> tuple:
+    def _task_to_goal(self, task: str, my_pos: tuple, my_ori: tuple) -> tuple:
         """
         Given a canonical task, return the nearest tile for that goal.
         """
@@ -134,17 +134,23 @@ class ActionPredictorAgent(Agent):
         elif task == "Stage Dish at Stove":  
             choices = self.staging_frontier
         elif task == "Bring Dish to Serving Station":
-            choices = self.delivery_tiles
+            choices = self.delivery_frontier
         else:
-            return my_pos
+            return (my_pos, tuple(my_ori))
 
         if not choices:
-            return my_pos
+            return (my_pos, tuple(my_ori))
 
-        return min(
-            choices,
-            key=lambda p: abs(p[0]-my_pos[0]) + abs(p[1]-my_pos[1])
-        )
+        def sort_key(mo):
+            (r, c), _ = mo
+            # primary: Manhattan distance
+            dist = abs(r - my_pos[0]) + abs(c - my_pos[1])
+            # secondary: prefer smaller row, then smaller col
+            return (dist, r, c)
+
+        goal_pos, goal_orient = min(choices, key=sort_key)
+        return (goal_pos, goal_orient)
+        # return ((1, 1), (-1, 0))  # For testing, return a fixed goal position and orientation
     
     def _compute_frontier(self, tiles, terrain):
         """
@@ -162,7 +168,9 @@ class ActionPredictorAgent(Agent):
                     0 <= nc < W and 
                     terrain[nr][nc] in WALKABLE
                 ):
-                    frontier.add((nr, nc))
+                    lr, ud = -dc, -dr  # left/right, up/down (environment pos and ori are flipped)
+                    # store (floor_pos, facing_vector)
+                    frontier.add(((nr, nc), (lr, ud)))
         return list(frontier)
 
     def action(self, state):
@@ -190,17 +198,19 @@ class ActionPredictorAgent(Agent):
             event_idx = 0
             pred = {}
 
+        # Task validation and fallback    
         event_idx = max(0, min(event_idx, len(self.plan.events)-1))
         human_task = pred.get("primary",   "–")
         robot_task = pred.get("secondary", "–")
-        print(f"Event {event_idx+1} → Human Task: {human_task}, Robot Task: {robot_task}")
+        # print(f"Event {event_idx+1} → Human Task: {human_task}, Robot Task: {robot_task}")
 
+        # Position and orientation handling
         my_pos = state.player_positions[self.agent_index]
-        goal = self._task_to_goal(robot_task, my_pos)
-
-        orientations = state.to_dict()["players"][self.agent_index]["orientation"]
-        start_pair = (my_pos, tuple(orientations))
-        goal_pair  = (goal,  tuple(orientations))
+        print("Agent position:", my_pos, "Human Position:", state.player_positions[1-self.agent_index])
+        my_ori = state.to_dict()["players"][self.agent_index]["orientation"]
+        start_pair = (my_pos, tuple(my_ori))
+        goal_pair = self._task_to_goal(robot_task, my_pos, my_ori)
+        goal_pos, goal_ori = goal_pair
         print(f"Start pair: {start_pair}, Goal pair: {goal_pair}")
 
         try:
@@ -211,12 +221,12 @@ class ActionPredictorAgent(Agent):
             try:
                 # Plan B: orientation‐agnostic
                 action_plan, _, _ = self.planner.action_plan_from_positions(
-                    [goal], start_pair, goal_pair
+                    [goal_pos], start_pair, goal_pair
                 )
                 print("Action plan found using action_plan_from_positions:", action_plan)
             except Exception:
                 # Plan C: guaranteed BFS fallback
-                action_plan = _bfs_fallback(my_pos, goal, terrain)
+                action_plan = _bfs_fallback(my_pos, goal_pos, terrain)
                 print("Action plan found using BFS fallback:", action_plan)
        
         # finally pick the first step or stay

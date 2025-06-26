@@ -47,8 +47,8 @@ def run_integration_test():
 
         # Feed the low-level action back into the MDP
         joint_action = [move, Action.STAY]  # assume partner does nothing
-        print(f"Joint action: {joint_action}")
-        # print(f"Moving from {pos} with orientation {ori} using action {move}") #Move is empty here
+        # print(f"Joint action: {joint_action}")
+        print(f"Moving from {pos} with orientation {ori} using action {move}") #Move is empty here
         state, reward = mdp.get_state_transition(state, joint_action)
 
         # Stop when the final task—Bring Dish to Serving Station—has been chosen

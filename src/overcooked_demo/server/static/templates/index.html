@@ -354,19 +354,18 @@
     <script>
       document.addEventListener("DOMContentLoaded", function () {
         const createBtn = document.getElementById("create");
-
         createBtn.addEventListener(
           "click",
           (e) => {
             const p0 = document.getElementById("playerZero").value;
             const p1 = document.getElementById("playerOne").value;
             const llmSelected =
-              p0 === "overcooked-llm" || p1 === "overcooked-llm";
-
+              p0 === "overcooked_llm" || p1 === "overcooked_llm";
             if (llmSelected && !isConfirmed) {
               e.preventDefault();
+              e.stopImmediatePropagation();
               alert(
-                "Please confirm a subtask sequence before using the overcooked-llm agent."
+                "Please confirm your subtask sequence before using the overcooked_llm agent."
               );
               return;
             }

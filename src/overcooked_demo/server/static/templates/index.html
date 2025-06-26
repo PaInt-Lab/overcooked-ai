@@ -354,15 +354,19 @@
     <script>
       document.addEventListener("DOMContentLoaded", function () {
         const createBtn = document.getElementById("create");
-        // true = useCapture
+
         createBtn.addEventListener(
           "click",
           (e) => {
-            if (!isConfirmed) {
+            const p0 = document.getElementById("playerZero").value;
+            const p1 = document.getElementById("playerOne").value;
+            const llmSelected =
+              p0 === "overcooked-llm" || p1 === "overcooked-llm";
+
+            if (llmSelected && !isConfirmed) {
               e.preventDefault();
-              e.stopImmediatePropagation();
               alert(
-                "Please create and confirm a subtask sequence before using the overcooked model."
+                "Please confirm a subtask sequence before using the overcooked-llm agent."
               );
               return;
             }

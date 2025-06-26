@@ -43,7 +43,9 @@ def _bfs_fallback(start, goal, terrain):
                 dc = cur[1] - prev[1]
                 path.append((dr, dc))
                 cur = prev
-            return list(reversed(path))
+            path = list(reversed(path))  
+            path.append(Action.INTERACT)  
+            return path
 
         for dr, dc in directions:
             new_row = row + dr
@@ -168,9 +170,8 @@ class ActionPredictorAgent(Agent):
                     0 <= nc < W and 
                     terrain[nr][nc] in WALKABLE
                 ):
-                    lr, ud = -dc, -dr  # left/right, up/down (environment pos and ori are flipped)
-                    # store (floor_pos, facing_vector)
-                    frontier.add(((nr, nc), (lr, ud)))
+                    orient = (-dc, -dr)
+                    frontier.add(((nr, nc), orient))
         return list(frontier)
 
     def action(self, state):
@@ -226,7 +227,7 @@ class ActionPredictorAgent(Agent):
                 print("Action plan found using action_plan_from_positions:", action_plan)
             except Exception:
                 # Plan C: guaranteed BFS fallback
-                action_plan = _bfs_fallback(my_pos, goal_pos, terrain)
+                action_plan = _bfs_fallback(my_pos, goal_pos, terrain) # Might need to add orientation at end
                 print("Action plan found using BFS fallback:", action_plan)
        
         # finally pick the first step or stay

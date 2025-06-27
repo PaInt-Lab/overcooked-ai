@@ -167,18 +167,6 @@ class ActionPredictorAgent(Agent):
             key_str(pos): tile_contents.get(pos, [])
             for pos in self.stove_tiles
         }
-        summary["dispensers"] = {
-            key_str(pos): tile_contents.get(pos, [])
-            for pos in self.ingredient_spawns
-        }
-        summary["dish_spawns"] = {
-            key_str(pos): tile_contents.get(pos, [])
-            for pos in self.dish_spawns
-        }
-        summary["delivery"] = {
-            key_str(pos): tile_contents.get(pos, [])
-            for pos in self.delivery_tiles
-        }
 
         # 4) Recent event flags for onions & dishes (from last get_state_transition)
         ei = info.get("event_infos", {}) if info else {}

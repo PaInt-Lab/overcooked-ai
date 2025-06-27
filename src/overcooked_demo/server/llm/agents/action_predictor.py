@@ -71,10 +71,22 @@ class ActionPredictorAgent(Agent):
         self.stove_tiles = []
         self.dish_spawns = []
         self.delivery_tiles = []
+        self.staging_tiles = []
         self.last_info = None
+        self.cleaned_terrain = None
 
     def set_agent_index(self, agent_index: int):
         super().set_agent_index(agent_index)
+
+    TERRAIN_MAPPING = {
+        "X": "Wall",
+        "P": "Stove",
+        "O": "Onions",
+        "T": "Tomatoes",  
+        "D": "DishSpawn",
+        "S": "Serving",
+        " ": "Empty"
+    }
 
     def set_mdp(self, mdp: OvercookedGridworld):
         super().set_mdp(mdp)
@@ -118,6 +130,11 @@ class ActionPredictorAgent(Agent):
             'delivery':   self.delivery_tiles
         } # for the next step of testing we will test if we can add 'staging': self.staging_tiles as a goal so that when it hits the staging spot at the end of the plan it interacts
         
+        self.cleaned_terrain = [
+            [ self.TERRAIN_MAPPING.get(cell, "Unknown") for cell in row ]
+            for row in terrain
+        ]
+
         self.planner = MotionPlanner(mdp, counter_goals=my_goals) # Eventually, instead of building everytime, can save a pickled version 
 
     def set_plan(self, session_id: str):
@@ -249,12 +266,13 @@ class ActionPredictorAgent(Agent):
         plan_text = "\n".join(plan_lines)
 
         prompt = (
+            f"TERRAIN:\n{json.dumps(self.cleaned_terrain)}\n\n"
             f"STATE SUMMARY:\n{json.dumps(summary)}\n\n"
             f"PLAN:\n{plan_text}\n\n"
         ) 
         response = query_ollama("action_predictor", prompt)
 
-        print("\nPrompt sent to LLM:", prompt)
+        print("\nPrompt sent to LLM:\n\n", prompt)
         print("\nLLM response:", response)
 
         try:

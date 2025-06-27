@@ -168,7 +168,7 @@ class ActionPredictorAgent(Agent):
             for pos in self.stove_tiles
         }
         summary["dispensers"] = {
-            pos: tile_contents.get(pos, [])
+            key_str(pos): tile_contents.get(pos, [])
             for pos in self.ingredient_spawns
         }
         summary["dish_spawns"] = {

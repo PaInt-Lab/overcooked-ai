@@ -58,9 +58,9 @@ def run_integration_test():
     else:
         print("Reached max steps without finishing plan.")
 
-    print("\nPosition trace:", pos_history)
-    # print("Final state:", state, "Reward:", reward)
-    print("Final state:", state)
+    # print("\nPosition trace:", pos_history)
+    print("Final state:", state, "Reward:", reward)
+    # print("Final state:", state)
 
 if __name__ == "__main__":
     run_integration_test()

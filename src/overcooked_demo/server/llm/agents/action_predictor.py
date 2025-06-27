@@ -71,6 +71,7 @@ class ActionPredictorAgent(Agent):
         self.stove_tiles = []
         self.dish_spawns = []
         self.delivery_tiles = []
+        self.last_info = None
 
     def set_agent_index(self, agent_index: int):
         super().set_agent_index(agent_index)
@@ -95,20 +96,20 @@ class ActionPredictorAgent(Agent):
                             for i, row in enumerate(terrain)
                             for j, c in enumerate(row)
                             if c == 'S']
-        staging_tiles = []
+        self.staging_tiles = []
         H, W = len(terrain), len(terrain[0])
         for (r, c) in self.stove_tiles:
             for dr, dc in [(0,1), (0,-1), (1,0), (-1,0)]:
                 nr, nc = r + dr, c + dc
                 # ensure we’re in bounds and it’s a counter‐wall ('X')
                 if 0 <= nr < H and 0 <= nc < W and terrain[nr][nc] == 'X':
-                    staging_tiles.append((nr, nc))
+                    self.staging_tiles.append((nr, nc))
 
         self.ingredient_frontier = self._compute_frontier(self.ingredient_spawns, terrain)
         self.stove_frontier      = self._compute_frontier(self.stove_tiles,       terrain) 
         self.dish_frontier       = self._compute_frontier(self.dish_spawns,       terrain)
         self.delivery_frontier   = self._compute_frontier(self.delivery_tiles,    terrain)
-        self.staging_frontier    = self._compute_frontier(staging_tiles,          terrain)
+        self.staging_frontier    = self._compute_frontier(self.staging_tiles,          terrain)
         
         my_goals = {
             'ingredient': self.ingredient_spawns,
@@ -122,6 +123,75 @@ class ActionPredictorAgent(Agent):
     def set_plan(self, session_id: str):
         """Attach the full PlanSession to this agent."""
         self.plan = PLAN_STORE[session_id]
+
+    def summarize_state(self, state, info):
+        """
+        Return a compact summary of the current OvercookedState + last-transition info,
+        with JSON-safe (string) keys for all tile maps.
+        """
+        sd = state.to_dict()
+
+        # 1) Players
+        me   = sd["players"][self.agent_index]
+        them = sd["players"][1 - self.agent_index]
+        summary = {
+            "me": {
+                "pos":    me["position"],
+                "orient": me["orientation"],
+                "hold":   me["held_object"]
+            },
+            "partner": {
+                "pos":    them["position"],
+                "orient": them["orientation"],
+                "hold":   them["held_object"]
+            }
+        }
+
+        # 2) Contents on every tile
+        tile_contents = {}
+        for obj in sd["objects"]:
+            p    = tuple(obj["position"])
+            name = obj.get("ingredient") or obj.get("name")
+            tile_contents.setdefault(p, []).append(name)
+
+        # helper to turn (r,c) -> "r,c"
+        def key_str(pos):
+            return f"{pos[0]},{pos[1]}"
+
+        # 3) Counters & stations (stringify the keys)
+        summary["staging_station"] = {
+            key_str(pos): tile_contents.get(pos, [])
+            for pos in self.staging_tiles
+        }
+        summary["pots"] = {
+            key_str(pos): tile_contents.get(pos, [])
+            for pos in self.stove_tiles
+        }
+        summary["dish_spawns"] = {
+            key_str(pos): tile_contents.get(pos, [])
+            for pos in self.dish_spawns
+        }
+        summary["delivery"] = {
+            key_str(pos): tile_contents.get(pos, [])
+            for pos in self.delivery_tiles
+        }
+
+        # 4) Recent event flags for onions & dishes (from last get_state_transition)
+        ei = info.get("event_infos", {}) if info else {}
+        summary["recent"] = {
+            "onion_pickup":        ei.get("onion_pickup", [False, False]),
+            "useful_onion_pickup": ei.get("useful_onion_pickup", [False, False]),
+            "onion_drop":          ei.get("onion_drop", [False, False]),
+            "potting_onion":       ei.get("potting_onion", [False, False]),
+            "dish_pickup":         ei.get("dish_pickup", [False, False]),
+            "useful_dish_pickup":  ei.get("useful_dish_pickup", [False, False]),
+            "dish_drop":           ei.get("dish_drop", [False, False]),
+            "soup_delivery":       ei.get("soup_delivery", [False, False]),
+        }
+
+        return summary
+
+
 
     def _task_to_goal(self, task: str, my_pos: tuple, my_ori: tuple) -> tuple:
         """
@@ -175,7 +245,8 @@ class ActionPredictorAgent(Agent):
         return list(frontier)
 
     def action(self, state):
-        serialized = serialize_state(state, self.mdp)
+        info = getattr(self, "last_info", {})       
+        summary = self.summarize_state(state, self.last_info)
         terrain = self.mdp.terrain_mtx
 
         plan_lines = []
@@ -186,11 +257,13 @@ class ActionPredictorAgent(Agent):
         plan_text = "\n".join(plan_lines)
 
         prompt = (
-            f"\n\nTERRAIN:\n{terrain}\n\n"
-            f"STATE: {serialized}"
+            f"STATE SUMMARY:\n{json.dumps(summary)}\n\n"
             f"PLAN:\n{plan_text}\n\n"
         ) 
         response = query_ollama("action_predictor", prompt)
+
+        print("\nPrompt sent to LLM:", prompt)
+        print("\nLLM response:", response)
 
         try:
             pred = json.loads(response)

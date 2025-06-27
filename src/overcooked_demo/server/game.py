@@ -560,6 +560,10 @@ class OvercookedGame(Game):
         self.state, info = self.mdp.get_state_transition(
             prev_state, joint_action
         )
+
+        for agent in self.npc_policies.values():
+            agent.last_info = info
+
         if self.show_potential:
             self.phi = self.mdp.potential_function(
                 prev_state, self.mp, gamma=0.99

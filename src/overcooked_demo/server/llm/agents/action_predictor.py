@@ -272,8 +272,8 @@ class ActionPredictorAgent(Agent):
         ) 
         response = query_ollama("action_predictor", prompt)
 
-        print("\nPrompt sent to LLM:\n\n", prompt)
-        print("\nLLM response:", response)
+        # print("\nPrompt sent to LLM:\n\n", prompt)
+        # print("\nLLM response:", response)
 
         try:
             pred = json.loads(response)
@@ -286,7 +286,7 @@ class ActionPredictorAgent(Agent):
         event_idx = max(0, min(event_idx, len(self.plan.events)-1))
         human_task = pred.get("primary",   "–")
         robot_task = pred.get("secondary", "–")
-        # print(f"Event {event_idx+1} → Human Task: {human_task}, Robot Task: {robot_task}")
+        print(f"Event {event_idx+1} → Human Task: {human_task}, Robot Task: {robot_task}")
 
         # Position and orientation handling
         my_pos = state.player_positions[self.agent_index]

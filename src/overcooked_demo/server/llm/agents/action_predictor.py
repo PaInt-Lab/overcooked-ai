@@ -195,7 +195,9 @@ class ActionPredictorAgent(Agent):
             "dish_pickup":         ei.get("dish_pickup", [False, False]),
             "useful_dish_pickup":  ei.get("useful_dish_pickup", [False, False]),
             "dish_drop":           ei.get("dish_drop", [False, False]),
+            "soup_pickup":       ei.get("soup_pickup", [False, False]),
             "soup_delivery":       ei.get("soup_delivery", [False, False]),
+            "soup_drop":       ei.get("soup_drop", [False, False]),
         }
 
         return summary
@@ -266,10 +268,17 @@ class ActionPredictorAgent(Agent):
         plan_text = "\n".join(plan_lines)
 
         prompt = (
-            f"TERRAIN:\n{json.dumps(self.cleaned_terrain)}\n\n"
-            f"STATE SUMMARY:\n{json.dumps(summary)}\n\n"
-            f"PLAN:\n{plan_text}\n\n"
+            f"STATE:\n{json.dumps(summary)}\n\nSummarize the Overcooked State"
         ) 
+        response = query_ollama("mistral", prompt)
+        
+        prompt = (
+            f"STATE SUMMARY:\n{response}\n\n"
+            f"PLAN:\n{plan_text}\n\n"
+            "Select the next event from the PLAN whose primary and secondary actions best address the current state described above. "
+            "Respond with:\nprimary: <chosen primary task list>\nsecondary: <chosen secondary task list>"
+        )
+
         response = query_ollama("action_predictor", prompt)
 
         # print("\nPrompt sent to LLM:\n\n", prompt)

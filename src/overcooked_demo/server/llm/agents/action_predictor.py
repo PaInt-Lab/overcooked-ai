@@ -152,7 +152,7 @@ class ActionPredictorAgent(Agent):
             'pot':        self.stove_tiles,
             'dish':       self.dish_spawns,
             'delivery':   self.delivery_tiles
-        } # for the next step of testing we will test if we can add 'staging': self.staging_tiles as a goal so that when it hits the staging spot at the end of the plan it interacts
+        } 
         
         self.cleaned_terrain = [
             [ self.TERRAIN_MAPPING.get(cell, "Unknown") for cell in row ]
@@ -192,7 +192,6 @@ class ActionPredictorAgent(Agent):
         """
         sd = state.to_dict()
 
-        # 1) Players
         me   = sd["players"][self.agent_index]
         them = sd["players"][1 - self.agent_index]
         summary = {
@@ -208,18 +207,15 @@ class ActionPredictorAgent(Agent):
             }
         }
 
-        # 2) Contents on every tile
         tile_contents = {}
         for obj in sd["objects"]:
             p    = tuple(obj["position"])
             name = obj.get("ingredient") or obj.get("name")
             tile_contents.setdefault(p, []).append(name)
 
-        # helper to turn (r,c) -> "r,c"
         def key_str(pos):
             return f"{pos[0]},{pos[1]}"
 
-        # 3) Counters & stations (stringify the keys)
         summary["onion_staging_station"] = {
             key_str(pos): tile_contents.get(pos, [])
             for pos in self.onion_staging_tiles
@@ -233,7 +229,6 @@ class ActionPredictorAgent(Agent):
             for pos in self.stove_tiles
         }
 
-        # 4) Recent event flags for onions & dishes (from last get_state_transition)
         ei = info.get("event_infos", {}) if info else {}
         summary["recent"] = {
             "onion_pickup":        ei.get("onion_pickup", [False, False]),
@@ -264,6 +259,8 @@ class ActionPredictorAgent(Agent):
         
         if secondary_match:
             item = secondary_match.group(1)
+            if item not in ["onion", "dish", "soup"]:
+                item = "onion"  # Default fallback
             return primary_event, "pickup_and_place", item
         
         # Fallback

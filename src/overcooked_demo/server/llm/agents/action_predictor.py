@@ -1,5 +1,6 @@
 from collections import deque
 import json
+import re
 from overcooked_ai_py.agents.agent import Agent
 from overcooked_ai_py.mdp.overcooked_mdp import OvercookedGridworld
 from overcooked_ai_py.planning.planners import MotionPlanner, NO_COUNTERS_PARAMS
@@ -141,6 +142,26 @@ class ActionPredictorAgent(Agent):
         """Attach the full PlanSession to this agent."""
         self.plan = PLAN_STORE[session_id]
 
+    def _compute_frontier(self, tiles, terrain):
+        """
+        Return the set of walkable tiles adjacent to any tile in 'tiles'.
+        """
+        H, W = len(terrain), len(terrain[0])
+        frontier = set()
+        WALKABLE = {' '}
+
+        for r, c in tiles:
+            for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+                nr, nc = r + dr, c + dc
+                if (
+                    0 <= nr < H and 
+                    0 <= nc < W and 
+                    terrain[nr][nc] in WALKABLE
+                ):
+                    orient = (-dc, -dr)
+                    frontier.add(((nr, nc), orient))
+        return list(frontier)
+
     def summarize_state(self, state, info):
         """
         Return a compact summary of the current OvercookedState + last-transition info,
@@ -201,9 +222,26 @@ class ActionPredictorAgent(Agent):
         }
 
         return summary
-
-
-
+    
+    def _parse_function_call(self, response):
+        """
+        Parse the LLM response to extract both primary event and function call.
+        Expected format: 
+        primary: <event description>
+        secondary: pickup_and_place(onion)
+        """
+        primary_match = re.search(r'primary:\s*(.+?)(?:\n|secondary:|$)', response, re.IGNORECASE)
+        secondary_match = re.search(r'pickup_and_place\s*\(\s*(\w+)\s*\)', response.lower())
+        
+        primary_event = primary_match.group(1).strip() if primary_match else "Unknown Event"
+        
+        if secondary_match:
+            item = secondary_match.group(1)
+            return primary_event, "pickup_and_place", item
+        
+        # Fallback
+        return primary_event, "pickup_and_place", "onion"
+        
     def _task_to_goal(self, task: str, my_pos: tuple, my_ori: tuple) -> tuple:
         """
         Given a canonical task, return the nearest tile for that goal.
@@ -216,7 +254,9 @@ class ActionPredictorAgent(Agent):
             choices = self.dish_frontier
         elif task == "Stage Dish at Stove":  
             choices = self.staging_frontier
-        elif task == "Bring Dish to Serving Station":
+        elif task == "Fetch Soup":
+            choices = self.staging_frontier
+        elif task == "Bring Soup to Serving Station":
             choices = self.delivery_frontier
         else:
             return (my_pos, tuple(my_ori))
@@ -233,32 +273,80 @@ class ActionPredictorAgent(Agent):
 
         goal_pos, goal_orient = min(choices, key=sort_key)
         return (goal_pos, goal_orient)
-        # return ((1, 1), (-1, 0))  # For testing, return a fixed goal position and orientation
     
-    def _compute_frontier(self, tiles, terrain):
+    def _get_plan_between_goals(self, start_pair, goal_pair):
         """
-        Return the set of walkable tiles adjacent to any tile in 'tiles'.
+        Get action plan between two position/orientation pairs.
+        Returns the action plan using the motion planner with BFS fallback.
         """
-        H, W = len(terrain), len(terrain[0])
-        frontier = set()
-        WALKABLE = {' '}
-
-        for r, c in tiles:
-            for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
-                nr, nc = r + dr, c + dc
-                if (
-                    0 <= nr < H and 
-                    0 <= nc < W and 
-                    terrain[nr][nc] in WALKABLE
-                ):
-                    orient = (-dc, -dr)
-                    frontier.add(((nr, nc), orient))
-        return list(frontier)
+        terrain = self.mdp.terrain_mtx
+        
+        try:
+            # Plan A: orientation‐specific
+            action_plan, _, _ = self.planner.get_plan(start_pair, goal_pair)
+            print(f"Plan found using get_plan: {action_plan}")
+            return action_plan
+        except KeyError:
+            try:
+                # Plan B: orientation‐agnostic  
+                goal_pos, goal_ori = goal_pair
+                action_plan, _, _ = self.planner.action_plan_from_positions(
+                    [goal_pos], start_pair, goal_pair
+                )
+                print(f"Plan found using action_plan_from_positions: {action_plan}")
+                return action_plan
+            except Exception:
+                # Plan C: guaranteed BFS fallback
+                start_pos, _ = start_pair
+                goal_pos, _ = goal_pair
+                action_plan = _bfs_fallback(start_pos, goal_pos, terrain)
+                print(f"Plan found using BFS fallback: {action_plan}")
+                return action_plan
+            
+    def pickup_and_place(self, item, start_pos, start_ori):
+        """
+        Execute a pickup and place compound action for the given item type.
+        Returns combined action plan for fetch + stage operations.
+        """
+        start_pair = (start_pos, tuple(start_ori))
+        
+        # Determine fetch task based on item type
+        if item == "onion":
+            fetch_task = "Fetch Ingredient"
+            stage_task = "Stage Ingredient at Stove"
+        elif item == "dish":
+            fetch_task = "Fetch Dish" 
+            stage_task = "Stage Dish at Stove"
+        elif item == "soup":
+            fetch_task = "Fetch Soup"  # Assuming soup is on a dish at stove
+            stage_task = "Bring Soup to Serving Station"
+        else:
+            # Default fallback
+            fetch_task = "Fetch Ingredient"
+            stage_task = "Stage Ingredient at Stove"
+        
+        # Get fetch goal
+        fetch_goal_pair = self._task_to_goal(fetch_task, start_pos, start_ori)
+        fetch_goal_pos, fetch_goal_ori = fetch_goal_pair
+        
+        # Get fetch plan
+        fetch_plan = self._get_plan_between_goals(start_pair, fetch_goal_pair)
+        
+        # Get stage goal (starting from fetch goal)
+        stage_goal_pair = self._task_to_goal(stage_task, fetch_goal_pos, fetch_goal_ori)
+        
+        # Get stage plan
+        stage_plan = self._get_plan_between_goals(fetch_goal_pair, stage_goal_pair)
+        
+        # Combine plans
+        combined_plan = fetch_plan + stage_plan
+        
+        print(f"Combined plan for pickup_and_place({item}): {combined_plan}")
+        return combined_plan    
 
     def action(self, state):
         info = getattr(self, "last_info", {})       
         summary = self.summarize_state(state, self.last_info)
-        terrain = self.mdp.terrain_mtx
 
         plan_lines = []
         for idx, ev in enumerate(self.plan.events):
@@ -273,64 +361,44 @@ class ActionPredictorAgent(Agent):
         response = query_ollama("mistral", prompt)
         
         prompt = (
-            f"STATE SUMMARY:\n{response}\n\n"
-            f"PLAN:\n{plan_text}\n\n"
-            "Select the next event from the PLAN whose primary and secondary actions best address the current state described above. "
-            "Respond with:\nprimary: <chosen primary task list>\nsecondary: <chosen secondary task list>"
-        )
+        f"STATE SUMMARY:\n{response}\n\n"
+        f"PLAN:\n{plan_text}\n\n"
+        "Based on the current state and plan, determine what the robot should do. "
+        "Respond in this exact format:\n"
+        "primary: <description of the primary event from the plan>\n"
+        "secondary: pickup_and_place(onion) or pickup_and_place(dish) or pickup_and_place(soup)\n"
+        "Choose the appropriate primary event and secondary action based on the current state and plan."
+    )
 
         response = query_ollama("action_predictor", prompt)
+        print(f"\nLLM response: {response}")
 
-        # print("\nPrompt sent to LLM:\n\n", prompt)
-        # print("\nLLM response:", response)
+        # Parse the function call from LLM response
+        primary_event, func_name, item = self._parse_function_call(response)
+        print(f"Primary event: {primary_event}")
+        print(f"Parsed function: {func_name}({item})")
 
-        try:
-            pred = json.loads(response)
-            event_idx = pred.get("event_idx", 1) - 1  # 0-based
-        except (json.JSONDecodeError, TypeError):
-            event_idx = 0
-            pred = {}
-
-        # Task validation and fallback    
-        event_idx = max(0, min(event_idx, len(self.plan.events)-1))
-        human_task = pred.get("primary",   "–")
-        robot_task = pred.get("secondary", "–")
-        print(f"Event {event_idx+1} → Human Task: {human_task}, Robot Task: {robot_task}")
-
-        # Position and orientation handling
+        # Get current position and orientation
         my_pos = state.player_positions[self.agent_index]
-        print("Agent position:", my_pos, "Human Position:", state.player_positions[1-self.agent_index])
         my_ori = state.to_dict()["players"][self.agent_index]["orientation"]
-        start_pair = (my_pos, tuple(my_ori))
-        goal_pair = self._task_to_goal(robot_task, my_pos, my_ori)
-        goal_pos, goal_ori = goal_pair
-        print(f"Start pair: {start_pair}, Goal pair: {goal_pair}")
+        
+        print(f"Agent position: {my_pos}, Human Position: {state.player_positions[1-self.agent_index]}")
 
-        try:
-            # Plan A: orientation‐specific
-            action_plan, _, _ = self.planner.get_plan(start_pair, goal_pair)
-            print("Action plan found using get_plan:", action_plan)
-        except KeyError:
-            try:
-                # Plan B: orientation‐agnostic
-                action_plan, _, _ = self.planner.action_plan_from_positions(
-                    [goal_pos], start_pair, goal_pair
-                )
-                print("Action plan found using action_plan_from_positions:", action_plan)
-            except Exception:
-                # Plan C: guaranteed BFS fallback
-                action_plan = _bfs_fallback(my_pos, goal_pos, terrain) # Might need to add orientation at end
-                print("Action plan found using BFS fallback:", action_plan)
-       
-        # finally pick the first step or stay
+        # Execute the compound action
+        if func_name == "pickup_and_place":
+            action_plan = self.pickup_and_place(item, my_pos, my_ori)
+        else:
+            # Fallback to simple movement
+            action_plan = [Action.STAY]
+
+        # Return first action from the plan
         move = action_plan[0] if action_plan else Action.STAY
-
+        
         return move, {
-            "event":    event_idx+1,  # back to 1-based for clarity
-            # "human_task":   human_task,
-            "robot_task":   robot_task,
-            # "prompt":       prompt,
-            "response":     response
+            "primary_event": primary_event,
+            "function_call": f"{func_name}({item})",
+            "action_plan": action_plan,
+            "response": response
         }
 
     def actions(self, states, agent_indices):

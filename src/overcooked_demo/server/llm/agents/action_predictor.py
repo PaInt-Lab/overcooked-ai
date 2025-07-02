@@ -109,20 +109,43 @@ class ActionPredictorAgent(Agent):
                             for i, row in enumerate(terrain)
                             for j, c in enumerate(row)
                             if c == 'S']
-        self.staging_tiles = []
+        # Assign staging stations per stove with directional logic
+        self.onion_staging_tiles = []
+        self.dish_staging_tiles = []
         H, W = len(terrain), len(terrain[0])
-        for (r, c) in self.stove_tiles:
+        
+        for (stove_r, stove_c) in self.stove_tiles:
+            # Find all adjacent staging positions for this stove
+            adjacent_staging = []
             for dr, dc in [(0,1), (0,-1), (1,0), (-1,0)]:
-                nr, nc = r + dr, c + dc
-                # ensure we’re in bounds and it’s a counter‐wall ('X')
+                nr, nc = stove_r + dr, stove_c + dc
                 if 0 <= nr < H and 0 <= nc < W and terrain[nr][nc] == 'X':
-                    self.staging_tiles.append((nr, nc))
+                    adjacent_staging.append((nr, nc, dr, dc))
+            
+            # Categorize by direction relative to stove
+            left_stations = [(r, c) for r, c, dr, dc in adjacent_staging if dc == -1]  # left of stove
+            right_stations = [(r, c) for r, c, dr, dc in adjacent_staging if dc == 1]  # right of stove  
+            top_stations = [(r, c) for r, c, dr, dc in adjacent_staging if dr == -1]   # above stove
+            bottom_stations = [(r, c) for r, c, dr, dc in adjacent_staging if dr == 1] # below stove
+            
+            # Assign onion staging: prefer left, fallback to bottom
+            if left_stations:
+                self.onion_staging_tiles.extend(left_stations)
+            elif bottom_stations:
+                self.onion_staging_tiles.extend(bottom_stations)
+            
+            # Assign dish staging: prefer right, fallback to top
+            if right_stations:
+                self.dish_staging_tiles.extend(right_stations)
+            elif top_stations:
+                self.dish_staging_tiles.extend(top_stations)
 
         self.ingredient_frontier = self._compute_frontier(self.ingredient_spawns, terrain)
         self.stove_frontier      = self._compute_frontier(self.stove_tiles,       terrain) 
         self.dish_frontier       = self._compute_frontier(self.dish_spawns,       terrain)
         self.delivery_frontier   = self._compute_frontier(self.delivery_tiles,    terrain)
-        self.staging_frontier    = self._compute_frontier(self.staging_tiles,          terrain)
+        self.onion_staging_frontier = self._compute_frontier(self.onion_staging_tiles, terrain)
+        self.dish_staging_frontier  = self._compute_frontier(self.dish_staging_tiles,  terrain)
         
         my_goals = {
             'ingredient': self.ingredient_spawns,
@@ -197,9 +220,13 @@ class ActionPredictorAgent(Agent):
             return f"{pos[0]},{pos[1]}"
 
         # 3) Counters & stations (stringify the keys)
-        summary["staging_station"] = {
+        summary["onion_staging_station"] = {
             key_str(pos): tile_contents.get(pos, [])
-            for pos in self.staging_tiles
+            for pos in self.onion_staging_tiles
+        }
+        summary["dish_staging_station"] = {
+            key_str(pos): tile_contents.get(pos, [])
+            for pos in self.dish_staging_tiles
         }
         summary["pots"] = {
             key_str(pos): tile_contents.get(pos, [])
@@ -249,14 +276,14 @@ class ActionPredictorAgent(Agent):
         if task == "Fetch Ingredient":
             choices = self.ingredient_frontier
         elif task == "Stage Ingredient at Stove": 
-            choices = self.staging_frontier
+            choices = self.onion_staging_frontier
         elif task == "Fetch Dish":
             choices = self.dish_frontier
         elif task == "Stage Dish at Stove":  
-            choices = self.staging_frontier
+            choices = self.dish_staging_frontier
         elif task == "Fetch Soup":
-            choices = self.staging_frontier
-        elif task == "Bring Soup to Serving Station":
+            choices = self.dish_staging_frontier
+        elif task == "Bring Dish to Serving Station":
             choices = self.delivery_frontier
         else:
             return (my_pos, tuple(my_ori))

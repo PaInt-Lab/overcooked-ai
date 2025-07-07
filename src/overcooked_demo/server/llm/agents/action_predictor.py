@@ -380,7 +380,10 @@ class ActionPredictorAgent(Agent):
         plan_text = "\n".join(plan_lines)
 
         prompt = (
-            f"STATE:\n{json.dumps(summary)}\n\nSummarize the Overcooked State"
+            f"TERRAIN:\n{json.dumps(self.cleaned_terrain)}\n\n"
+            f"STATE:\n{json.dumps(summary)}\n\n"
+            f"Summarize the overcooked state. Go over every detail. Do not mention the orientation of players or explicit coordinates for the players."
+            f"Their positions are simply to be referred to relative to landmarks on the terrain.\n\n"
         ) 
         response = query_ollama("mistral", prompt)
         

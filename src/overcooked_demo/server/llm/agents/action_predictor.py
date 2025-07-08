@@ -75,6 +75,7 @@ class ActionPredictorAgent(Agent):
         self.staging_tiles = []
         self.last_info = None
         self.cleaned_terrain = None
+        self.last_summary = None
 
     def set_agent_index(self, agent_index: int):
         super().set_agent_index(agent_index)
@@ -334,7 +335,7 @@ class ActionPredictorAgent(Agent):
         goal_pos, goal_orient = min(choices, key=sort_key)
         return (goal_pos, goal_orient)
     
-    def _get_plan_between_goals(self, start_pair, goal_pair):
+    def _get_action_plan(self, start_pair, goal_pair):
         """
         Get action plan between two position/orientation pairs.
         Returns the action plan using the motion planner with BFS fallback.
@@ -366,46 +367,49 @@ class ActionPredictorAgent(Agent):
     def pickup_and_place(self, item, start_pos, start_ori):
         """
         Execute a pickup and place compound action for the given item type.
-        Returns combined action plan for fetch + stage operations.
+        If already holding `item`, only generate the staging plan.
         """
         start_pair = (start_pos, tuple(start_ori))
-        
-        # Determine fetch task based on item type
+
+        # determine tasks
         if item == "onion":
             fetch_task = "Fetch Ingredient"
             stage_task = "Stage Ingredient at Stove"
         elif item == "dish":
-            fetch_task = "Fetch Dish" 
+            fetch_task = "Fetch Dish"
             stage_task = "Stage Dish at Stove"
         elif item == "soup":
-            fetch_task = "Fetch Soup"  # Assuming soup is on a dish at stove
+            fetch_task = "Fetch Soup"
             stage_task = "Bring Soup to Serving Station"
         else:
-            # Default fallback
             fetch_task = "Fetch Ingredient"
             stage_task = "Stage Ingredient at Stove"
-        
-        # Get fetch goal
-        fetch_goal_pair = self._task_to_goal(fetch_task, start_pos, start_ori)
-        fetch_goal_pos, fetch_goal_ori = fetch_goal_pair
-        
-        # Get fetch plan
-        fetch_plan = self._get_plan_between_goals(start_pair, fetch_goal_pair)
-        
-        # Get stage goal (starting from fetch goal)
-        stage_goal_pair = self._task_to_goal(stage_task, fetch_goal_pos, fetch_goal_ori)
-        
-        # Get stage plan
-        stage_plan = self._get_plan_between_goals(fetch_goal_pair, stage_goal_pair)
-        
-        # Combine plans
+
+        # ---- SKIP fetch if already holding ----
+        if hasattr(self, "last_summary") and self.last_summary.get("agent_holding") == item:
+            # just stage what you’ve got
+            stage_goal = self._task_to_goal(stage_task, start_pos, start_ori)
+            stage_plan = self._get_action_plan(start_pair, stage_goal)
+            print(f"Skipping fetch for {item}, staging directly: {stage_plan}")
+            return stage_plan
+
+        # ---- otherwise do full fetch + stage ----
+        fetch_goal = self._task_to_goal(fetch_task, start_pos, start_ori)
+        fetch_plan = self._get_action_plan(start_pair, fetch_goal)
+
+        fetch_goal_pos, fetch_goal_ori = fetch_goal
+        stage_goal = self._task_to_goal(stage_task, fetch_goal_pos, fetch_goal_ori)
+        stage_plan = self._get_action_plan(fetch_goal, stage_goal)
+
         combined_plan = fetch_plan + stage_plan
         
         return combined_plan    
 
     def action(self, state):
         info = getattr(self, "last_info", {})       
-        summary = self.summarize_state(state, self.last_info)
+        self.last_summary = self.summarize_state(state, self.last_info)
+
+        print(f"state: {state}")
 
         plan_lines = []
         for idx, ev in enumerate(self.plan.events):
@@ -416,7 +420,7 @@ class ActionPredictorAgent(Agent):
 
         prompt = (
             # f"TERRAIN:\n{json.dumps(self.cleaned_terrain)}\n\n"
-            f"STATE:\n{json.dumps(summary)}\n\n"
+            f"STATE:\n{json.dumps(self.last_summary)}\n\n"
             f"Summarize the overcooked state. Go over every detail. Do not mention the orientation of players or explicit coordinates for the players."
             f"Their positions are simply to be referred to relative to landmarks on the terrain.\n\n"
         ) 
@@ -427,7 +431,7 @@ class ActionPredictorAgent(Agent):
         prompt = (
         f"STATE SUMMARY:\n{response}\n\n"
         f"PLAN: {plan_text}\n\n"
-        "Based on the current state and plan, determine what the robot should do. "
+        "Based on the current state and plan, determine what the robot should do."
         "Respond in this exact format:\n"
         "primary: <description of the primary event from the plan>\n"
         "secondary: pickup_and_place(onion) or pickup_and_place(dish) or pickup_and_place(soup)\n"
@@ -435,7 +439,6 @@ class ActionPredictorAgent(Agent):
     )
 
         response = query_ollama("action_predictor", prompt)
-        print(f"LLM prompt:\n{prompt}")
         print(f"\nLLM response: {response}")
 
         # Parse the function call from LLM response

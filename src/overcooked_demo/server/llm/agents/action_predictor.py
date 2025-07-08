@@ -187,63 +187,83 @@ class ActionPredictorAgent(Agent):
 
     def summarize_state(self, state, info):
         """
-        Return a compact summary of the current OvercookedState + last-transition info,
-        with JSON-safe (string) keys for all tile maps.
+        Extract exactly the predicates we need for the LLM:
+        - agent_holding: one of "onion", "tomato", "dish", "soup", or "none"
+        - partner_holding: same for the other player
+        - onion_staged:        is raw onion on any onion‐staging tile?
+        - ingredient_in_pot:   is any onion/tomato in any stove tile?
+        - dish_staged:         is any clean dish on any dish‐staging tile?
+        - soup_staged:         is any soup on any dish‐staging tile?
+        - soup_served:         did the last transition include a soup_delivery?
         """
         sd = state.to_dict()
 
+        def held_item(player_dict):
+            held = player_dict["held_object"]
+            if held is None:
+                return "none"
+            if held.get("ingredient") in ("onion", "tomato"):
+                return held["ingredient"]
+            if held.get("name") in ("dish", "soup"):
+                return held["name"]
+            return "none"
+
+        # 1) what each player holds
         me   = sd["players"][self.agent_index]
         them = sd["players"][1 - self.agent_index]
-        summary = {
-            "me": {
-                "pos":    me["position"],
-                "orient": me["orientation"],
-                "hold":   me["held_object"]
-            },
-            "partner": {
-                "pos":    them["position"],
-                "orient": them["orientation"],
-                "hold":   them["held_object"]
-            }
-        }
+        agent_holding   = held_item(me)
+        partner_holding = held_item(them)
 
+        # 2) collect what’s on every tile
         tile_contents = {}
         for obj in sd["objects"]:
             p    = tuple(obj["position"])
             name = obj.get("ingredient") or obj.get("name")
             tile_contents.setdefault(p, []).append(name)
 
-        def key_str(pos):
-            return f"{pos[0]},{pos[1]}"
-
-        summary["onion_staging_station"] = {
-            key_str(pos): tile_contents.get(pos, [])
+        # 3) onion_staged?
+        onion_staged = any(
+            "onion" in tile_contents.get(pos, [])
             for pos in self.onion_staging_tiles
-        }
-        summary["dish_staging_station"] = {
-            key_str(pos): tile_contents.get(pos, [])
-            for pos in self.dish_staging_tiles
-        }
-        summary["pots"] = {
-            key_str(pos): tile_contents.get(pos, [])
+        )
+
+        # 4) ingredient_in_pot?
+        ingredient_in_pot = any(
+            ing in tile_contents.get(pos, [])
             for pos in self.stove_tiles
+            for ing in ("onion", "tomato")
+        )
+
+        # 5) dish_staged?
+        dish_staged = any(
+            "dish" in tile_contents.get(pos, [])
+            for pos in self.dish_staging_tiles
+        )
+
+        # 6) soup_staged?
+        soup_staged = any(
+            "soup" in tile_contents.get(pos, [])
+            for pos in self.dish_staging_tiles
+        )
+
+        # 7) soup_served?
+        soup_served = False
+        if info:
+            soup_served = any(
+                info.get("event_infos", {})
+                    .get("soup_delivery", [False, False])
+            )
+
+        return {
+            "agent_holding":    agent_holding,
+            "partner_holding":  partner_holding,
+            "onion_staged":     onion_staged,
+            "ingredient_in_pot":ingredient_in_pot,
+            "dish_staged":      dish_staged,
+            "soup_staged":      soup_staged,
+            "soup_served":      soup_served
         }
 
-        ei = info.get("event_infos", {}) if info else {}
-        summary["recent"] = {
-            "onion_pickup":        ei.get("onion_pickup", [False, False]),
-            "useful_onion_pickup": ei.get("useful_onion_pickup", [False, False]),
-            "onion_drop":          ei.get("onion_drop", [False, False]),
-            "potting_onion":       ei.get("potting_onion", [False, False]),
-            "dish_pickup":         ei.get("dish_pickup", [False, False]),
-            "useful_dish_pickup":  ei.get("useful_dish_pickup", [False, False]),
-            "dish_drop":           ei.get("dish_drop", [False, False]),
-            "soup_pickup":       ei.get("soup_pickup", [False, False]),
-            "soup_delivery":       ei.get("soup_delivery", [False, False]),
-            "soup_drop":       ei.get("soup_drop", [False, False]),
-        }
-
-        return summary
     
     def _parse_function_call(self, response):
         """

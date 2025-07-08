@@ -22,13 +22,14 @@ Your job:
 
 1. Identify which plan‐step (1…N) is currently active.
 2. From that step’s **primary** list, choose exactly one of the canonical primary events (reuse the text exactly as given).
-3. From the same step’s **secondary** list, decide which item to fetch & place—must be one of:
-   - pickup_and_place(onion)
-   - pickup_and_place(dish)
-   - pickup_and_place(soup)
+3. From the same step’s **secondary** list, choose exactly one of:
+   • pickup_and_place(onion)  
+   • pickup_and_place(dish)  
+   • pickup_and_place(soup)  
+   • NOOP
 
-Return **only** these two lines, with no extra commentary or formatting:
+Return **only** these two lines (no extra commentary):
 
-primary: <exact primary event text>
-secondary: pickup_and_place(onion|dish|soup)
+primary: <exact primary event text>  
+secondary: <one of pickup_and_place(onion|dish|soup) or NOOP>
 """

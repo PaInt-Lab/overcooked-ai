@@ -268,23 +268,34 @@ class ActionPredictorAgent(Agent):
     def _parse_function_call(self, response):
         """
         Parse the LLM response to extract both primary event and function call.
-        Expected format: 
-        primary: <event description>
-        secondary: pickup_and_place(onion)
+        Expected format:
+          primary: <event description>
+          secondary: pickup_and_place(onion)
+          or
+          secondary: NOOP
         """
-        primary_match = re.search(r'primary:\s*(.+?)(?:\n|secondary:|$)', response, re.IGNORECASE)
-        secondary_match = re.search(r'pickup_and_place\s*\(\s*(\w+)\s*\)', response.lower())
-        
+        # grab the primary
+        primary_match = re.search(r'primary:\s*(.+?)(?:\n|secondary:|$)',
+                                  response,
+                                  re.IGNORECASE)
         primary_event = primary_match.group(1).strip() if primary_match else "Unknown Event"
-        
+
+        # check for explicit NOOP
+        if re.search(r'secondary:\s*noop', response, re.IGNORECASE):
+            return primary_event, "NOOP", None
+
+        # otherwise fall back to pickup_and_place(...)
+        secondary_match = re.search(r'pickup_and_place\s*\(\s*(\w+)\s*\)',
+                                    response.lower())
         if secondary_match:
             item = secondary_match.group(1)
-            if item not in ["onion", "dish", "soup"]:
-                item = "onion"  # Default fallback
+            if item not in ("onion", "dish", "soup"):
+                item = "onion"
             return primary_event, "pickup_and_place", item
-        
-        # Fallback
+
+        # final fallback
         return primary_event, "pickup_and_place", "onion"
+
         
     def _task_to_goal(self, task: str, my_pos: tuple, my_ori: tuple) -> tuple:
         """
@@ -430,6 +441,14 @@ class ActionPredictorAgent(Agent):
         my_ori = state.to_dict()["players"][self.agent_index]["orientation"]
         
         print(f"Agent position: {my_pos}, Human Position: {state.player_positions[1-self.agent_index]}")
+
+        if func_name == "NOOP":
+            return Action.STAY, {
+                "primary_event": primary_event,
+                "function_call": "NOOP",
+                "action_plan": [],
+                "response": response
+            }
 
         # Execute the compound action
         if func_name == "pickup_and_place":

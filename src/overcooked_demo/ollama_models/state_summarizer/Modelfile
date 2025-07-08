@@ -1,4 +1,4 @@
-FROM mistral
+FROM gemma2:27b
 PARAMETER temperature 0.0
 
 SYSTEM """

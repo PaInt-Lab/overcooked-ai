@@ -1,6 +1,6 @@
 # action_predictor.Modelfile
 
-FROM llama3.2
+FROM gemma2:27b
 PARAMETER temperature 0
 
 SYSTEM """

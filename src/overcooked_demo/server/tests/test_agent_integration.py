@@ -35,13 +35,13 @@ def run_integration_test():
     pos_history = []
 
     # 3) Simulate ticks until plan exhausted or max steps
-    max_steps = 3
+    max_steps = 4
     for step in range(max_steps):
         print(f"\n=== Tick {step + 1} ===")
         move, info = agent.action(state)
         # print("Move action:", move, "Info:", info)
         pos, ori = state.player_positions[0], state.to_dict()["players"][0]["orientation"]
-        plan_goal = info["robot_task"]
+        plan_goal = info["function_call"]
         # print(f"[Tick {step}] Event {info['event']} → {info['robot_task']} → Move: {move}")
         pos_history.append(pos)
 

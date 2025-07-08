@@ -202,11 +202,16 @@ class ActionPredictorAgent(Agent):
             held = player_dict["held_object"]
             if held is None:
                 return "none"
+            # raw ingredients sometimes come back under "name"
+            if held.get("name") in ("onion", "tomato"):
+                return held["name"]
+            # some objects still use "ingredient"
             if held.get("ingredient") in ("onion", "tomato"):
                 return held["ingredient"]
             if held.get("name") in ("dish", "soup"):
                 return held["name"]
             return "none"
+
 
         # 1) what each player holds
         me   = sd["players"][self.agent_index]
@@ -339,7 +344,7 @@ class ActionPredictorAgent(Agent):
         try:
             # Plan A: orientation‐specific
             action_plan, _, _ = self.planner.get_plan(start_pair, goal_pair)
-            print(f"Plan found using get_plan: {action_plan}")
+            # print(f"Plan found using get_plan: {action_plan}")
             return action_plan
         except KeyError:
             try:
@@ -348,14 +353,14 @@ class ActionPredictorAgent(Agent):
                 action_plan, _, _ = self.planner.action_plan_from_positions(
                     [goal_pos], start_pair, goal_pair
                 )
-                print(f"Plan found using action_plan_from_positions: {action_plan}")
+                # print(f"Plan found using action_plan_from_positions: {action_plan}")
                 return action_plan
             except Exception:
                 # Plan C: guaranteed BFS fallback
                 start_pos, _ = start_pair
                 goal_pos, _ = goal_pair
                 action_plan = _bfs_fallback(start_pos, goal_pos, terrain)
-                print(f"Plan found using BFS fallback: {action_plan}")
+                # print(f"Plan found using BFS fallback: {action_plan}")
                 return action_plan
             
     def pickup_and_place(self, item, start_pos, start_ori):
@@ -396,7 +401,6 @@ class ActionPredictorAgent(Agent):
         # Combine plans
         combined_plan = fetch_plan + stage_plan
         
-        print(f"Combined plan for pickup_and_place({item}): {combined_plan}")
         return combined_plan    
 
     def action(self, state):
@@ -411,16 +415,18 @@ class ActionPredictorAgent(Agent):
         plan_text = "\n".join(plan_lines)
 
         prompt = (
-            f"TERRAIN:\n{json.dumps(self.cleaned_terrain)}\n\n"
+            # f"TERRAIN:\n{json.dumps(self.cleaned_terrain)}\n\n"
             f"STATE:\n{json.dumps(summary)}\n\n"
             f"Summarize the overcooked state. Go over every detail. Do not mention the orientation of players or explicit coordinates for the players."
             f"Their positions are simply to be referred to relative to landmarks on the terrain.\n\n"
         ) 
-        response = query_ollama("mistral", prompt)
-        
+
+        print(f"LLM prompt:\n{prompt}")
+        response = query_ollama("state_summarizer", prompt)
+
         prompt = (
         f"STATE SUMMARY:\n{response}\n\n"
-        f"PLAN:\n{plan_text}\n\n"
+        f"PLAN: {plan_text}\n\n"
         "Based on the current state and plan, determine what the robot should do. "
         "Respond in this exact format:\n"
         "primary: <description of the primary event from the plan>\n"
@@ -429,6 +435,7 @@ class ActionPredictorAgent(Agent):
     )
 
         response = query_ollama("action_predictor", prompt)
+        print(f"LLM prompt:\n{prompt}")
         print(f"\nLLM response: {response}")
 
         # Parse the function call from LLM response
@@ -457,6 +464,7 @@ class ActionPredictorAgent(Agent):
             # Fallback to simple movement
             action_plan = [Action.STAY]
 
+        print(f"Action plan: {action_plan}")
         # Return first action from the plan
         move = action_plan[0] if action_plan else Action.STAY
         

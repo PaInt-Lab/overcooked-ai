@@ -345,7 +345,7 @@ class ActionPredictorAgent(Agent):
         try:
             # Plan A: orientation‐specific
             action_plan, _, _ = self.planner.get_plan(start_pair, goal_pair)
-            # print(f"Plan found using get_plan: {action_plan}")
+            print(f"Plan found using get_plan: {action_plan}")
             return action_plan
         except KeyError:
             try:
@@ -354,14 +354,14 @@ class ActionPredictorAgent(Agent):
                 action_plan, _, _ = self.planner.action_plan_from_positions(
                     [goal_pos], start_pair, goal_pair
                 )
-                # print(f"Plan found using action_plan_from_positions: {action_plan}")
+                print(f"Plan found using action_plan_from_positions: {action_plan}")
                 return action_plan
             except Exception:
                 # Plan C: guaranteed BFS fallback
                 start_pos, _ = start_pair
                 goal_pos, _ = goal_pair
                 action_plan = _bfs_fallback(start_pos, goal_pos, terrain)
-                # print(f"Plan found using BFS fallback: {action_plan}")
+                print(f"Plan found using BFS fallback: {action_plan}")
                 return action_plan
             
     def pickup_and_place(self, item, start_pos, start_ori):

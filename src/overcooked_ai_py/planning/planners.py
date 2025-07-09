@@ -272,7 +272,7 @@ class MotionPlanner(object):
 
         Args:
             position_list (list): list of positions to be reached after the starting position
-                                  (does not include starting position, but includes ending position)
+                                (does not include starting position, but includes ending position)
             start_motion_state (tuple): starting position and orientation
             goal_motion_state (tuple): goal position and orientation
 
@@ -285,6 +285,8 @@ class MotionPlanner(object):
         action_plan, pos_and_or_path = [], []
         position_to_go = list(position_list)
         curr_pos, curr_or = start_motion_state
+
+        print(f"goal_motion_state: {goal_motion_state}, curr_pos: {curr_pos}, curr_or: {curr_or}")
 
         # Get agent to goal position
         while position_to_go and curr_pos != goal_position:
@@ -303,7 +305,13 @@ class MotionPlanner(object):
                 curr_pos, curr_or, goal_orientation
             )
             assert new_pos == goal_position
-            action_plan.append(goal_orientation)
+            
+            # Fix: Convert orientation vector to movement vector
+            # To face orientation (a, b), we need to move in direction (b, a)
+            # Example: to face north (0, -1), we need to move (-1, 0)
+            movement_for_orientation = (goal_orientation[1], goal_orientation[0])
+            action_plan.append(movement_for_orientation)
+            curr_or = goal_orientation
             pos_and_or_path.append((goal_position, goal_orientation))
 
         # Add interact action

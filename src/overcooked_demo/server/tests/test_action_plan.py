@@ -12,6 +12,22 @@ def apply_action_plan(action_plan, layout="cramped_room", max_steps=None):
     mdp = OvercookedGridworld.from_layout_name(layout)
     state = mdp.get_standard_start_state()
 
+    terrain = mdp.terrain_mtx
+    H, W = len(terrain), len(terrain[0])
+    onions, stoves, dishes, serving = [], [], [], []
+    for r in range(H):
+        for c in range(W):
+            cell = terrain[r][c]
+            if cell == 'O': onions.append((r, c))
+            elif cell == 'P': stoves.append((r, c))
+            elif cell == 'D': dishes.append((r, c))
+            elif cell == 'S': serving.append((r, c))
+    print("Map features:")
+    print(f"  Onion spawns: {onions}")
+    print(f"  Stove tiles:   {stoves}")
+    print(f"  Dish spawns:  {dishes}")
+    print(f"  Serve tiles:  {serving}\n")
+
     print(f"Starting state: pos={state.player_positions[0]}, ori={state.to_dict()['players'][0]['orientation']}")
 
     #gonna move the human around a bit, gonna start him off at (2, 2) so he is out of the way
@@ -28,7 +44,7 @@ def apply_action_plan(action_plan, layout="cramped_room", max_steps=None):
         pos = state.player_positions[0]
         ori = state.to_dict()["players"][0]["orientation"]
         # print(f"Step {step+1}: Action={action}, New pos={pos}, ori={ori}, \n\nstate={state}, \n\nreward={reward}")
-        print(f"Step {step+1}: Action={action}, New pos={pos}, ori={ori}, state={state}\n")
+        print(f"Step {step+1}: Action={action}, New pos={pos}, ori={ori}, \nstate={state}\n")
     return state
 
 # Plan Fetch: [(0, -1), (-1, 0), 'interact']

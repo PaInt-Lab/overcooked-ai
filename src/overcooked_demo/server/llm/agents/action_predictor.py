@@ -409,8 +409,6 @@ class ActionPredictorAgent(Agent):
         info = getattr(self, "last_info", {})       
         self.last_summary = self.summarize_state(state, self.last_info)
 
-        print("staging frontier:", self.onion_staging_frontier)
-
         plan_lines = []
         for idx, ev in enumerate(self.plan.events):
             sec = ev["secondary"]
@@ -437,6 +435,7 @@ class ActionPredictorAgent(Agent):
         "secondary: pickup_and_place(onion) or pickup_and_place(dish) or pickup_and_place(soup)\n"
         "Choose the appropriate primary event and secondary action based on the current state and plan."
     )
+        print(f"LLM prompt:\n{prompt}")
 
         response = query_ollama("action_predictor", prompt)
         print(f"\nLLM response: {response}")

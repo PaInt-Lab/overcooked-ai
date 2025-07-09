@@ -409,7 +409,7 @@ class ActionPredictorAgent(Agent):
         info = getattr(self, "last_info", {})       
         self.last_summary = self.summarize_state(state, self.last_info)
 
-        print(f"state: {state}")
+        print("staging frontier:", self.onion_staging_frontier)
 
         plan_lines = []
         for idx, ev in enumerate(self.plan.events):

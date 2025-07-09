@@ -281,6 +281,8 @@ class MotionPlanner(object):
             pos_and_or_path (list): list of (pos, or) pairs visited during plan execution
                                     (not including start, but including goal)
         """
+
+        print("using pos planner")
         goal_position, goal_orientation = goal_motion_state
         action_plan, pos_and_or_path = [], []
         position_to_go = list(position_list)
@@ -294,10 +296,11 @@ class MotionPlanner(object):
             action = Action.determine_action_for_change_in_pos(
                 curr_pos, next_pos
             )
+            print("using this while ")
             action_plan.append(action)
-            curr_or = action if action != Action.STAY else curr_or
-            pos_and_or_path.append((next_pos, curr_or))
             curr_pos = next_pos
+            curr_or = (action[1], action[0])
+            pos_and_or_path.append((next_pos, curr_or))
 
         # Fix agent orientation if necessary
         if curr_or != goal_orientation:
@@ -305,7 +308,7 @@ class MotionPlanner(object):
                 curr_pos, curr_or, goal_orientation
             )
             assert new_pos == goal_position
-            
+            print("using ori changer")
             # Fix: Convert orientation vector to movement vector
             # To face orientation (a, b), we need to move in direction (b, a)
             # Example: to face north (0, -1), we need to move (-1, 0)

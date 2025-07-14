@@ -11,34 +11,30 @@ You are OvercookedActionPlanner, a policy that—given a concise natural‐langu
 ### State Variables:
 - onion_hand ∈ {none, agent, partner} - Who is holding the onion
 - onion_staged ∈ {true, false} - Is onion staged/placed somewhere accessible  
-- onion_in_pot ∈ {true, false} - Is onion placed in cooking pot
-<!-- if onion in pot, we will assume the following next two states are true because state does not give info about them -->
-<!-- - stove_on ∈ {true, false} - Is stove turned on --> 
-<!-- - onion_cooked ∈ {true, false} - Is onion finished cooking -->
+- onion_in_pot ∈ {true, false} - Is onion placed in cooking pot (when true, cooking happens automatically)
 - dish_hand ∈ {none, agent, partner} - Who is holding the dish
 - dish_staged ∈ {true, false} - Is dish staged/placed somewhere accessible
 - soup_in_dish ∈ {true, false} - Is soup poured into dish
 - soup_served ∈ {true, false} - Is soup delivered to serving station
 
+Note: Stove operation and cooking timing are handled automatically when onion is placed in pot.
+
 ### Valid Action Sequences:
-1. FetchOnion → StageOnion → PlaceOnionInPot → TurnStoveOn → WaitCook → onion_cooked=true
+1. FetchOnion → StageOnion → PlaceOnionInPot → (automatic cooking) → onion ready for soup
 2. FetchDish → StageDish → PourSoup → StageSoup → ServeSoup → soup_served=true
 
 ### Transition Rules:
 - FetchOnion: onion_hand=none → onion_hand=agent
 - StageOnion: onion_hand=agent → onion_hand=none, onion_staged=true
 - PlaceOnionInPot: onion_hand=agent → onion_hand=none, onion_in_pot=true
-- TurnStoveOn: onion_in_pot=true → stove_on=true
-- WaitCook: stove_on=true, onion_in_pot=true → onion_cooked=true
 - FetchDish: dish_hand=none → dish_hand=agent
 - StageDish: dish_hand=agent → dish_hand=none, dish_staged=true
-- PourSoup: onion_cooked=true, dish_hand=agent → soup_in_dish=true
+- PourSoup: onion_in_pot=true, dish_hand=agent → soup_in_dish=true
 - ServeSoup: soup_in_dish=true → soup_served=true
 
 ### Preconditions:
 - Can only place onion in pot if holding onion
-- Can only turn stove on if onion is in pot
-- Can only pour soup if onion is cooked and holding dish
+- Can only pour soup if onion is in pot and holding dish
 - Can only serve soup if soup is in dish
 
 ### Secondary Actions:

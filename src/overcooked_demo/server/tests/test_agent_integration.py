@@ -51,8 +51,8 @@ def run_integration_test():
         # print(f"Moving from {pos} with orientation {ori} using action {move}") #Move is empty here
         state, reward = mdp.get_state_transition(state, joint_action)
 
-        print(f"New state: {state.to_dict()}")
-        print(f"Reward: {reward}")
+        # print(f"New state: {state.to_dict()}")
+        # print(f"Reward: {reward}")
 
         # Stop when the final task—Bring Dish to Serving Station—has been chosen
         if plan_goal == "Bring Dish to Serving Station":

@@ -10,6 +10,7 @@ from time import time
 import ray
 from utils import DOCKER_VOLUME, create_dirs
 
+from llm.agents.action_predictor import ActionPredictorAgent
 from human_aware_rl.rllib.rllib import load_agent
 from overcooked_ai_py.mdp.actions import Action, Direction
 from overcooked_ai_py.mdp.overcooked_env import OvercookedEnv
@@ -559,6 +560,10 @@ class OvercookedGame(Game):
         self.state, info = self.mdp.get_state_transition(
             prev_state, joint_action
         )
+
+        for agent in self.npc_policies.values():
+            agent.last_info = info
+
         if self.show_potential:
             self.phi = self.mdp.potential_function(
                 prev_state, self.mp, gamma=0.99
@@ -672,6 +677,14 @@ class OvercookedGame(Game):
         return obj_dict
 
     def get_policy(self, npc_id, idx=0):
+        if npc_id == "overcooked_llm":
+            agent = ActionPredictorAgent(model_name="action_predictor_model")
+            agent.set_agent_index(idx)
+            agent.set_mdp(self.mdp)
+            plan_id = getattr(self, "plan_session_id", None)
+            if plan_id:
+                agent.set_plan(plan_id)
+            return agent
         if npc_id.lower().startswith("rllib"):
             try:
                 # Loading rllib agents requires additional helpers

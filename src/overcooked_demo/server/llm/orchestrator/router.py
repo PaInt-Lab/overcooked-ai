@@ -1,7 +1,7 @@
 import re
 from typing import List
 
-from llm.agents.subtask_agent import SubtaskAgent
+from llm.agents.subtask_creator import SubtaskAgent
 from llm.memory.vector_memory import VectorMemory
 
 # Initialize a singleton VectorMemory

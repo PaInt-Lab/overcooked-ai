@@ -1,5 +1,8 @@
 import os
 import sys
+from uuid import uuid4
+
+from plan_session import PLAN_STORE, PlanSession
 
 # Import and patch the production eventlet server if necessary
 if os.getenv("FLASK_ENV", "production") == "production":
@@ -19,10 +22,12 @@ from threading import Lock
 
 import game
 from flask import Flask, jsonify, render_template, request
-from llm.orchestrator.router import route_generate_subtasks
 from flask_socketio import SocketIO, emit, join_room, leave_room
 from game import Game, OvercookedGame, OvercookedTutorial
 from utils import ThreadSafeDict, ThreadSafeSet
+
+from llm.orchestrator.router import route_generate_subtasks
+from llm.agents.subtask_to_event_sequence import classify_subtasks, group_events, normalize_events
 
 ### Thoughts -- where I'll log potential issues/ideas as they come up
 # Should make game driver code more error robust -- if overcooked randomlly errors we should catch it and report it to user
@@ -125,24 +130,23 @@ app.logger.addHandler(handler)
 
 def try_create_game(game_name, **kwargs):
     """
-    Tries to create a brand new Game object based on parameters in `kwargs`
-
-    Returns (Game, Error) that represent a pointer to a game object, and error that occured
-    during creation, if any. In case of error, `Game` returned in None. In case of sucess,
-    `Error` returned is None
-
-    Possible Errors:
-        - Runtime error if server is at max game capacity
-        - Propogate any error that occured in game __init__ function
+    Tries to create a brand new Game object based on parameters in `kwargs`.
+    Skips over any IDs still marked in‐use instead of asserting.
+    Returns (game, None) on success, or (None, error) on failure.
     """
     try:
-        curr_id = FREE_IDS.get(block=False)
-        assert FREE_MAP[curr_id], "Current id is already in use"
+        # keep popping until we find a genuinely free ID or exhaust the queue
+        while True:
+            curr_id = FREE_IDS.get(block=False)
+            if FREE_MAP[curr_id]:
+                break
+
         game_cls = GAME_NAME_TO_CLS.get(game_name, OvercookedGame)
         game = game_cls(id=curr_id, **kwargs)
+
     except queue.Empty:
-        err = RuntimeError("Server at max capacity")
-        return None, err
+        # from `from queue import Empty` at the top
+        return None, RuntimeError("Server at max capacity")
     except Exception as e:
         return None, e
     else:
@@ -437,7 +441,7 @@ def generate_subtasks():
       {
         "taskName": "Make Onion Soup",
         "existingSubtasks": ["Get onions", "Peel onions"],
-        "notes": "User prefers chopping first"
+        "notes": ""
       }
     Returns JSON: { "subtasks": [ "Get onions", "Peel onions", "Boil onions", ... ] }
     """
@@ -451,7 +455,41 @@ def generate_subtasks():
         return jsonify({"subtasks": subtasks}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+    
+@app.route("/confirm_subtasks", methods=["POST"])
+def confirm_subtasks():
+    """
+    Expects JSON payload:
+      {
+        "taskName": "...",
+        "subtasks": [...],
+        "notes": "..."
+      }
+    Returns:
+      { "status":"success", "events":[...] }
+    """
+    payload = request.get_json() or {}
+    subtasks = payload.get("subtasks", [])
+    print(f"Received subtasks: {subtasks}")
 
+    try:
+        # 1. Tag
+        tagged = classify_subtasks(subtasks)
+
+        # 2. Group
+        events = group_events(tagged)
+
+        # norm_events = normalize_events(events)
+
+        session_id = uuid4().hex
+        PLAN_STORE[session_id] = PlanSession(events)
+
+        # 3. Return sequence and session ID
+        return jsonify({"status": "success", "session_id": session_id, "events": events}), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    
 
 
 #########################
@@ -517,11 +555,16 @@ def on_create(data):
             return
 
         params = data.get("params", {})
-
+        plan_id = data.get("plan_session_id")
         creation_params(params)
 
         game_name = data.get("game_name", "overcooked")
         _create_game(user_id, game_name, params)
+
+        game_id = get_curr_room(user_id)
+        game = get_game(game_id)
+        if plan_id:
+            game.plan_session_id = plan_id
 
 
 @socketio.on("join")

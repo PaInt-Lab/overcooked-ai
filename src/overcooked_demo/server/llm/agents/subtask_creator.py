@@ -1,8 +1,7 @@
 from typing import List, Optional
 from llm.ollama.ollama_client import query_ollama
-from .base_agent import BaseAgent
 
-class SubtaskAgent(BaseAgent):
+class SubtaskAgent():
     """
     Builds a prompt asking the LLM to generate a numbered list of subtasks
     (plus optional comments) given:
@@ -44,5 +43,5 @@ class SubtaskAgent(BaseAgent):
 
         full_prompt = "\n\n".join(prompt_lines)
 
-        response = query_ollama("overcooked_subtask_model", full_prompt)
+        response = query_ollama("subtask_creator", full_prompt)
         return response

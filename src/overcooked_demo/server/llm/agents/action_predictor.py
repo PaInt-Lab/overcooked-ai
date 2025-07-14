@@ -301,39 +301,6 @@ class ActionPredictorAgent(Agent):
 
         # final fallback
         return primary_event, "pickup_and_place", "onion"
-
-        
-    def _task_to_goal(self, task: str, my_pos: tuple, my_ori: tuple) -> tuple:
-        """
-        Given a canonical task, return the nearest tile for that goal.
-        """
-        if task == "Fetch Ingredient":
-            choices = self.ingredient_frontier
-        elif task == "Stage Ingredient at Stove": 
-            choices = self.onion_staging_frontier
-        elif task == "Fetch Dish":
-            choices = self.dish_frontier
-        elif task == "Stage Dish at Stove":  
-            choices = self.dish_staging_frontier
-        elif task == "Fetch Soup":
-            choices = self.dish_staging_frontier
-        elif task == "Bring Dish to Serving Station":
-            choices = self.delivery_frontier
-        else:
-            return (my_pos, tuple(my_ori))
-
-        if not choices:
-            return (my_pos, tuple(my_ori))
-
-        def sort_key(mo):
-            (r, c), _ = mo
-            # primary: Manhattan distance
-            dist = abs(r - my_pos[0]) + abs(c - my_pos[1])
-            # secondary: prefer smaller row, then smaller col
-            return (dist, r, c)
-
-        goal_pos, goal_orient = min(choices, key=sort_key)
-        return (goal_pos, goal_orient)
     
     def _get_action_plan(self, start_pair, goal_pair):
         """
@@ -364,46 +331,81 @@ class ActionPredictorAgent(Agent):
                 print(f"Plan found using BFS fallback: {action_plan}")
                 return action_plan
             
-    def pickup_and_place(self, item, start_pos, start_ori):
-        """
-        Execute a pickup and place compound action for the given item type.
-        If already holding `item`, only generate the staging plan.
-        """
-        start_pair = (start_pos, tuple(start_ori))
-
-        # determine tasks
-        if item == "onion":
-            fetch_task = "Fetch Ingredient"
-            stage_task = "Stage Ingredient at Stove"
-        elif item == "dish":
-            fetch_task = "Fetch Dish"
-            stage_task = "Stage Dish at Stove"
-        elif item == "soup":
-            fetch_task = "Fetch Soup"
-            stage_task = "Bring Soup to Serving Station"
+    def _get_frontier_for_action(self, action: str, item: str):
+        """Get the appropriate frontier based on action and item."""
+        if action == "pickup":
+            frontier_map = {
+                "onion": self.ingredient_frontier,
+                "dish": self.dish_frontier,
+                "soup": self.dish_staging_frontier,  
+            }
+        elif action == "place":
+            frontier_map = {
+                "onion": self.onion_staging_frontier,
+                "dish": self.dish_staging_frontier,
+                "soup": self.delivery_frontier,
+            }
         else:
-            fetch_task = "Fetch Ingredient"
-            stage_task = "Stage Ingredient at Stove"
+            return None
+        
+        return frontier_map.get(item)
 
-        # ---- SKIP fetch if already holding ----
-        if hasattr(self, "last_summary") and self.last_summary.get("agent_holding") == item:
-            # just stage what you’ve got
-            stage_goal = self._task_to_goal(stage_task, start_pos, start_ori)
-            stage_plan = self._get_action_plan(start_pair, stage_goal)
-            print(f"Skipping fetch for {item}, staging directly: {stage_plan}")
+    def _find_nearest_goal(self, choices, my_pos: tuple, my_ori: tuple) -> tuple:
+        """Find the nearest goal from a list of choices."""
+        if not choices:
+            return (my_pos, tuple(my_ori))
+
+        def sort_key(mo):
+            (r, c), _ = mo
+            # primary: Manhattan distance
+            dist = abs(r - my_pos[0]) + abs(c - my_pos[1])
+            # secondary: prefer smaller row, then smaller col
+            return (dist, r, c)
+
+        goal_pos, goal_orient = min(choices, key=sort_key)
+        return (goal_pos, goal_orient)
+
+    def _move_to(self, action: str, item: str, start_pos: tuple, start_ori: tuple):
+        """Move to the appropriate location for the given action and item."""
+        choices = self._get_frontier_for_action(action, item)
+        if choices is None:
+            return []
+        
+        goal = self._find_nearest_goal(choices, start_pos, start_ori)
+        start_pair = (start_pos, tuple(start_ori))
+        return self._get_action_plan(start_pair, goal)
+
+    def PickUp(self, item, start_pos, start_ori):
+        """Returns an action plan to pick up the specified item."""
+        return self._move_to("pickup", item, start_pos, start_ori)
+
+    def Place(self, item, start_pos, start_ori):
+        """Returns an action plan to place the specified item at the correct location."""
+        return self._move_to("place", item, start_pos, start_ori)
+
+    def pickup_and_place(self, item, start_pos, start_ori):
+        """Execute a pickup and place compound action for the given item type."""
+        # Skip fetch if already holding the item
+        if (hasattr(self, "last_summary") and 
+            self.last_summary and 
+            self.last_summary.get("agent_holding") == item):
+            
+            stage_plan = self.Place(item, start_pos, start_ori)
+            print(f"Skipping fetch for {item}, placing directly: {stage_plan}")
             return stage_plan
 
-        # ---- otherwise do full fetch + stage ----
-        fetch_goal = self._task_to_goal(fetch_task, start_pos, start_ori)
-        fetch_plan = self._get_action_plan(start_pair, fetch_goal)
-
-        fetch_goal_pos, fetch_goal_ori = fetch_goal
-        stage_goal = self._task_to_goal(stage_task, fetch_goal_pos, fetch_goal_ori)
-        stage_plan = self._get_action_plan(fetch_goal, stage_goal)
-
-        combined_plan = fetch_plan + stage_plan
+        # Full fetch + place sequence
+        fetch_plan = self.PickUp(item, start_pos, start_ori)
         
-        return combined_plan    
+        # Calculate position after fetch
+        fetch_choices = self._get_frontier_for_action("pickup", item)
+        fetch_goal_pos, fetch_goal_ori = self._find_nearest_goal(fetch_choices, start_pos, start_ori)
+        
+        # Generate place plan from fetch destination
+        stage_plan = self.Place(item, fetch_goal_pos, fetch_goal_ori)
+        
+        combined_plan = fetch_plan + stage_plan
+        return combined_plan
 
     def action(self, state):
         info = getattr(self, "last_info", {})       

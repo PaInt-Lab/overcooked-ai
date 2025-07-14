@@ -1,93 +1,138 @@
-# Overcooked-AI
+# Overcooked-AI: LLM Agent Edition
 
+<p align="center">
+  <img src="images/layouts.gif" alt="Overcooked Demo" width="600"/>
+</p>
 
+## 🚀 Overview
 
-## Getting started
+**Overcooked-AI** is a research platform for human-AI coordination, now supercharged with a modular, extensible **LLM Agent** pipeline. Instead of relying solely on traditional reinforcement learning, this project introduces a novel agent that leverages large language models (LLMs) for action planning, subtask decomposition, and context-aware decision making in the Overcooked environment.
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+- **Play with or against LLM-powered agents**
+- **Natural language planning and action prediction**
+- **Memory-augmented context for smarter coordination**
+- **Easy to extend with your own LLMs or prompts**
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+> **Note:** RL/BC agents are still supported, but this README focuses on the new LLM-based agent system.
 
-## Add your files
+---
 
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/ee/gitlab-basics/add-file.html#add-a-file-using-the-command-line) or push an existing Git repository with the following command:
+## 🧠 The Overcooked LLM Agent Pipeline
 
+The Overcooked LLM Agent is a modular pipeline that breaks down high-level tasks into actionable steps using a series of specialized LLMs:
+
+1. **State Summarizer**  
+   Converts the raw Overcooked game state into a concise, human-readable summary (using a Gemma LLM).
+
+2. **Subtask Creator**  
+   Given a goal (e.g., "Serve Onion Soup"), generates a numbered list of atomic subtasks using a Llama3-based LLM and prompt engineering.
+
+3. **Task Tagger**  
+   Classifies each subtask as "primary" (requires coordination) or "secondary" (supportive), again using a Llama3 LLM.
+
+4. **Action Predictor**  
+   Given the current state summary and the plan, predicts the next primary and secondary actions to execute (Gemma LLM).
+
+5. **Vector Memory**  
+   Stores and retrieves context from past interactions using FAISS and HuggingFace embeddings, enabling context-aware planning and adaptation.
+
+All LLMs are served locally via [Ollama](https://ollama.com/) for fast, private inference.
+
+---
+
+## ✨ Features
+
+- **LLM-driven agent**: Plans and acts using natural language, not just hardcoded policies.
+- **Contextual memory**: Remembers past plans and adapts to user preferences.
+- **Modular pipeline**: Swap out or extend any LLM component (state summarizer, subtask creator, etc.).
+- **Web demo**: Play Overcooked with the LLM agent in your browser.
+- **Easy extensibility**: Add new recipes, layouts, or LLM models with minimal code changes.
+
+---
+
+## 🖥️ Demo: Play with the LLM Agent
+
+### 1. Prerequisites
+- Python 3.10
+- [Docker](https://docs.docker.com/get-docker/) (for the web demo and Ollama models)
+- [Ollama](https://ollama.com/) (for local LLM inference)
+
+### 2. Quickstart (Web Demo)
+
+```bash
+# From the project root
+cd src/overcooked_demo
+./up.sh  # or ./up.sh production for production mode
 ```
-cd existing_repo
-git remote add origin https://rs-loy-gitlab.concordia.ca/v_rizzut/overcooked-ai.git
-git branch -M main
-git push -uf origin main
+
+- Open your browser to [http://localhost](http://localhost)
+- Select the **Overcooked LLM Agent** as your partner or opponent
+- Play and watch the LLM agent plan, adapt, and act in real time!
+
+To stop the server:
+```bash
+./down.sh
 ```
 
-## Integrate with your tools
+### 3. Using the LLM Agent in Python
 
-- [ ] [Set up project integrations](https://rs-loy-gitlab.concordia.ca/v_rizzut/overcooked-ai/-/settings/integrations)
+You can also use the LLM agent directly in your own scripts:
 
-## Collaborate with your team
+```python
+from overcooked_demo.server.llm.agents.action_predictor import ActionPredictorAgent
+agent = ActionPredictorAgent()
+# ... set up your Overcooked environment and use agent.action(state)
+```
 
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Set auto-merge](https://docs.gitlab.com/ee/user/project/merge_requests/merge_when_pipeline_succeeds.html)
+---
 
-## Test and Deploy
+## 🧩 How the LLM Agent Works
 
-Use the built-in continuous integration in GitLab.
+- **State summarization**: Converts game state to a natural language summary for the LLM.
+- **Subtask planning**: LLM generates a step-by-step plan for the current goal.
+- **Task tagging**: LLM classifies subtasks for better coordination.
+- **Action prediction**: LLM selects the next best action based on the plan and current state.
+- **Memory/context**: Vector memory enables the agent to remember and adapt to past strategies and user preferences.
 
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/index.html)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
+All LLM prompts and models are fully customizable—see the `src/overcooked_demo/ollama_models/` directory for prompt templates and model configs.
 
-***
+---
 
-# Editing this README
+## 🛠️ Extending & Customizing the LLM Agent
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+- **Swap LLMs**: Edit the `Modelfile` in `src/overcooked_demo/ollama_models/` to use your own models or prompts.
+- **Add new recipes/tasks**: Update the subtask creator prompt and logic.
+- **Change memory behavior**: Modify `vector_memory.py` for different context retrieval strategies.
+- **Integrate new LLM endpoints**: Update the agent pipeline to call your own APIs or local models.
 
-## Suggestions for a good README
+---
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+## 📁 Project Structure (Key Parts)
 
-## Name
-Choose a self-explaining name for your project.
+- `src/overcooked_demo/server/llm/agents/` — LLM agent modules (action predictor, subtask creator, etc.)
+- `src/overcooked_demo/ollama_models/` — LLM model configs and prompt templates
+- `src/overcooked_demo/server/llm/memory/` — Vector memory for context
+- `src/overcooked_demo/server/llm/orchestrator/` — Pipeline/router logic
+- `src/overcooked_demo/server/app.py` — Web server entry point
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+---
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+## 👤 Authors & Acknowledgments
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+- **Lead LLM Agent Developer:** Vito Rizzuto  
+- **Original Overcooked-AI:** Micah Carroll (mdc@berkeley.edu), Center for Human-Compatible AI
+- Special thanks to the open-source LLM and RL communities.
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+---
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+## 📜 License
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+---
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
+## 🔗 References & Further Reading
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
-
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
-
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
-
-## License
-For open source projects, say how it is licensed.
-
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+- [Ollama: Run open LLMs locally](https://ollama.com/)
+- [Overcooked-AI (original)](https://github.com/HumanCompatibleAI/overcooked_ai)
+- [On the Utility of Learning about Humans for Human-AI Coordination (NeurIPS 2019)](https://arxiv.org/abs/1910.05789)

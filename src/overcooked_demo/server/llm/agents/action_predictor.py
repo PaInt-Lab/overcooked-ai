@@ -385,27 +385,30 @@ class ActionPredictorAgent(Agent):
 
     def pickup_and_place(self, item, start_pos, start_ori):
         """Execute a pickup and place compound action for the given item type."""
-        # Skip fetch if already holding the item
-        if (hasattr(self, "last_summary") and 
-            self.last_summary and 
-            self.last_summary.get("agent_holding") == item):
-            
-            stage_plan = self.Place(item, start_pos, start_ori)
-            print(f"Skipping fetch for {item}, placing directly: {stage_plan}")
-            return stage_plan
-
-        # Full fetch + place sequence
-        fetch_plan = self.PickUp(item, start_pos, start_ori)
+        # Check if already holding the correct item
+        currently_holding = (hasattr(self, "last_summary") and 
+                            self.last_summary and 
+                            self.last_summary.get("agent_holding"))
         
-        # Calculate position after fetch
-        fetch_choices = self._get_frontier_for_action("pickup", item)
-        fetch_goal_pos, fetch_goal_ori = self._find_nearest_goal(fetch_choices, start_pos, start_ori)
+        if currently_holding == item:
+            place_plan = self.Place(item, start_pos, start_ori)
+            print(f"Already holding {item}, placing directly: {place_plan}")
+            return place_plan
+        elif currently_holding and currently_holding != item:
+            # Agent is holding wrong item - might need to drop first
+            print(f"Warning: Agent holding {currently_holding} but need {item}")
         
-        # Generate place plan from fetch destination
-        stage_plan = self.Place(item, fetch_goal_pos, fetch_goal_ori)
+        # Full pickup + place sequence
+        pickup_plan = self.PickUp(item, start_pos, start_ori)
         
-        combined_plan = fetch_plan + stage_plan
-        return combined_plan
+        # Calculate position after pickup
+        pickup_choices = self._get_frontier_for_action("pickup", item)
+        pickup_goal_pos, pickup_goal_ori = self._find_nearest_goal(pickup_choices, start_pos, start_ori)
+        
+        # Generate place plan from pickup destination
+        place_plan = self.Place(item, pickup_goal_pos, pickup_goal_ori)
+        
+        return pickup_plan + place_plan
 
     def action(self, state):
         info = getattr(self, "last_info", {})       

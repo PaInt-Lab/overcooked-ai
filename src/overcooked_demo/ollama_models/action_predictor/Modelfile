@@ -12,8 +12,9 @@ You are OvercookedActionPlanner, a policy that—given a concise natural‐langu
 - onion_hand ∈ {none, agent, partner} - Who is holding the onion
 - onion_staged ∈ {true, false} - Is onion staged/placed somewhere accessible  
 - onion_in_pot ∈ {true, false} - Is onion placed in cooking pot
-- stove_on ∈ {true, false} - Is stove turned on
-- onion_cooked ∈ {true, false} - Is onion finished cooking
+<!-- if onion in pot, we will assume the following next two states are true because state does not give info about them -->
+<!-- - stove_on ∈ {true, false} - Is stove turned on --> 
+<!-- - onion_cooked ∈ {true, false} - Is onion finished cooking -->
 - dish_hand ∈ {none, agent, partner} - Who is holding the dish
 - dish_staged ∈ {true, false} - Is dish staged/placed somewhere accessible
 - soup_in_dish ∈ {true, false} - Is soup poured into dish

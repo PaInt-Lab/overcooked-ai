@@ -188,14 +188,14 @@ class ActionPredictorAgent(Agent):
 
     def summarize_state(self, state, info):
         """
-        Extract exactly the predicates we need for the LLM:
-        - agent_holding: one of "onion", "tomato", "dish", "soup", or "none"
-        - partner_holding: same for the other player
-        - onion_staged:        is raw onion on any onion‐staging tile?
-        - ingredient_in_pot:   is any onion/tomato in any stove tile?
-        - dish_staged:         is any clean dish on any dish‐staging tile?
-        - soup_staged:         is any soup on any dish‐staging tile?
-        - soup_served:         did the last transition include a soup_delivery?
+        Extract exactly the predicates we need for the LLM based on new MDP:
+        - onion_hand: one of "none", "agent", "partner" 
+        - onion_staged: is raw onion on any onion‐staging tile?
+        - onion_in_pot: is any onion in any stove tile?
+        - dish_hand: one of "none", "agent", "partner"
+        - dish_staged: is any clean dish on any dish‐staging tile?
+        - soup_in_dish: is any soup on any dish‐staging tile?
+        - soup_served: did the last transition include a soup_delivery?
         """
         sd = state.to_dict()
 
@@ -213,14 +213,26 @@ class ActionPredictorAgent(Agent):
                 return held["name"]
             return "none"
 
-
-        # 1) what each player holds
+        # 1) who holds what
         me   = sd["players"][self.agent_index]
         them = sd["players"][1 - self.agent_index]
-        agent_holding   = held_item(me)
-        partner_holding = held_item(them)
+        agent_item   = held_item(me)
+        partner_item = held_item(them)
 
-        # 2) collect what’s on every tile
+        # Map to new MDP variables
+        onion_hand = "none"
+        if agent_item == "onion":
+            onion_hand = "agent"
+        elif partner_item == "onion":
+            onion_hand = "partner"
+
+        dish_hand = "none"
+        if agent_item == "dish":
+            dish_hand = "agent"
+        elif partner_item == "dish":
+            dish_hand = "partner"
+
+        # 2) collect what's on every tile
         tile_contents = {}
         for obj in sd["objects"]:
             p    = tuple(obj["position"])
@@ -233,11 +245,10 @@ class ActionPredictorAgent(Agent):
             for pos in self.onion_staging_tiles
         )
 
-        # 4) ingredient_in_pot?
-        ingredient_in_pot = any(
-            ing in tile_contents.get(pos, [])
+        # 4) onion_in_pot?
+        onion_in_pot = any(
+            "onion" in tile_contents.get(pos, [])
             for pos in self.stove_tiles
-            for ing in ("onion", "tomato")
         )
 
         # 5) dish_staged?
@@ -246,8 +257,8 @@ class ActionPredictorAgent(Agent):
             for pos in self.dish_staging_tiles
         )
 
-        # 6) soup_staged?
-        soup_staged = any(
+        # 6) soup_in_dish? (renamed from soup_staged)
+        soup_in_dish = any(
             "soup" in tile_contents.get(pos, [])
             for pos in self.dish_staging_tiles
         )
@@ -261,12 +272,12 @@ class ActionPredictorAgent(Agent):
             )
 
         return {
-            "agent_holding":    agent_holding,
-            "partner_holding":  partner_holding,
+            "onion_hand":       onion_hand,
             "onion_staged":     onion_staged,
-            "ingredient_in_pot":ingredient_in_pot,
+            "onion_in_pot":     onion_in_pot,
+            "dish_hand":        dish_hand,
             "dish_staged":      dish_staged,
-            "soup_staged":      soup_staged,
+            "soup_in_dish":     soup_in_dish,
             "soup_served":      soup_served
         }
 

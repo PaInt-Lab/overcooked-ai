@@ -19,47 +19,63 @@ def serialize_state(state, mdp) -> str:
     return json.dumps(state_info)
 
 
-def _bfs_fallback(start, goal, terrain):
+def _bfs_fallback(start, goal, terrain, goal_orientation=None, start_orientation=None):
     """
-    Return a list of (delta_row, delta_col) moves to walk from start to goal on terrain,
+    Return a list of (delta_col, delta_row) moves to walk from start to goal on terrain,
     ignoring orientation. Guaranteed to find a path if one exists.
+    Always adds goal orientation at the end if provided.
     """
     H, W = len(terrain), len(terrain[0])
     visited = {start}
     parent = {}
     queue = deque([start])
 
-    # Four cardinal directions: (delta_row, delta_col)
-    directions = [(0, 1), (0, -1), (1, 0), (-1, 0)]
+    # Four cardinal directions: (delta_col, delta_row) - right, left, down, up
+    directions = [(1, 0), (-1, 0), (0, 1), (0, -1)]
 
     while queue:
-        row, col = queue.popleft()
-        if (row, col) == goal:
-            # Reconstruct path of (dr, dc) tuples
+        col, row = queue.popleft()
+        if (col, row) == goal:
+            # Reconstruct path of (dc, dr) tuples
             path = []
             cur = goal
             while cur != start:
                 prev = parent[cur]
-                dr = cur[0] - prev[0]
-                dc = cur[1] - prev[1]
-                path.append((dr, dc))
+                dc = cur[0] - prev[0]
+                dr = cur[1] - prev[1]
+                path.append((dc, dr))
                 cur = prev
             path = list(reversed(path))  
-            path.append(Action.INTERACT)  
+            
+            # Always add goal orientation if provided (agent can't move through objects anyway)
+            if goal_orientation is not None:
+                if goal_orientation == [1, 0]:  # Want to face right
+                    path.append(Direction.EAST)
+                elif goal_orientation == [-1, 0]:  # Want to face left
+                    path.append(Direction.WEST)
+                elif goal_orientation == [0, 1]:  # Want to face down
+                    path.append(Direction.SOUTH)
+                elif goal_orientation == [0, -1]:  # Want to face up
+                    path.append(Direction.NORTH)
+                print(f"BFS: Added goal orientation: {goal_orientation}")
+            
+            # Add INTERACT at the very end
+            path.append(Action.INTERACT)
+            
             return path
 
-        for dr, dc in directions:
-            new_row = row + dr
+        for dc, dr in directions:
             new_col = col + dc
+            new_row = row + dr
             if (
                 0 <= new_row < H and
                 0 <= new_col < W and
                 terrain[new_row][new_col] != 'X' and
-                (new_row, new_col) not in visited
+                (new_col, new_row) not in visited
             ):
-                visited.add((new_row, new_col))
-                parent[(new_row, new_col)] = (row, col)
-                queue.append((new_row, new_col))
+                visited.add((new_col, new_row))
+                parent[(new_col, new_row)] = (col, row)
+                queue.append((new_col, new_row))
 
     return []
 
@@ -94,19 +110,19 @@ class ActionPredictorAgent(Agent):
         super().set_mdp(mdp)
         self.mdp = mdp
         terrain = mdp.terrain_mtx
-        self.ingredient_spawns = [(i, j)
+        self.ingredient_spawns = [(j, i)
                             for i, row in enumerate(terrain)
                             for j, c in enumerate(row)
                             if c in ('O', 'T')]
-        self.stove_tiles       = [(i, j) # Need to manipulate this for the bot to place dishes next to stove
+        self.stove_tiles       = [(j, i) # Need to manipulate this for the bot to place dishes next to stove
                             for i, row in enumerate(terrain)
                             for j, c in enumerate(row)
                             if c == 'P']
-        self.dish_spawns       = [(i, j)
+        self.dish_spawns       = [(j, i)
                             for i, row in enumerate(terrain)
                             for j, c in enumerate(row)
                             if c == 'D']
-        self.delivery_tiles    = [(i, j)
+        self.delivery_tiles    = [(j, i)
                             for i, row in enumerate(terrain)
                             for j, c in enumerate(row)
                             if c == 'S']
@@ -115,19 +131,19 @@ class ActionPredictorAgent(Agent):
         self.dish_staging_tiles = []
         H, W = len(terrain), len(terrain[0])
         
-        for (stove_r, stove_c) in self.stove_tiles:
+        for (stove_c, stove_r) in self.stove_tiles:
             # Find all adjacent staging positions for this stove
             adjacent_staging = []
-            for dr, dc in [(0,1), (0,-1), (1,0), (-1,0)]:
-                nr, nc = stove_r + dr, stove_c + dc
+            for dc, dr in [(1,0), (-1,0), (0,1), (0,-1)]:
+                nc, nr = stove_c + dc, stove_r + dr
                 if 0 <= nr < H and 0 <= nc < W and terrain[nr][nc] == 'X':
-                    adjacent_staging.append((nr, nc, dr, dc))
+                    adjacent_staging.append((nc, nr, dc, dr))
             
             # Categorize by direction relative to stove
-            left_stations = [(r, c) for r, c, dr, dc in adjacent_staging if dc == -1]  # left of stove
-            right_stations = [(r, c) for r, c, dr, dc in adjacent_staging if dc == 1]  # right of stove  
-            top_stations = [(r, c) for r, c, dr, dc in adjacent_staging if dr == -1]   # above stove
-            bottom_stations = [(r, c) for r, c, dr, dc in adjacent_staging if dr == 1] # below stove
+            left_stations = [(c, r) for c, r, dc, dr in adjacent_staging if dc == -1]  # left of stove
+            right_stations = [(c, r) for c, r, dc, dr in adjacent_staging if dc == 1]  # right of stove  
+            top_stations = [(c, r) for c, r, dc, dr in adjacent_staging if dr == -1]   # above stove
+            bottom_stations = [(c, r) for c, r, dc, dr in adjacent_staging if dr == 1] # below stove
             
             # Assign onion staging: prefer left, fallback to bottom
             if left_stations:
@@ -174,16 +190,16 @@ class ActionPredictorAgent(Agent):
         frontier = set()
         WALKABLE = {' '}
 
-        for r, c in tiles:
-            for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
-                nr, nc = r + dr, c + dc
+        for c, r in tiles:
+            for dc, dr in [(1,0), (-1,0), (0,1), (0,-1)]:
+                nc, nr = c + dc, r + dr
                 if (
                     0 <= nr < H and 
                     0 <= nc < W and 
                     terrain[nr][nc] in WALKABLE
                 ):
-                    orient = (-dc, -dr)
-                    frontier.add(((nr, nc), orient))
+                    orient = (dc, dr)
+                    frontier.add(((nc, nr), orient))
         return list(frontier)
 
     def summarize_state(self, state, info):
@@ -215,7 +231,7 @@ class ActionPredictorAgent(Agent):
 
         # 1) who holds what
         me   = sd["players"][self.agent_index]
-        them = sd["players"][1 - self.agent_index]
+        them = sd["players"][1 - (self.agent_index or 0)]
         agent_item   = held_item(me)
         partner_item = held_item(them)
 
@@ -318,7 +334,16 @@ class ActionPredictorAgent(Agent):
         Get action plan between two position/orientation pairs.
         Returns the action plan using the motion planner with BFS fallback.
         """
+        if self.mdp is None:
+            return []
         terrain = self.mdp.terrain_mtx
+        
+        if self.planner is None:
+            # Fallback to BFS if no planner available
+            start_pos, start_ori = start_pair
+            goal_pos, goal_ori = goal_pair
+            print(f"BFS fallback (no planner): start={start_pos}, goal={goal_pos}, start_ori={start_ori}, goal_ori={goal_ori}")
+            return _bfs_fallback(start_pos, goal_pos, terrain, goal_ori, start_ori)
         
         try:
             # Plan A: orientation‐specific
@@ -336,9 +361,10 @@ class ActionPredictorAgent(Agent):
                 return action_plan
             except Exception:
                 # Plan C: guaranteed BFS fallback
-                start_pos, _ = start_pair
-                goal_pos, _ = goal_pair
-                action_plan = _bfs_fallback(start_pos, goal_pos, terrain)
+                start_pos, start_ori = start_pair
+                goal_pos, goal_ori = goal_pair
+                print(f"BFS fallback (planner failed): start={start_pos}, goal={goal_pos}, start_ori={start_ori}, goal_ori={goal_ori}")
+                action_plan = _bfs_fallback(start_pos, goal_pos, terrain, goal_ori, start_ori)
                 print(f"Plan found using BFS fallback: {action_plan}")
                 return action_plan
             
@@ -367,11 +393,11 @@ class ActionPredictorAgent(Agent):
             return (my_pos, tuple(my_ori))
 
         def sort_key(mo):
-            (r, c), _ = mo
+            (c, r), _ = mo
             # primary: Manhattan distance
-            dist = abs(r - my_pos[0]) + abs(c - my_pos[1])
-            # secondary: prefer smaller row, then smaller col
-            return (dist, r, c)
+            dist = abs(c - my_pos[0]) + abs(r - my_pos[1])
+            # secondary: prefer smaller col, then smaller row
+            return (dist, c, r)
 
         goal_pos, goal_orient = min(choices, key=sort_key)
         return (goal_pos, goal_orient)
@@ -422,6 +448,10 @@ class ActionPredictorAgent(Agent):
         return pickup_plan + place_plan
 
     def action(self, state):
+
+        print(f"onion dispensers: {self.ingredient_spawns} stove tiles: {self.stove_tiles} dish spawns: {self.dish_spawns} delivery tiles: {self.delivery_tiles} onion staging tiles: {self.onion_staging_tiles} dish staging tiles: {self.dish_staging_tiles}")
+
+
         info = getattr(self, "last_info", {})       
         self.last_summary = self.summarize_state(state, self.last_info)
 
@@ -439,7 +469,8 @@ class ActionPredictorAgent(Agent):
             f"Their positions are simply to be referred to relative to landmarks on the terrain.\n\n"
         ) 
 
-        print(f"LLM prompt:\n{prompt}")
+        print(f"{self.last_summary}")
+
         response = query_ollama("state_summarizer", prompt)
 
         prompt = (
@@ -451,7 +482,6 @@ class ActionPredictorAgent(Agent):
         "secondary: pickup_and_place(onion) or pickup_and_place(dish) or pickup_and_place(soup)\n"
         "Choose the appropriate primary event and secondary action based on the current state and plan."
     )
-        print(f"LLM prompt:\n{prompt}")
 
         response = query_ollama("action_predictor", prompt)
         print(f"\nLLM response: {response}")
@@ -465,7 +495,7 @@ class ActionPredictorAgent(Agent):
         my_pos = state.player_positions[self.agent_index]
         my_ori = state.to_dict()["players"][self.agent_index]["orientation"]
         
-        print(f"Agent position: {my_pos}, Human Position: {state.player_positions[1-self.agent_index]}")
+        print(f"Agent position: {my_pos}, orientation: {my_ori}")
 
         if func_name == "NOOP":
             return Action.STAY, {

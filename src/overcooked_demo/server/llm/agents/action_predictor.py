@@ -19,7 +19,7 @@ def serialize_state(state, mdp) -> str:
     return json.dumps(state_info)
 
 
-def _bfs_fallback(start, goal, terrain, goal_orientation=None, start_orientation=None):
+def _bfs_fallback(start, goal, terrain, goal_orientation=None):
     """
     Return a list of (delta_col, delta_row) moves to walk from start to goal on terrain,
     ignoring orientation. Guaranteed to find a path if one exists.
@@ -48,16 +48,16 @@ def _bfs_fallback(start, goal, terrain, goal_orientation=None, start_orientation
             path = list(reversed(path))  
             
             # Always add goal orientation if provided (agent can't move through objects anyway)
-            if goal_orientation is not None:
-                if goal_orientation == [1, 0]:  # Want to face right
-                    path.append(Direction.EAST)
-                elif goal_orientation == [-1, 0]:  # Want to face left
-                    path.append(Direction.WEST)
-                elif goal_orientation == [0, 1]:  # Want to face down
-                    path.append(Direction.SOUTH)
-                elif goal_orientation == [0, -1]:  # Want to face up
-                    path.append(Direction.NORTH)
-                print(f"BFS: Added goal orientation: {goal_orientation}")
+            if goal_orientation is not None & path[-1] != goal_orientation:
+                if goal_orientation == (1, 0): 
+                    path.append((1, 0))
+                elif goal_orientation == (-1, 0):  
+                    path.append((-1, 0))
+                elif goal_orientation == (0, 1):  
+                    path.append((0, 1))
+                elif goal_orientation == (0, -1):  
+                    path.append((0, -1))
+
             
             # Add INTERACT at the very end
             path.append(Action.INTERACT)
@@ -198,7 +198,7 @@ class ActionPredictorAgent(Agent):
                     0 <= nc < W and 
                     terrain[nr][nc] in WALKABLE
                 ):
-                    orient = (dc, dr)
+                    orient = (-dc, -dr)
                     frontier.add(((nc, nr), orient))
         return list(frontier)
 
@@ -337,13 +337,13 @@ class ActionPredictorAgent(Agent):
         if self.mdp is None:
             return []
         terrain = self.mdp.terrain_mtx
-        
+
         if self.planner is None:
             # Fallback to BFS if no planner available
             start_pos, start_ori = start_pair
             goal_pos, goal_ori = goal_pair
             print(f"BFS fallback (no planner): start={start_pos}, goal={goal_pos}, start_ori={start_ori}, goal_ori={goal_ori}")
-            return _bfs_fallback(start_pos, goal_pos, terrain, goal_ori, start_ori)
+            return _bfs_fallback(start_pos, goal_pos, terrain, goal_ori)
         
         try:
             # Plan A: orientation‐specific
@@ -363,8 +363,7 @@ class ActionPredictorAgent(Agent):
                 # Plan C: guaranteed BFS fallback
                 start_pos, start_ori = start_pair
                 goal_pos, goal_ori = goal_pair
-                print(f"BFS fallback (planner failed): start={start_pos}, goal={goal_pos}, start_ori={start_ori}, goal_ori={goal_ori}")
-                action_plan = _bfs_fallback(start_pos, goal_pos, terrain, goal_ori, start_ori)
+                action_plan = _bfs_fallback(start_pos, goal_pos, terrain, goal_ori)
                 print(f"Plan found using BFS fallback: {action_plan}")
                 return action_plan
             
@@ -422,36 +421,31 @@ class ActionPredictorAgent(Agent):
 
     def pickup_and_place(self, item, start_pos, start_ori):
         """Execute a pickup and place compound action for the given item type."""
-        # Check if already holding the correct item
-        currently_holding = (hasattr(self, "last_summary") and 
-                            self.last_summary and 
-                            self.last_summary.get("agent_holding"))
         
-        if currently_holding == item:
-            place_plan = self.Place(item, start_pos, start_ori)
-            print(f"Already holding {item}, placing directly: {place_plan}")
-            return place_plan
-        elif currently_holding and currently_holding != item:
-            # Agent is holding wrong item - might need to drop first
-            print(f"Warning: Agent holding {currently_holding} but need {item}")
+        # Check state summary for what agent is currently holding
+        if hasattr(self, "last_summary") and self.last_summary:
+            hand_status = self.last_summary.get(f"{item}_hand", "none")
+            
+            if hand_status == "agent":
+                # Agent already holding the item - do place action
+                place_plan = self.Place(item, start_pos, start_ori)
+                print(f"Agent already holding {item}, placing directly")
+                return place_plan
+            
+            elif hand_status == "none":
+                # Agent not holding the item - do pickup action
+                pickup_plan = self.PickUp(item, start_pos, start_ori)
+                print(f"Agent not holding {item}, picking up")
+                return pickup_plan
         
-        # Full pickup + place sequence
+        # Fallback to original behavior if no state summary
         pickup_plan = self.PickUp(item, start_pos, start_ori)
-        
-        # Calculate position after pickup
         pickup_choices = self._get_frontier_for_action("pickup", item)
         pickup_goal_pos, pickup_goal_ori = self._find_nearest_goal(pickup_choices, start_pos, start_ori)
-        
-        # Generate place plan from pickup destination
         place_plan = self.Place(item, pickup_goal_pos, pickup_goal_ori)
-        
         return pickup_plan + place_plan
 
     def action(self, state):
-
-        print(f"onion dispensers: {self.ingredient_spawns} stove tiles: {self.stove_tiles} dish spawns: {self.dish_spawns} delivery tiles: {self.delivery_tiles} onion staging tiles: {self.onion_staging_tiles} dish staging tiles: {self.dish_staging_tiles}")
-
-
         info = getattr(self, "last_info", {})       
         self.last_summary = self.summarize_state(state, self.last_info)
 

@@ -678,7 +678,7 @@ class OvercookedGame(Game):
 
     def get_policy(self, npc_id, idx=0):
         if npc_id == "overcooked_llm":
-            agent = ActionPredictorAgent(model_name="action_predictor_model")
+            agent = ActionPredictorAgent()
             agent.set_agent_index(idx)
             agent.set_mdp(self.mdp)
             plan_id = getattr(self, "plan_session_id", None)

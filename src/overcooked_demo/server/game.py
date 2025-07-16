@@ -627,6 +627,10 @@ class OvercookedGame(Game):
         self.mdp = OvercookedGridworld.from_layout_name(
             self.curr_layout, **self.mdp_params
         )
+        # Set the MDP for all agents now that it is available
+        for agent in self.npc_policies.values():
+            if hasattr(agent, 'set_mdp'):
+                agent.set_mdp(self.mdp)
         if self.show_potential:
             self.mp = MotionPlanner.from_pickle_or_compute(
                 self.mdp, counter_goals=NO_COUNTERS_PARAMS
@@ -680,7 +684,6 @@ class OvercookedGame(Game):
         if npc_id == "overcooked_llm":
             agent = ActionPredictorAgent()
             agent.set_agent_index(idx)
-            agent.set_mdp(self.mdp)
             plan_id = getattr(self, "plan_session_id", None)
             if plan_id:
                 agent.set_plan(plan_id)

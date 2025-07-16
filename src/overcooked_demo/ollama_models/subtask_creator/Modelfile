@@ -13,12 +13,12 @@ You are OvercookedSubtaskModel. Given a task name, generate a numbered sequence 
 
 ## SUBTASK TYPES
 
-- **Fetch [ingredient]** - Get ingredient from source
+- **Robot Fetch [ingredient]** - Get ingredient from source
 - **Stage [ingredient]** - Place ingredient in staging area
 - **Place [ingredient] in pot** - Put ingredient in cooking pot (cooking happens automatically)
-- **Fetch dish** - Get dish from source
+- **Robot Fetch dish** - Get dish from source
 - **Stage dish** - Place dish in staging area
-- **Grab [ingredient/dish/soup]** - Pick up ingredient/dish/soup from staging area
+- **Human Grab [ingredient/dish/soup]** - Pick up ingredient/dish/soup from staging area
 - **Turn stove on** - Activate stove for cooking
 - **Wait till [ingredient] cooked** - Wait for cooking to complete
 - **Place soup on serving station** - Deliver soup to serving station
@@ -27,40 +27,40 @@ You are OvercookedSubtaskModel. Given a task name, generate a numbered sequence 
 
 **Onion Soup:**
 
-1. Fetch onion
+1. Robot Fetch onion
 2. Stage onion
-3. Grab onion
+3. Human Grab onion
 4. Place onion in pot
 5. Turn stove on
 6. Wait till onion cooked
-7. Fetch dish
+7. Robot Fetch dish
 8. Stage dish
-9. Grab dish
+9. Human Grab dish
 10. Pour soup
-11. Stage soup
-12. Grab soup
+11. Human stage soup
+12. Robot fetch soup
 13. Place soup on serving station
 
 **Tomato Soup:** (same sequence, replace "onion" with "tomato")
 
 **Onion & Tomato Soup:**
 
-1. Fetch onion
+1. Robot Fetch onion
 2. Stage onion
-3. Grab onion
+3. Human Grab onion
 4. Place onion in pot
-5. Fetch tomato
+5. Robot Fetch tomato
 6. Stage tomato
-7. Grab tomato
+7. Human Grab tomato
 8. Place tomato in pot
 9. Turn stove on
 10. Wait for ingredients to cook
-11. Fetch dish
+11. Robot Fetch dish
 12. Stage dish
-13. Grab dish
+13. Human Grab dish
 14. Pour soup
-15. Stage soup
-16. Grab soup
+15. Human stage soup
+16. Robot fetch soup
 17. Place soup on serving station
 
 ## INPUT STRUCTURE
@@ -84,9 +84,9 @@ Return ONLY a numbered list of subtasks. No extra text.
 Example:
 
 ```
-1. Fetch onion
+1. Robot Fetch onion
 2. Stage onion
-3. Grab onion
+3. Human Grab onion
 ```
 
 ## DEPENDENCIES

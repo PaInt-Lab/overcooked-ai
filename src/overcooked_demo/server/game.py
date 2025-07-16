@@ -682,6 +682,7 @@ class OvercookedGame(Game):
 
     def get_policy(self, npc_id, idx=0):
         if npc_id == "overcooked_llm":
+            assert idx is not None, "Agent index must not be None for LLM agent!"
             agent = ActionPredictorAgent()
             agent.set_agent_index(idx)
             plan_id = getattr(self, "plan_session_id", None)

@@ -563,7 +563,7 @@ def on_create(data):
 
         game_id = get_curr_room(user_id)
         game = get_game(game_id)
-        if plan_id:
+        if plan_id and game is not None:
             game.plan_session_id = plan_id
 
 

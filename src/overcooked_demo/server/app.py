@@ -691,28 +691,59 @@ def play_game(game: OvercookedGame, fps=6):
                             room id for all clients connected to this game
     fps (int):              Number of game ticks that should happen every second
     """
+    # Check if this game has an LLM agent
+    has_llm_agent = any(
+        k.startswith('overcooked_llm') or k == 'overcooked_llm' for k in getattr(game, 'npc_policies', {})
+    )
     status = Game.Status.ACTIVE
-    while status != Game.Status.DONE and status != Game.Status.INACTIVE:
-        with game.lock:
-            status = game.tick()
-        if status == Game.Status.RESET:
+    if has_llm_agent:
+        # Event-driven: only tick when all pending_actions queues are non-empty
+        while status != Game.Status.DONE and status != Game.Status.INACTIVE:
             with game.lock:
-                data = game.get_data()
-            socketio.emit(
-                "reset_game",
-                {
-                    "state": game.to_json(),
-                    "timeout": game.reset_timeout,
-                    "data": data,
-                },
-                room=game.id,
-            )
-            socketio.sleep(game.reset_timeout / 1000)
-        else:
-            socketio.emit(
-                "state_pong", {"state": game.get_state()}, room=game.id
-            )
-        socketio.sleep(1 / fps)
+                # Wait until all pending_actions queues are non-empty
+                while any(q.empty() for q in game.pending_actions):
+                    socketio.sleep(0.1)
+                status = game.tick()
+            if status == Game.Status.RESET:
+                with game.lock:
+                    data = game.get_data()
+                socketio.emit(
+                    "reset_game",
+                    {
+                        "state": game.to_json(),
+                        "timeout": game.reset_timeout,
+                        "data": data,
+                    },
+                    room=game.id,
+                )
+                socketio.sleep(game.reset_timeout / 1000)
+            else:
+                socketio.emit(
+                    "state_pong", {"state": game.get_state()}, room=game.id
+                )
+    else:
+        # Original tick-based loop
+        while status != Game.Status.DONE and status != Game.Status.INACTIVE:
+            with game.lock:
+                status = game.tick()
+            if status == Game.Status.RESET:
+                with game.lock:
+                    data = game.get_data()
+                socketio.emit(
+                    "reset_game",
+                    {
+                        "state": game.to_json(),
+                        "timeout": game.reset_timeout,
+                        "data": data,
+                    },
+                    room=game.id,
+                )
+                socketio.sleep(game.reset_timeout / 1000)
+            else:
+                socketio.emit(
+                    "state_pong", {"state": game.get_state()}, room=game.id
+                )
+            socketio.sleep(1 / fps)
 
     with game.lock:
         data = game.get_data()

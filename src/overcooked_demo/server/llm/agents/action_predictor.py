@@ -82,6 +82,7 @@ def _bfs_fallback(start, goal, terrain, goal_orientation=None):
 class ActionPredictorAgent(Agent):
     def __init__(self):
         super().__init__()
+        print(f"ActionPredictorAgent __init__ called, id={id(self)}")
         self.mdp = None
         self.planner = None
         self.ingredient_spawns = []
@@ -92,9 +93,12 @@ class ActionPredictorAgent(Agent):
         self.last_info = None
         self.cleaned_terrain = None
         self.last_summary = None
+        self.agent_index = None
 
     def set_agent_index(self, agent_index: int):
+        print(f"Setting agent index to {agent_index} for agent id {id(self)}")
         super().set_agent_index(agent_index)
+        self.agent_index = agent_index  # Make sure this is set!
 
     TERRAIN_MAPPING = {
         "X": "Wall",
@@ -180,6 +184,7 @@ class ActionPredictorAgent(Agent):
 
     def set_plan(self, session_id: str):
         """Attach the full PlanSession to this agent."""
+        print(f"Plan is plan: {PLAN_STORE[session_id]}")
         self.plan = PLAN_STORE[session_id]
 
     def _compute_frontier(self, tiles, terrain):
@@ -446,6 +451,10 @@ class ActionPredictorAgent(Agent):
         return pickup_plan + place_plan
 
     def action(self, state):
+        print(f"Action called with agent_index={self.agent_index} for agent id {id(self)}")
+        assert self.agent_index is not None, "agent_index is None in action!"
+        if not hasattr(self, "plan") or self.plan is None:
+            raise RuntimeError("No plan set for ActionPredictorAgent! Did you forget to call set_plan()?")
         info = getattr(self, "last_info", {})       
         self.last_summary = self.summarize_state(state, self.last_info)
 

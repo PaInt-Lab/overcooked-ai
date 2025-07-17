@@ -129,11 +129,10 @@ app.logger.addHandler(handler)
 
 
 def try_create_game(game_name, **kwargs):
-    """
-    Tries to create a brand new Game object based on parameters in `kwargs`.
-    Skips over any IDs still marked in‐use instead of asserting.
-    Returns (game, None) on success, or (None, error) on failure.
-    """
+    print("=== try_create_game CALLED ===")
+    print(f"try_create_game: kwargs = {kwargs}")
+    plan_id = kwargs.pop('plan_session_id', None)  # <-- This removes it from kwargs
+    print(f"try_create_game: plan_session_id in kwargs = {plan_id}")
     try:
         # keep popping until we find a genuinely free ID or exhaust the queue
         while True:
@@ -142,7 +141,10 @@ def try_create_game(game_name, **kwargs):
                 break
 
         game_cls = GAME_NAME_TO_CLS.get(game_name, OvercookedGame)
-        game = game_cls(id=curr_id, **kwargs)
+        if plan_id is not None:
+            game = game_cls(id=curr_id, plan_session_id=plan_id, **kwargs)
+        else:
+            game = game_cls(id=curr_id, **kwargs)
 
     except queue.Empty:
         # from `from queue import Empty` at the top
@@ -546,6 +548,8 @@ def creation_params(params):
 
 @socketio.on("create")
 def on_create(data):
+    print("=== new on_create CALLED ===")
+    print(f"on_create: data = {data}")
     user_id = request.sid
     with USERS[user_id]:
         # Retrieve current game if one exists
@@ -556,6 +560,8 @@ def on_create(data):
 
         params = data.get("params", {})
         plan_id = data.get("plan_session_id")
+        if plan_id:
+            params["plan_session_id"] = plan_id
         creation_params(params)
 
         game_name = data.get("game_name", "overcooked")

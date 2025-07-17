@@ -420,6 +420,7 @@ class OvercookedGame(Game):
         showPotential=False,
         randomized=False,
         ticks_per_ai_action=1,
+        plan_session_id=None,
         **kwargs
     ):
         super(OvercookedGame, self).__init__(**kwargs)
@@ -446,6 +447,7 @@ class OvercookedGame(Game):
         self.curr_tick = 0
         self.human_players = set()
         self.npc_players = set()
+        self.plan_session_id = plan_session_id
 
         if randomized:
             random.shuffle(self.layouts)
@@ -646,6 +648,13 @@ class OvercookedGame(Game):
         self.threads = []
         for npc_policy in self.npc_policies:
             self.npc_policies[npc_policy].reset()
+            # Set agent index after reset to ensure it is not None
+            agent = self.npc_policies[npc_policy]
+            if hasattr(agent, 'set_agent_index'):
+                if npc_policy.endswith('_0'):
+                    agent.set_agent_index(0)
+                elif npc_policy.endswith('_1'):
+                    agent.set_agent_index(1)
             self.npc_state_queues[npc_policy].put(self.state)
             t = Thread(target=self.npc_policy_consumer, args=(npc_policy,))
             self.threads.append(t)

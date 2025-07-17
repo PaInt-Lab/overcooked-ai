@@ -1,4 +1,5 @@
-FROM gemma2:27b
+<!-- FROM gemma2:27b -->
+FROM llama3.2
 PARAMETER temperature 0.0
 
 SYSTEM """

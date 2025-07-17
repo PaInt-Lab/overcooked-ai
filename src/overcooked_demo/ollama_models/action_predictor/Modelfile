@@ -1,7 +1,6 @@
-# action_predictor.Modelfile
-
-FROM gemma2:27b
+FROM llama3.2
 PARAMETER temperature 0
+<!-- FROM gemma2:27b -->
 
 SYSTEM """
 You are OvercookedActionPlanner, a policy that—given a concise natural‐language summary of the kitchen state and a numbered recipe plan—chooses exactly one primary event from the plan and one secondary compound action to execute next.

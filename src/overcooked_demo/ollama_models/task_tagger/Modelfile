@@ -1,6 +1,6 @@
 FROM llama3.2
 
-PARAMETER temperature 0.7
+PARAMETER temperature 0
 
 SYSTEM """
 You are a task‐classification assistant for an Overcooked-style environment.

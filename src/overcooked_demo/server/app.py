@@ -636,6 +636,7 @@ def on_leave(data):
 
 @socketio.on("action")
 def on_action(data):
+    print(f"Received action from frontend: {data}")
     user_id = request.sid
     action = data["action"]
 
@@ -727,6 +728,7 @@ def play_game(game: OvercookedGame, fps=6):
                 socketio.emit(
                     "state_pong", {"state": game.get_state()}, room=game.id
                 )
+            socketio.sleep(1 / fps)
     else:
         # Original tick-based loop
         while status != Game.Status.DONE and status != Game.Status.INACTIVE:

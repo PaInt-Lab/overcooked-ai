@@ -425,20 +425,29 @@ class ActionPredictorAgent(Agent):
         """Returns an action plan to place the specified item at the correct location."""
         return self._move_to("place", item, start_pos, start_ori)
 
-    def pickup_and_place(self, item, my_pos, my_ori):
-        print(f"pickup_and_place called with item={item}, my_pos={my_pos}, my_ori={my_ori}")
-        if self.planner is None:
-            print("pickup_and_place: planner is None!")
-            return []
-        # Try to move to the first ingredient spawn
-        if self.ingredient_spawns:
-            goal_pos = self.ingredient_spawns[0]
-            action_plan = self.planner.get_plan((my_pos, my_ori), (goal_pos, my_ori))[0]
-            print(f"pickup_and_place: action_plan = {action_plan}")
-            return action_plan
-        else:
-            print("pickup_and_place: No ingredient spawns available!")
-            return []
+    def pickup_and_place(self, item, start_pos, start_ori):
+        """Execute a pickup and place compound action for the given item type."""
+        # Check state summary for what agent is currently holding
+        if hasattr(self, "last_summary") and self.last_summary:
+            hand_status = self.last_summary.get(f"{item}_hand", "none")
+            print(f"pickup_and_place: hand_status for {item} = {hand_status}")
+            if hand_status == "agent":
+                # Agent already holding the item - do place action
+                place_plan = self.Place(item, start_pos, start_ori)
+                print(f"Agent already holding {item}, placing directly: {place_plan}")
+                return place_plan
+            elif hand_status == "none":
+                # Agent not holding the item - do pickup action
+                pickup_plan = self.PickUp(item, start_pos, start_ori)
+                print(f"Agent not holding {item}, picking up: {pickup_plan}")
+                return pickup_plan
+        # Fallback to original behavior if no state summary
+        pickup_plan = self.PickUp(item, start_pos, start_ori)
+        pickup_choices = self._get_frontier_for_action("pickup", item)
+        pickup_goal_pos, pickup_goal_ori = self._find_nearest_goal(pickup_choices, start_pos, start_ori)
+        place_plan = self.Place(item, pickup_goal_pos, pickup_goal_ori)
+        print(f"Fallback pickup plan: {pickup_plan}, place plan: {place_plan}")
+        return pickup_plan + place_plan
 
     def action(self, state):
         print(f"Action called with agent_index={self.agent_index} for agent id {id(self)}")

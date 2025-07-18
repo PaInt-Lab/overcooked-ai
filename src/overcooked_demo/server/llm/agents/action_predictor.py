@@ -48,7 +48,7 @@ def _bfs_fallback(start, goal, terrain, goal_orientation=None):
             path = list(reversed(path))  
             
             # Always add goal orientation if provided (agent can't move through objects anyway)
-            if goal_orientation is not None & path[-1] != goal_orientation:
+            if goal_orientation is not None and path[-1] != goal_orientation:
                 if goal_orientation == (1, 0): 
                     path.append((1, 0))
                 elif goal_orientation == (-1, 0):  
@@ -340,6 +340,7 @@ class ActionPredictorAgent(Agent):
         Get action plan between two position/orientation pairs.
         Returns the action plan using the motion planner with BFS fallback.
         """
+        print(f"[DEBUG] _get_action_plan: start_pair={start_pair}, goal_pair={goal_pair}")
         if self.mdp is None:
             return []
         terrain = self.mdp.terrain_mtx
@@ -409,7 +410,9 @@ class ActionPredictorAgent(Agent):
 
     def _move_to(self, action: str, item: str, start_pos: tuple, start_ori: tuple):
         """Move to the appropriate location for the given action and item."""
+        print(f"[DEBUG] _move_to: action={action}, item={item}, start_pos={start_pos}, start_ori={start_ori}")
         choices = self._get_frontier_for_action(action, item)
+        print(f"[DEBUG] _move_to: choices={choices}")
         if choices is None:
             return []
         
@@ -427,6 +430,7 @@ class ActionPredictorAgent(Agent):
 
     def pickup_and_place(self, item, start_pos, start_ori):
         """Execute a pickup and place compound action for the given item type."""
+
         # Check state summary for what agent is currently holding
         if hasattr(self, "last_summary") and self.last_summary:
             hand_status = self.last_summary.get(f"{item}_hand", "none")

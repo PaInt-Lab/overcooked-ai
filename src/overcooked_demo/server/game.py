@@ -629,10 +629,6 @@ class OvercookedGame(Game):
         self.mdp = OvercookedGridworld.from_layout_name(
             self.curr_layout, **self.mdp_params
         )
-        # Set the MDP for all agents now that it is available
-        for agent in self.npc_policies.values():
-            if hasattr(agent, 'set_mdp'):
-                agent.set_mdp(self.mdp)
         if self.show_potential:
             self.mp = MotionPlanner.from_pickle_or_compute(
                 self.mdp, counter_goals=NO_COUNTERS_PARAMS
@@ -655,6 +651,9 @@ class OvercookedGame(Game):
                     agent.set_agent_index(0)
                 elif npc_policy.endswith('_1'):
                     agent.set_agent_index(1)
+            # Set MDP after reset to ensure it is not cleared
+            if hasattr(agent, 'set_mdp'):
+                agent.set_mdp(self.mdp)
             self.npc_state_queues[npc_policy].put(self.state)
             t = Thread(target=self.npc_policy_consumer, args=(npc_policy,))
             self.threads.append(t)

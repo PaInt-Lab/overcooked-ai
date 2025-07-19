@@ -129,10 +129,7 @@ app.logger.addHandler(handler)
 
 
 def try_create_game(game_name, **kwargs):
-    print("=== try_create_game CALLED ===")
-    print(f"try_create_game: kwargs = {kwargs}")
     plan_id = kwargs.pop('plan_session_id', None)  # <-- This removes it from kwargs
-    print(f"try_create_game: plan_session_id in kwargs = {plan_id}")
     try:
         # keep popping until we find a genuinely free ID or exhaust the queue
         while True:
@@ -548,8 +545,6 @@ def creation_params(params):
 
 @socketio.on("create")
 def on_create(data):
-    print("=== new on_create CALLED ===")
-    print(f"on_create: data = {data}")
     user_id = request.sid
     with USERS[user_id]:
         # Retrieve current game if one exists
@@ -636,7 +631,6 @@ def on_leave(data):
 
 @socketio.on("action")
 def on_action(data):
-    print(f"Received action from frontend: {data}")
     user_id = request.sid
     action = data["action"]
 

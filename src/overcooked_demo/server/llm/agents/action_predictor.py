@@ -82,7 +82,6 @@ def _bfs_fallback(start, goal, terrain, goal_orientation=None):
 class ActionPredictorAgent(Agent):
     def __init__(self):
         super().__init__()
-        print(f"ActionPredictorAgent __init__ called, id={id(self)}")
         self.mdp = None
         self.planner = None
         self.ingredient_spawns = []
@@ -96,7 +95,6 @@ class ActionPredictorAgent(Agent):
         self.agent_index = None
 
     def set_agent_index(self, agent_index: int):
-        print(f"Setting agent index to {agent_index} for agent id {id(self)}")
         super().set_agent_index(agent_index)
         self.agent_index = agent_index  # Make sure this is set!
 
@@ -161,13 +159,15 @@ class ActionPredictorAgent(Agent):
             elif top_stations:
                 self.dish_staging_tiles.extend(top_stations)
 
+            self.soup_staging_tiles = self.dish_staging_tiles
+
         self.ingredient_frontier = self._compute_frontier(self.ingredient_spawns, terrain)
         self.stove_frontier      = self._compute_frontier(self.stove_tiles,       terrain) 
         self.dish_frontier       = self._compute_frontier(self.dish_spawns,       terrain)
         self.delivery_frontier   = self._compute_frontier(self.delivery_tiles,    terrain)
         self.onion_staging_frontier = self._compute_frontier(self.onion_staging_tiles, terrain)
         self.dish_staging_frontier  = self._compute_frontier(self.dish_staging_tiles,  terrain)
-        self.soup_staging_frontier  = self._compute_frontier(self.dish_staging_tiles,  terrain)
+        self.soup_staging_frontier  = self._compute_frontier(self.soup_staging_tiles,  terrain)
         
         my_goals = {
             'ingredient': self.ingredient_spawns,
@@ -182,11 +182,9 @@ class ActionPredictorAgent(Agent):
         ]
 
         self.planner = MotionPlanner(mdp, counter_goals=my_goals)
-        print(f"Planner instantiated: {type(self.planner)} with goals: {my_goals}")
 
     def set_plan(self, session_id: str):
         """Attach the full PlanSession to this agent."""
-        print(f"Plan is plan: {PLAN_STORE[session_id]}")
         self.plan = PLAN_STORE[session_id]
 
     def _compute_frontier(self, tiles, terrain):
@@ -222,8 +220,6 @@ class ActionPredictorAgent(Agent):
         """
         sd = state.to_dict()
 
-        print(f"State dict: {sd}")
-
         def held_item(player_dict):
             held = player_dict["held_object"]
             if held is None:
@@ -257,8 +253,20 @@ class ActionPredictorAgent(Agent):
         elif partner_item == "dish":
             dish_hand = "partner"
 
-        # 2) collect what's on every tile
+        # Check for soup in hands
+        soup_hand = "none"
+        if agent_item == "soup":
+            soup_hand = "agent"
+        elif partner_item == "soup":
+            soup_hand = "partner"
+
+        # 2) collect what's on every tile and analyze soup states
         tile_contents = {}
+        ingredient_in_pot = False
+        soup_cooking = False
+        soup_ready = False
+        soup_in_pot_not_cooking = False
+        
         for obj in sd["objects"]:
             p    = tuple(obj["position"])
             name = obj.get("ingredient") or obj.get("name")
@@ -270,6 +278,22 @@ class ActionPredictorAgent(Agent):
                     ing_name = ingredient.get("name")
                     if ing_name:
                         tile_contents.setdefault(p, []).append(ing_name)
+                
+                # Check if soup is on stove (pot)
+                if p in self.stove_tiles:
+                    ingredient_in_pot = True
+                    
+                    # Check cooking states
+                    cooking_tick = obj.get("cooking_tick", -1)
+                    is_cooking = obj.get("is_cooking", False)
+                    is_ready = obj.get("is_ready", False)
+                    
+                    if is_cooking and cooking_tick >= 1:
+                        soup_cooking = True
+                    elif is_ready:
+                        soup_ready = True
+                    elif cooking_tick == -1:
+                        soup_in_pot_not_cooking = True
 
         # 3) onion_staged?
         onion_staged = any(
@@ -277,22 +301,16 @@ class ActionPredictorAgent(Agent):
             for pos in self.onion_staging_tiles
         )
 
-        # 4) onion_in_pot?
-        onion_in_pot = any(
-            "onion" in tile_contents.get(pos, [])
-            for pos in self.stove_tiles
-        )
-
-        # 5) dish_staged?
+        # 4) dish_staged?
         dish_staged = any(
             "dish" in tile_contents.get(pos, [])
             for pos in self.dish_staging_tiles
         )
 
-        # 6) soup_in_dish? (renamed from soup_staged)
-        soup_in_dish = any(
+        # 5) soup_staged?
+        soup_staged = any(
             "soup" in tile_contents.get(pos, [])
-            for pos in self.dish_staging_tiles
+            for pos in self.soup_staging_tiles
         )
 
         # 7) soup_served?
@@ -304,13 +322,17 @@ class ActionPredictorAgent(Agent):
             )
 
         return {
-            "onion_hand":       onion_hand,
-            "onion_staged":     onion_staged,
-            "onion_in_pot":     onion_in_pot,
-            "dish_hand":        dish_hand,
-            "dish_staged":      dish_staged,
-            "soup_in_dish":     soup_in_dish,
-            "soup_served":      soup_served
+            "onion_hand":               onion_hand,
+            "onion_staged":             onion_staged,
+            "ingredient_in_pot":        ingredient_in_pot,
+            "soup_cooking":             soup_cooking,
+            "dish_hand":                dish_hand,
+            "dish_staged":              dish_staged,
+            "soup_ready":               soup_ready,
+            "soup_hand":                soup_hand,
+            "soup_staged":              soup_staged,
+            "soup_in_pot_not_cooking":  soup_in_pot_not_cooking,
+            "soup_served":              soup_served
         }
 
     
@@ -459,16 +481,15 @@ class ActionPredictorAgent(Agent):
         pickup_choices = self._get_frontier_for_action("pickup", item)
         pickup_goal_pos, pickup_goal_ori = self._find_nearest_goal(pickup_choices, start_pos, start_ori)
         place_plan = self.Place(item, pickup_goal_pos, pickup_goal_ori)
-        print(f"Fallback pickup plan: {pickup_plan}, place plan: {place_plan}")
         return pickup_plan + place_plan
 
     def action(self, state):
-        print(f"Action called with agent_index={self.agent_index} for agent id {id(self)}")
         assert self.agent_index is not None, "agent_index is None in action!"
         if not hasattr(self, "plan") or self.plan is None:
             raise RuntimeError("No plan set for ActionPredictorAgent! Did you forget to call set_plan()?")
         info = getattr(self, "last_info", {})       
         self.last_summary = self.summarize_state(state, self.last_info)
+        print(f"State summary: {self.last_summary}")
 
         plan_lines = []
         for idx, ev in enumerate(self.plan.events):

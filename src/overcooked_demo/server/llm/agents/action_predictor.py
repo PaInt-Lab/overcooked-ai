@@ -340,7 +340,7 @@ class ActionPredictorAgent(Agent):
         Get action plan between two position/orientation pairs.
         Returns the action plan using the motion planner with BFS fallback.
         """
-        print(f"[DEBUG] _get_action_plan: start_pair={start_pair}, goal_pair={goal_pair}")
+
         if self.mdp is None:
             return []
         terrain = self.mdp.terrain_mtx
@@ -410,9 +410,7 @@ class ActionPredictorAgent(Agent):
 
     def _move_to(self, action: str, item: str, start_pos: tuple, start_ori: tuple):
         """Move to the appropriate location for the given action and item."""
-        print(f"[DEBUG] _move_to: action={action}, item={item}, start_pos={start_pos}, start_ori={start_ori}")
         choices = self._get_frontier_for_action(action, item)
-        print(f"[DEBUG] _move_to: choices={choices}")
         if choices is None:
             return []
         

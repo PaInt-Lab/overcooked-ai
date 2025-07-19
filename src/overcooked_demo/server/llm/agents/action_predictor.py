@@ -167,6 +167,7 @@ class ActionPredictorAgent(Agent):
         self.delivery_frontier   = self._compute_frontier(self.delivery_tiles,    terrain)
         self.onion_staging_frontier = self._compute_frontier(self.onion_staging_tiles, terrain)
         self.dish_staging_frontier  = self._compute_frontier(self.dish_staging_tiles,  terrain)
+        self.soup_staging_frontier  = self._compute_frontier(self.dish_staging_tiles,  terrain)
         
         my_goals = {
             'ingredient': self.ingredient_spawns,
@@ -221,6 +222,8 @@ class ActionPredictorAgent(Agent):
         """
         sd = state.to_dict()
 
+        print(f"State dict: {sd}")
+
         def held_item(player_dict):
             held = player_dict["held_object"]
             if held is None:
@@ -260,6 +263,13 @@ class ActionPredictorAgent(Agent):
             p    = tuple(obj["position"])
             name = obj.get("ingredient") or obj.get("name")
             tile_contents.setdefault(p, []).append(name)
+            
+            # Special handling for soup objects that contain ingredients
+            if obj.get("name") == "soup" and obj.get("_ingredients"):
+                for ingredient in obj["_ingredients"]:
+                    ing_name = ingredient.get("name")
+                    if ing_name:
+                        tile_contents.setdefault(p, []).append(ing_name)
 
         # 3) onion_staged?
         onion_staged = any(
@@ -313,6 +323,7 @@ class ActionPredictorAgent(Agent):
           or
           secondary: NOOP
         """
+
         # grab the primary
         primary_match = re.search(r'primary:\s*(.+?)(?:\n|secondary:|$)',
                                   response,
@@ -380,7 +391,7 @@ class ActionPredictorAgent(Agent):
             frontier_map = {
                 "onion": self.ingredient_frontier,
                 "dish": self.dish_frontier,
-                "soup": self.dish_staging_frontier,  
+                "soup": self.soup_staging_frontier,  
             }
         elif action == "place":
             frontier_map = {

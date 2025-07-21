@@ -1,6 +1,6 @@
 FROM llama3.2
 
-PARAMETER temperature 0.7
+PARAMETER temperature 0
 
 SYSTEM """
 You are OvercookedSubtaskModel. Given a task name, generate a numbered sequence of subtasks to complete it.

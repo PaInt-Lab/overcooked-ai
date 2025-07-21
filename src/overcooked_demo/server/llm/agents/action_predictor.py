@@ -48,7 +48,7 @@ def _bfs_fallback(start, goal, terrain, goal_orientation=None):
             path = list(reversed(path))  
             
             # Always add goal orientation if provided (agent can't move through objects anyway)
-            if goal_orientation is not None & path[-1] != goal_orientation:
+            if goal_orientation is not None and path[-1] != goal_orientation:
                 if goal_orientation == (1, 0): 
                     path.append((1, 0))
                 elif goal_orientation == (-1, 0):  
@@ -92,9 +92,11 @@ class ActionPredictorAgent(Agent):
         self.last_info = None
         self.cleaned_terrain = None
         self.last_summary = None
+        self.agent_index = None
 
     def set_agent_index(self, agent_index: int):
         super().set_agent_index(agent_index)
+        self.agent_index = agent_index  # Make sure this is set!
 
     TERRAIN_MAPPING = {
         "X": "Wall",
@@ -157,12 +159,15 @@ class ActionPredictorAgent(Agent):
             elif top_stations:
                 self.dish_staging_tiles.extend(top_stations)
 
+            self.soup_staging_tiles = self.dish_staging_tiles
+
         self.ingredient_frontier = self._compute_frontier(self.ingredient_spawns, terrain)
         self.stove_frontier      = self._compute_frontier(self.stove_tiles,       terrain) 
         self.dish_frontier       = self._compute_frontier(self.dish_spawns,       terrain)
         self.delivery_frontier   = self._compute_frontier(self.delivery_tiles,    terrain)
         self.onion_staging_frontier = self._compute_frontier(self.onion_staging_tiles, terrain)
         self.dish_staging_frontier  = self._compute_frontier(self.dish_staging_tiles,  terrain)
+        self.soup_staging_frontier  = self._compute_frontier(self.soup_staging_tiles,  terrain)
         
         my_goals = {
             'ingredient': self.ingredient_spawns,
@@ -176,7 +181,7 @@ class ActionPredictorAgent(Agent):
             for row in terrain
         ]
 
-        self.planner = MotionPlanner(mdp, counter_goals=my_goals) # Eventually, instead of building everytime, can save a pickled version 
+        self.planner = MotionPlanner(mdp, counter_goals=my_goals)
 
     def set_plan(self, session_id: str):
         """Attach the full PlanSession to this agent."""
@@ -248,12 +253,47 @@ class ActionPredictorAgent(Agent):
         elif partner_item == "dish":
             dish_hand = "partner"
 
-        # 2) collect what's on every tile
+        # Check for soup in hands
+        soup_hand = "none"
+        if agent_item == "soup":
+            soup_hand = "agent"
+        elif partner_item == "soup":
+            soup_hand = "partner"
+
+        # 2) collect what's on every tile and analyze soup states
         tile_contents = {}
+        ingredient_in_pot = False
+        soup_cooking = False
+        soup_ready = False
+        soup_in_pot_not_cooking = False
+        
         for obj in sd["objects"]:
             p    = tuple(obj["position"])
             name = obj.get("ingredient") or obj.get("name")
             tile_contents.setdefault(p, []).append(name)
+            
+            # Special handling for soup objects that contain ingredients
+            if obj.get("name") == "soup" and obj.get("_ingredients"):
+                for ingredient in obj["_ingredients"]:
+                    ing_name = ingredient.get("name")
+                    if ing_name:
+                        tile_contents.setdefault(p, []).append(ing_name)
+                
+                # Check if soup is on stove (pot)
+                if p in self.stove_tiles:
+                    ingredient_in_pot = True
+                    
+                    # Check cooking states
+                    cooking_tick = obj.get("cooking_tick", -1)
+                    is_cooking = obj.get("is_cooking", False)
+                    is_ready = obj.get("is_ready", False)
+                    
+                    if is_cooking and cooking_tick >= 1:
+                        soup_cooking = True
+                    elif is_ready:
+                        soup_ready = True
+                    elif cooking_tick == -1:
+                        soup_in_pot_not_cooking = True
 
         # 3) onion_staged?
         onion_staged = any(
@@ -261,22 +301,16 @@ class ActionPredictorAgent(Agent):
             for pos in self.onion_staging_tiles
         )
 
-        # 4) onion_in_pot?
-        onion_in_pot = any(
-            "onion" in tile_contents.get(pos, [])
-            for pos in self.stove_tiles
-        )
-
-        # 5) dish_staged?
+        # 4) dish_staged?
         dish_staged = any(
             "dish" in tile_contents.get(pos, [])
             for pos in self.dish_staging_tiles
         )
 
-        # 6) soup_in_dish? (renamed from soup_staged)
-        soup_in_dish = any(
+        # 5) soup_staged?
+        soup_staged = any(
             "soup" in tile_contents.get(pos, [])
-            for pos in self.dish_staging_tiles
+            for pos in self.soup_staging_tiles
         )
 
         # 7) soup_served?
@@ -288,13 +322,17 @@ class ActionPredictorAgent(Agent):
             )
 
         return {
-            "onion_hand":       onion_hand,
-            "onion_staged":     onion_staged,
-            "onion_in_pot":     onion_in_pot,
-            "dish_hand":        dish_hand,
-            "dish_staged":      dish_staged,
-            "soup_in_dish":     soup_in_dish,
-            "soup_served":      soup_served
+            "onion_hand":               onion_hand,
+            "onion_staged":             onion_staged,
+            "ingredient_in_pot":        ingredient_in_pot,
+            "soup_cooking":             soup_cooking,
+            "dish_hand":                dish_hand,
+            "dish_staged":              dish_staged,
+            "soup_ready":               soup_ready,
+            "soup_hand":                soup_hand,
+            "soup_staged":              soup_staged,
+            "soup_in_pot_not_cooking":  soup_in_pot_not_cooking,
+            "soup_served":              soup_served
         }
 
     
@@ -307,6 +345,7 @@ class ActionPredictorAgent(Agent):
           or
           secondary: NOOP
         """
+
         # grab the primary
         primary_match = re.search(r'primary:\s*(.+?)(?:\n|secondary:|$)',
                                   response,
@@ -334,6 +373,7 @@ class ActionPredictorAgent(Agent):
         Get action plan between two position/orientation pairs.
         Returns the action plan using the motion planner with BFS fallback.
         """
+
         if self.mdp is None:
             return []
         terrain = self.mdp.terrain_mtx
@@ -373,7 +413,7 @@ class ActionPredictorAgent(Agent):
             frontier_map = {
                 "onion": self.ingredient_frontier,
                 "dish": self.dish_frontier,
-                "soup": self.dish_staging_frontier,  
+                "soup": self.soup_staging_frontier,  
             }
         elif action == "place":
             frontier_map = {
@@ -421,23 +461,21 @@ class ActionPredictorAgent(Agent):
 
     def pickup_and_place(self, item, start_pos, start_ori):
         """Execute a pickup and place compound action for the given item type."""
-        
+
         # Check state summary for what agent is currently holding
         if hasattr(self, "last_summary") and self.last_summary:
             hand_status = self.last_summary.get(f"{item}_hand", "none")
-            
+            print(f"pickup_and_place: hand_status for {item} = {hand_status}")
             if hand_status == "agent":
                 # Agent already holding the item - do place action
                 place_plan = self.Place(item, start_pos, start_ori)
-                print(f"Agent already holding {item}, placing directly")
+                print(f"Agent already holding {item}, placing directly: {place_plan}")
                 return place_plan
-            
             elif hand_status == "none":
                 # Agent not holding the item - do pickup action
                 pickup_plan = self.PickUp(item, start_pos, start_ori)
-                print(f"Agent not holding {item}, picking up")
+                print(f"Agent not holding {item}, picking up: {pickup_plan}")
                 return pickup_plan
-        
         # Fallback to original behavior if no state summary
         pickup_plan = self.PickUp(item, start_pos, start_ori)
         pickup_choices = self._get_frontier_for_action("pickup", item)
@@ -446,8 +484,12 @@ class ActionPredictorAgent(Agent):
         return pickup_plan + place_plan
 
     def action(self, state):
+        assert self.agent_index is not None, "agent_index is None in action!"
+        if not hasattr(self, "plan") or self.plan is None:
+            raise RuntimeError("No plan set for ActionPredictorAgent! Did you forget to call set_plan()?")
         info = getattr(self, "last_info", {})       
         self.last_summary = self.summarize_state(state, self.last_info)
+        print(f"State summary: {self.last_summary}")
 
         plan_lines = []
         for idx, ev in enumerate(self.plan.events):

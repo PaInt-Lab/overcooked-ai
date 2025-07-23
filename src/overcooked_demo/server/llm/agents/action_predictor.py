@@ -503,6 +503,7 @@ class ActionPredictorAgent(Agent):
         Get action plan between two position/orientation pairs.
         Returns the action plan using the motion planner with BFS fallback.
         """
+        print(f"Getting action plan from {start_pair} to {goal_pair}")
 
         if self.mdp is None:
             return []
@@ -581,6 +582,29 @@ class ActionPredictorAgent(Agent):
         start_pair = (start_pos, tuple(start_ori))
         return self._get_action_plan(start_pair, goal)
 
+    def _drop_item_at_proper_location(self, item_to_drop: str, start_pos: tuple, start_ori: tuple):
+        """
+        Drop the specified item at its proper staging location.
+        Returns action plan to drop the item.
+        """
+        # Map items to their proper staging locations
+        staging_map = {
+            "onion": self.onion_staging_frontier,
+            "dish": self.dish_staging_frontier,
+            "soup": self.soup_staging_frontier
+        }
+        
+        choices = staging_map.get(item_to_drop, [])
+        if not choices:
+            return []
+        
+        goal = self._find_nearest_goal(choices, start_pos, start_ori)
+        start_pair = (start_pos, tuple(start_ori))
+        drop_plan = self._get_action_plan(start_pair, goal)
+        # Add INTERACT action to drop the item
+        drop_plan.append(Action.INTERACT)
+        return drop_plan
+
     def PickUp(self, item, start_pos, start_ori):
         """Returns an action plan to pick up the specified item."""
         return self._move_to("pickup", item, start_pos, start_ori)
@@ -594,15 +618,38 @@ class ActionPredictorAgent(Agent):
 
         # Check state summary for what agent is currently holding
         if hasattr(self, "last_summary") and self.last_summary:
-            hand_status = self.last_summary.get(f"{item}_hand", "none")
-            if hand_status == "agent":
-                # Agent already holding the item - do place action
+            # Get what the agent is currently holding
+            onion_hand = self.last_summary.get("onion_hand", "none")
+            dish_hand = self.last_summary.get("dish_hand", "none")
+            soup_hand = self.last_summary.get("soup_hand", "none")
+            
+            # Determine what item the agent is currently holding
+            current_item = None
+            if onion_hand == "agent":
+                current_item = "onion"
+            elif dish_hand == "agent":
+                current_item = "dish"
+            elif soup_hand == "agent":
+                current_item = "soup"
+            
+            # Case 1: Agent is holding the correct item
+            if current_item == item:
                 place_plan = self.Place(item, start_pos, start_ori)
                 return place_plan
-            elif hand_status == "none":
-                # Agent not holding the item - do pickup action
+            
+            # Case 2: Agent is holding the wrong item
+            elif current_item is not None:
+                # First drop the wrong item at its proper location
+                drop_plan = self._drop_item_at_proper_location(current_item, start_pos, start_ori)
+                # Then pick up the correct item
+                pickup_plan = self.PickUp(item, start_pos, start_ori)
+                return drop_plan + pickup_plan
+            
+            # Case 3: Agent is holding nothing
+            else:
                 pickup_plan = self.PickUp(item, start_pos, start_ori)
                 return pickup_plan
+        
         # Fallback to original behavior if no state summary
         pickup_plan = self.PickUp(item, start_pos, start_ori)
         pickup_choices = self._get_frontier_for_action("pickup", item)
@@ -616,6 +663,7 @@ class ActionPredictorAgent(Agent):
             raise RuntimeError("No plan set for ActionPredictorAgent! Did you forget to call set_plan()?")
         info = getattr(self, "last_info", {})       
         self.last_summary = self.summarize_state(state, self.last_info)
+        print(f"Current Position: {state.player_positions[self.agent_index]}")
         print(f"State summary: {self.last_summary}")
 
         plan_lines = []
@@ -664,6 +712,8 @@ class ActionPredictorAgent(Agent):
 
         # Return first action from the plan
         move = action_plan[0] if action_plan else Action.STAY
+
+        print("\n\n")
         
         return move, {
             "primary_event": primary_event,

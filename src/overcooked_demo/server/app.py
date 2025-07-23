@@ -698,9 +698,12 @@ def play_game(game: OvercookedGame, fps=6):
     )
     status = Game.Status.ACTIVE
     if has_llm_agent:
-        # Always tick at the set FPS, regardless of action queue state
+        # Event-driven: only tick when all pending_actions queues are non-empty
         while status != Game.Status.DONE and status != Game.Status.INACTIVE:
             with game.lock:
+                # Wait until all pending_actions queues are non-empty
+                while any(q.empty() for q in game.pending_actions):
+                    socketio.sleep(0.1)
                 status = game.tick()
             if status == Game.Status.RESET:
                 with game.lock:

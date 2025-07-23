@@ -290,6 +290,23 @@ class MotionPlanner(object):
 
         print(f"goal_motion_state: {goal_motion_state}, curr_pos: {curr_pos}, curr_or: {curr_or}")
 
+        # Special case: if already at goal position, only handle orientation change
+        if curr_pos == goal_position:
+            if curr_or != goal_orientation:
+                # To change orientation, we need to move in the goal direction
+                # The orientation will automatically become the movement direction
+                if goal_orientation in Action.MOTION_ACTIONS:
+                    action_plan.append(goal_orientation)
+                    curr_or = goal_orientation
+                    pos_and_or_path.append((goal_position, goal_orientation))
+                else:
+                    print(f"Warning: Invalid goal orientation {goal_orientation}, skipping orientation change")
+            
+            # Add interact action
+            action_plan.append(Action.INTERACT)
+            pos_and_or_path.append((goal_position, goal_orientation))
+            return action_plan, pos_and_or_path, len(action_plan)
+
         # Get agent to goal position
         while position_to_go and curr_pos != goal_position:
             next_pos = position_to_go.pop(0)
@@ -299,23 +316,20 @@ class MotionPlanner(object):
             print("using this while ")
             action_plan.append(action)
             curr_pos = next_pos
-            curr_or = (action[1], action[0])
+            # Fix: orientation should be the action itself, not swapped coordinates
+            curr_or = action
             pos_and_or_path.append((next_pos, curr_or))
 
-        # Fix agent orientation if necessary
+        # Fix agent orientation if necessary (only at the end)
         if curr_or != goal_orientation:
-            new_pos, _ = self.mdp._move_if_direction(
-                curr_pos, curr_or, goal_orientation
-            )
-            assert new_pos == goal_position
-            print("using ori changer")
-            # Fix: Convert orientation vector to movement vector
-            # To face orientation (a, b), we need to move in direction (b, a)
-            # Example: to face north (0, -1), we need to move (-1, 0)
-            movement_for_orientation = (goal_orientation[1], goal_orientation[0])
-            action_plan.append(movement_for_orientation)
-            curr_or = goal_orientation
-            pos_and_or_path.append((goal_position, goal_orientation))
+            # To change orientation, we need to move in the goal direction
+            # The orientation will automatically become the movement direction
+            if goal_orientation in Action.MOTION_ACTIONS:
+                action_plan.append(goal_orientation)
+                curr_or = goal_orientation
+                pos_and_or_path.append((goal_position, goal_orientation))
+            else:
+                print(f"Warning: Invalid goal orientation {goal_orientation}, skipping orientation change")
 
         # Add interact action
         action_plan.append(Action.INTERACT)

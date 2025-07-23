@@ -79,6 +79,35 @@ def _bfs_fallback(start, goal, terrain, goal_orientation=None):
 
     return []
 
+def query_openai(prompt: str, model: str = "gpt-3.5-turbo", temperature: float = 0.0) -> str:
+    """
+    Query the OpenAI API with the given prompt and return the response text.
+    """
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        raise RuntimeError("OPENAI_API_KEY environment variable not set.")
+   
+    # Initialize the client with the API key
+    client = OpenAI(api_key=api_key)
+   
+    try:
+        response = client.chat.completions.create(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=temperature,
+            max_tokens=256,
+        )
+       
+        content = response.choices[0].message.content
+        if content is not None:
+            return content.strip()
+        return ""
+       
+    except Exception as e:
+        print(f"Error querying OpenAI: {e}")
+        return ""
+
+
 class ActionPredictorAgent(Agent):
     def __init__(self):
         super().__init__()

@@ -539,7 +539,7 @@ class ActionPredictorAgent(Agent):
         "Choose the appropriate primary event and secondary action based on the current state and plan."
     )
 
-        response = query_ollama("action_predictor", prompt)
+        response = query_openai(prompt)
         print(f"\nLLM response: {response}")
 
         # Parse the function call from LLM response

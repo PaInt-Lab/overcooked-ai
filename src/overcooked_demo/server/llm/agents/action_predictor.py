@@ -7,6 +7,8 @@ from overcooked_ai_py.planning.planners import MotionPlanner, NO_COUNTERS_PARAMS
 from overcooked_ai_py.mdp.actions import Action, Direction
 from llm.ollama.ollama_client import query_ollama
 from plan_session import PLAN_STORE
+import os
+from openai import OpenAI
 
 def serialize_state(state, mdp) -> str:
     """
@@ -528,18 +530,7 @@ class ActionPredictorAgent(Agent):
         plan_text = "\n".join(plan_lines)
 
         prompt = (
-            # f"TERRAIN:\n{json.dumps(self.cleaned_terrain)}\n\n"
-            f"STATE:\n{json.dumps(self.last_summary)}\n\n"
-            f"Summarize the overcooked state. Go over every detail. Do not mention the orientation of players or explicit coordinates for the players."
-            f"Their positions are simply to be referred to relative to landmarks on the terrain.\n\n"
-        ) 
-
-        print(f"{self.last_summary}")
-
-        response = query_ollama("state_summarizer", prompt)
-
-        prompt = (
-        f"STATE SUMMARY:\n{response}\n\n"
+        f"STATE SUMMARY:\n{self.last_summary}\n\n"
         f"PLAN: {plan_text}\n\n"
         "Based on the current state and plan, determine what the robot should do."
         "Respond in this exact format:\n"

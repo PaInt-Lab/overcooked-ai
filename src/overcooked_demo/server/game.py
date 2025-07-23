@@ -544,18 +544,14 @@ class OvercookedGame(Game):
         # enough to produce one at every tick
         joint_action = [Action.STAY] * len(self.players)
 
-        # Synchronize individual player actions into a joint-action as required by overcooked logic
+       # Synchronize individual player actions into a joint-action as required by overcooked logic
         for i in range(len(self.players)):
-            # if this is a human, don't block and inject
-            if self.players[i] in self.human_players:
-                try:
-                    # we don't block here in case humans want to Stay
-                    joint_action[i] = self.pending_actions[i].get(block=False)
-                except Empty:
-                    pass
-            else:
-                # we block on agent actions to ensure that the agent gets to do one action per state
-                joint_action[i] = self.pending_actions[i].get(block=True)
+            try:
+                # Non-blocking for all players (human or agent)
+                joint_action[i] = self.pending_actions[i].get(block=False)
+            except Empty:
+                pass  # Defaults to STAY
+
 
         # Apply overcooked game logic to get state transition
         prev_state = self.state

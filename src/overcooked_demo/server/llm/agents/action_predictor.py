@@ -10,6 +10,8 @@ from plan_session import PLAN_STORE
 import os
 from openai import OpenAI
 
+OVERCOOKED_MODEL = "ft:gpt-4o-mini-2024-07-18:personal:overcooked-action-predictor:BwDfSRdJ"
+
 def serialize_state(state, mdp) -> str:
     """
     Convert OvercookedState and MDP into a compact JSON string for the LLM prompt.
@@ -81,7 +83,7 @@ def _bfs_fallback(start, goal, terrain, goal_orientation=None):
 
     return []
 
-def query_openai(prompt: str, model: str = "gpt-3.5-turbo", temperature: float = 0.0) -> str:
+def query_openai(prompt: str, model: str = OVERCOOKED_MODEL, temperature: float = 0.0) -> str:
     """
     Query the OpenAI API with the given prompt and return the response text.
     """
@@ -413,13 +415,11 @@ class ActionPredictorAgent(Agent):
             # Fallback to BFS if no planner available
             start_pos, start_ori = start_pair
             goal_pos, goal_ori = goal_pair
-            print(f"BFS fallback (no planner): start={start_pos}, goal={goal_pos}, start_ori={start_ori}, goal_ori={goal_ori}")
             return _bfs_fallback(start_pos, goal_pos, terrain, goal_ori)
         
         try:
             # Plan A: orientation‐specific
             action_plan, _, _ = self.planner.get_plan(start_pair, goal_pair)
-            print(f"Plan found using get_plan: {action_plan}")
             return action_plan
         except KeyError:
             try:
@@ -428,14 +428,12 @@ class ActionPredictorAgent(Agent):
                 action_plan, _, _ = self.planner.action_plan_from_positions(
                     [goal_pos], start_pair, goal_pair
                 )
-                print(f"Plan found using action_plan_from_positions: {action_plan}")
                 return action_plan
             except Exception:
                 # Plan C: guaranteed BFS fallback
                 start_pos, start_ori = start_pair
                 goal_pos, goal_ori = goal_pair
                 action_plan = _bfs_fallback(start_pos, goal_pos, terrain, goal_ori)
-                print(f"Plan found using BFS fallback: {action_plan}")
                 return action_plan
             
     def _get_frontier_for_action(self, action: str, item: str):
@@ -496,16 +494,13 @@ class ActionPredictorAgent(Agent):
         # Check state summary for what agent is currently holding
         if hasattr(self, "last_summary") and self.last_summary:
             hand_status = self.last_summary.get(f"{item}_hand", "none")
-            print(f"pickup_and_place: hand_status for {item} = {hand_status}")
             if hand_status == "agent":
                 # Agent already holding the item - do place action
                 place_plan = self.Place(item, start_pos, start_ori)
-                print(f"Agent already holding {item}, placing directly: {place_plan}")
                 return place_plan
             elif hand_status == "none":
                 # Agent not holding the item - do pickup action
                 pickup_plan = self.PickUp(item, start_pos, start_ori)
-                print(f"Agent not holding {item}, picking up: {pickup_plan}")
                 return pickup_plan
         # Fallback to original behavior if no state summary
         pickup_plan = self.PickUp(item, start_pos, start_ori)
@@ -540,18 +535,15 @@ class ActionPredictorAgent(Agent):
     )
 
         response = query_openai(prompt)
-        print(f"\nLLM response: {response}")
 
         # Parse the function call from LLM response
         primary_event, func_name, item = self._parse_function_call(response)
         print(f"Primary event: {primary_event}")
-        print(f"Parsed function: {func_name}({item})")
+        print(f"Secondary action: {func_name}({item})")
 
         # Get current position and orientation
         my_pos = state.player_positions[self.agent_index]
         my_ori = state.to_dict()["players"][self.agent_index]["orientation"]
-        
-        print(f"Agent position: {my_pos}, orientation: {my_ori}")
 
         if func_name == "NOOP":
             return Action.STAY, {
@@ -568,7 +560,6 @@ class ActionPredictorAgent(Agent):
             # Fallback to simple movement
             action_plan = [Action.STAY]
 
-        print(f"Action plan: {action_plan}")
         # Return first action from the plan
         move = action_plan[0] if action_plan else Action.STAY
         

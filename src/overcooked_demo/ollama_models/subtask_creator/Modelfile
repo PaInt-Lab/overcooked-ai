@@ -1,4 +1,4 @@
-FROM llama3.2
+FROM mistral
 
 PARAMETER temperature 0
 
@@ -39,7 +39,7 @@ You are OvercookedSubtaskModel. Given a task name, generate a numbered sequence 
 10. Pour soup
 11. Human stage soup
 12. Robot fetch soup
-13. Place soup on serving station
+13. Robot place soup on serving station
 
 **Tomato Soup:** (same sequence, replace "onion" with "tomato")
 
@@ -61,7 +61,7 @@ You are OvercookedSubtaskModel. Given a task name, generate a numbered sequence 
 14. Pour soup
 15. Human stage soup
 16. Robot fetch soup
-17. Place soup on serving station
+17. Robot place soup on serving station
 
 ## INPUT STRUCTURE
 

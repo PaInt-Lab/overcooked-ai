@@ -625,7 +625,7 @@ class ActionPredictorAgent(Agent):
         try:
             # Plan A: orientation‐specific
             action_plan, _, _ = self.planner.get_plan(start_pair, goal_pair)
-            print(f"Plan get_plan: {action_plan}")
+            # print(f"Plan get_plan: {action_plan}")
             return action_plan
         except KeyError:
             try:
@@ -635,14 +635,14 @@ class ActionPredictorAgent(Agent):
 
                     [goal_pos], start_pair, goal_pair
                 )
-                print(f"Plan action_plan_from_positions: {action_plan}")
+                # print(f"Plan action_plan_from_positions: {action_plan}")
                 return action_plan
             except Exception:
                 # Plan C: guaranteed BFS fallback
                 start_pos, start_ori = start_pair
                 goal_pos, goal_ori = goal_pair
                 action_plan = _bfs_fallback(start_pos, goal_pos, terrain, goal_ori)
-                print(f"Plan BFS fallback: {action_plan}")
+                # print(f"Plan BFS fallback: {action_plan}")
                 return action_plan
             
     def _get_frontier_for_action(self, action: str, item: str):
@@ -770,7 +770,6 @@ class ActionPredictorAgent(Agent):
             raise RuntimeError("No plan set for ActionPredictorAgent! Did you forget to call set_plan()?")
         info = getattr(self, "last_info", {})       
         self.last_summary = self.summarize_state(state, self.last_info)
-        print(f"Current Position: {state.player_positions[self.agent_index]}")
         print(f"State summary: {self.last_summary}")
 
         plan_lines = []

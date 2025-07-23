@@ -7,6 +7,107 @@ from overcooked_ai_py.planning.planners import MotionPlanner, NO_COUNTERS_PARAMS
 from overcooked_ai_py.mdp.actions import Action, Direction
 from llm.ollama.ollama_client import query_ollama
 from plan_session import PLAN_STORE
+import os
+from openai import OpenAI
+
+OVERCOOKED_GAME_MECHANICS = """
+## OVERCOOKED GAME MECHANICS (MDP Knowledge)
+
+### State Variables:
+- onion_hand in {none, agent, partner} - Who is holding the onion
+- onion_staged in {true, false} - Is onion staged/placed somewhere accessible  
+- ingredient_in_pot in {true, false} - Is ingredient placed in cooking pot
+- soup_cooking in {true, false} - Is soup actively cooking (ticker >= 1)
+- soup_ready in {true, false} - Is soup ready to serve
+- soup_hand in {none, agent, partner} - Who is holding the soup
+- soup_staged in {true, false} - Is soup staged/placed somewhere accessible
+- soup_in_pot_not_cooking in {true, false} - Is soup in pot but not cooking (ticker = -1)
+- dish_hand in {none, agent, partner} - Who is holding the dish
+- dish_staged in {true, false} - Is dish staged/placed somewhere accessible
+- soup_served in {true, false} - Is soup delivered to serving station
+
+Note: Cooking states are mutually exclusive: soup_cooking, soup_ready, and soup_in_pot_not_cooking cannot all be true simultaneously.
+
+### Valid Action Sequences:
+1. FetchOnion -> StageOnion -> PlaceIngredientInPot -> TurnStoveOn -> WaitForSoupToCook -> soup_ready=true
+2. FetchDish -> StageDish -> FetchSoup -> StageSoup -> ServeSoup -> soup_served=true
+
+### Transition Rules:
+- FetchOnion: onion_hand=none -> onion_hand=agent
+- StageOnion: onion_hand=agent -> onion_hand=none, onion_staged=true
+- PlaceIngredientInPot: onion_hand=partner -> onion_hand=none, ingredient_in_pot=true
+- Cooking & TurnStoveOn: soup_in_pot_not_cooking=true -> soup_cooking=true (automatic)
+- Ready: soup_cooking=true -> soup_ready=true (automatic)
+- FetchSoup: soup_ready=true, soup_hand=none -> soup_hand=agent
+- StageSoup: soup_hand=agent -> soup_hand=none, soup_staged=true
+- FetchDish: dish_hand=none -> dish_hand=agent
+- StageDish: dish_hand=agent -> dish_hand=none, dish_staged=true
+- ServeSoup: soup_staged=true -> soup_hand=agent -> soup_served=true
+
+### Preconditions:
+- Can only place ingredient in pot if holding ingredient
+- Can only fetch soup if soup_ready=true
+- Can only serve soup if soup_staged=true
+
+### Secondary Actions:
+- pickup_and_place(onion): Handles onion acquisition, staging, and pot placement
+- pickup_and_place(dish): Handles dish acquisition and staging
+- pickup_and_place(soup): Handles soup serving and delivery
+- NOOP: No secondary action needed
+
+## TASK EXECUTION
+
+Each call you receive has this structure:
+
+STATE SUMMARY:
+<one or two sentences describing what the robot and human hold, what's on staging counters, pots, etc., in plain English>
+
+PLAN:
+
+1. secondary: [<labels>], primary: [<labels>]
+2. secondary: [<labels>], primary: [<labels>]
+   ...
+   N) secondary: [<labels>], primary: [<labels>]
+
+Your job:
+
+1. **Analyze current state** against the MDP knowledge above to understand game mechanics
+2. **Identify which plan-step (1...N)** is currently active based on state and progress
+3. **From that step's primary list**, choose exactly one of the canonical primary events (reuse the text exactly as given)
+4. **From the same step's secondary list**, choose exactly one of:
+   • pickup_and_place(onion)  
+   • pickup_and_place(dish)  
+   • pickup_and_place(soup)  
+   • NOOP
+
+**EXACT DECISION RULES for secondary actions:**
+
+**Choose pickup_and_place(onion) when:**
+- onion_hand="none" AND onion_staged=false AND ingredient_in_pot=false AND soup_staged=false AND soup_hand=none
+- (Need to fetch and stage onion for cooking)
+
+**Choose pickup_and_place(dish) when:**
+- dish_staged=false AND soup_cooking=true
+- (Need dish ready when soup is cooking)
+
+**Choose pickup_and_place(soup) when:**
+- soup_hand="none" AND soup_staged=true
+- (Soup is staged and ready for serving)
+
+**Choose NOOP when:**
+- All required items are already staged or in progress
+- Waiting for cooking to complete (soup_cooking=true) AND dish_staged=true
+- Waiting for partner to complete their action
+- No immediate action needed based on current plan step
+
+Return **only** these two lines (no extra commentary):
+
+primary: <exact primary event text>  
+secondary: <one of pickup_and_place(onion|dish|soup) or NOOP>
+"""
+
+
+OVERCOOKED_MODEL = "ft:gpt-4o-mini-2024-07-18:personal:overcooked-action-predictor:BwDfSRdJ"
 
 def serialize_state(state, mdp) -> str:
     """
@@ -79,7 +180,50 @@ def _bfs_fallback(start, goal, terrain, goal_orientation=None):
 
     return []
 
+def query_openai(prompt: str, model: str = OVERCOOKED_MODEL, temperature: float = 0.0) -> str:
+    """
+    Query the OpenAI API with the given prompt and return the response text.
+    """
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        raise RuntimeError("OPENAI_API_KEY environment variable not set.")
+   
+    # Initialize the client with the API key
+    client = OpenAI(api_key=api_key)
+   
+    try:
+        response = client.chat.completions.create(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=temperature,
+            max_tokens=256,
+        )
+       
+        content = response.choices[0].message.content
+        if content is not None:
+            return content.strip()
+        return ""
+       
+    except Exception as e:
+        print(f"Error querying OpenAI: {e}")
+        return ""
+
+
 class ActionPredictorAgent(Agent):
+    """
+    An agent that uses LLM-based action prediction with blocking prevention.
+    
+    This agent:
+    1. Uses an LLM to predict high-level actions based on game state and plan
+    2. Converts high-level actions into low-level movement commands
+    3. Prevents blocking important staging tiles when doing NOOP actions
+    4. Automatically moves to safe positions when blocking is detected
+    
+    Important tiles that are protected from blocking:
+    - Staging tiles for onions, dishes, and soup
+    - Frontier tiles adjacent to important locations (stoves, ingredient spawns, etc.)
+    - Delivery tiles and their adjacent positions
+    """
     def __init__(self):
         super().__init__()
         self.mdp = None
@@ -368,11 +512,105 @@ class ActionPredictorAgent(Agent):
         # final fallback
         return primary_event, "pickup_and_place", "onion"
     
+    def _is_blocking_important_tile(self, my_pos: tuple, state) -> bool:
+        """
+        Check if the agent is currently blocking an important staging tile.
+        Returns True if blocking, False otherwise.
+        """
+        # Get all important tiles that shouldn't be blocked
+        important_tiles = set()
+        
+        # Add all staging tiles
+        important_tiles.update(self.onion_staging_tiles)
+        important_tiles.update(self.dish_staging_tiles)
+        important_tiles.update(self.soup_staging_tiles)
+        
+        # Add all frontier tiles (adjacent to important locations)
+        important_tiles.update([pos for pos, _ in self.ingredient_frontier])
+        important_tiles.update([pos for pos, _ in self.stove_frontier])
+        important_tiles.update([pos for pos, _ in self.dish_frontier])
+        important_tiles.update([pos for pos, _ in self.delivery_frontier])
+        important_tiles.update([pos for pos, _ in self.onion_staging_frontier])
+        important_tiles.update([pos for pos, _ in self.dish_staging_frontier])
+        important_tiles.update([pos for pos, _ in self.soup_staging_frontier])
+        
+        # Check if current position is blocking an important tile
+        is_blocking = my_pos in important_tiles
+        
+        return is_blocking
+
+    def _find_safe_position(self, my_pos: tuple, state) -> tuple:
+        """
+        Find a safe position to move to that doesn't block important tiles.
+        Returns (new_position, action_plan) or (my_pos, []) if no safe move found.
+        """
+        if not self.mdp:
+            return my_pos, []
+            
+        terrain = self.mdp.terrain_mtx
+        H, W = len(terrain), len(terrain[0])
+        
+        # Get all important tiles to avoid
+        important_tiles = set()
+        important_tiles.update(self.onion_staging_tiles)
+        important_tiles.update(self.dish_staging_tiles)
+        important_tiles.update(self.soup_staging_tiles)
+        important_tiles.update([pos for pos, _ in self.ingredient_frontier])
+        important_tiles.update([pos for pos, _ in self.stove_frontier])
+        important_tiles.update([pos for pos, _ in self.dish_frontier])
+        important_tiles.update([pos for pos, _ in self.delivery_frontier])
+        important_tiles.update([pos for pos, _ in self.onion_staging_frontier])
+        important_tiles.update([pos for pos, _ in self.dish_staging_frontier])
+        important_tiles.update([pos for pos, _ in self.soup_staging_frontier])
+        
+        # Get other player position to avoid blocking them
+        other_player_pos = state.player_positions[1 - self.agent_index]
+        
+        # Find safe positions within reasonable distance (max 3 steps)
+        safe_positions = []
+        for distance in range(1, 4):  # Check 1, 2, 3 steps away
+            for dc in range(-distance, distance + 1):
+                for dr in range(-distance, distance + 1):
+                    if abs(dc) + abs(dr) == distance:  # Manhattan distance
+                        new_col = my_pos[0] + dc
+                        new_row = my_pos[1] + dr
+                        
+                        # Check bounds
+                        if 0 <= new_row < H and 0 <= new_col < W:
+                            new_pos = (new_col, new_row)
+                            
+                            # Check if position is walkable and not important
+                            if (terrain[new_row][new_col] == ' ' and 
+                                new_pos not in important_tiles and
+                                new_pos != other_player_pos):
+                                safe_positions.append(new_pos)
+            
+            # If we found safe positions at this distance, stop searching
+            if safe_positions:
+                break
+        
+        # If no safe positions found, stay put
+        if not safe_positions:
+            return my_pos, []
+        
+        # Choose the closest safe position
+        best_pos = min(safe_positions, key=lambda pos: abs(pos[0] - my_pos[0]) + abs(pos[1] - my_pos[1]))
+        
+        # Generate action plan to move to safe position
+        my_ori = state.to_dict()["players"][self.agent_index]["orientation"]
+        start_pair = (my_pos, tuple(my_ori))
+        goal_pair = (best_pos, tuple(my_ori))  # Keep same orientation
+        
+        action_plan = self._get_action_plan(start_pair, goal_pair)
+        
+        return best_pos, action_plan
+
     def _get_action_plan(self, start_pair, goal_pair):
         """
         Get action plan between two position/orientation pairs.
         Returns the action plan using the motion planner with BFS fallback.
         """
+        print(f"Getting action plan from {start_pair} to {goal_pair}")
 
         if self.mdp is None:
             return []
@@ -382,29 +620,29 @@ class ActionPredictorAgent(Agent):
             # Fallback to BFS if no planner available
             start_pos, start_ori = start_pair
             goal_pos, goal_ori = goal_pair
-            print(f"BFS fallback (no planner): start={start_pos}, goal={goal_pos}, start_ori={start_ori}, goal_ori={goal_ori}")
             return _bfs_fallback(start_pos, goal_pos, terrain, goal_ori)
         
         try:
             # Plan A: orientation‐specific
             action_plan, _, _ = self.planner.get_plan(start_pair, goal_pair)
-            print(f"Plan found using get_plan: {action_plan}")
+            # print(f"Plan get_plan: {action_plan}")
             return action_plan
         except KeyError:
             try:
                 # Plan B: orientation‐agnostic  
                 goal_pos, goal_ori = goal_pair
                 action_plan, _, _ = self.planner.action_plan_from_positions(
+
                     [goal_pos], start_pair, goal_pair
                 )
-                print(f"Plan found using action_plan_from_positions: {action_plan}")
+                # print(f"Plan action_plan_from_positions: {action_plan}")
                 return action_plan
             except Exception:
                 # Plan C: guaranteed BFS fallback
                 start_pos, start_ori = start_pair
                 goal_pos, goal_ori = goal_pair
                 action_plan = _bfs_fallback(start_pos, goal_pos, terrain, goal_ori)
-                print(f"Plan found using BFS fallback: {action_plan}")
+                # print(f"Plan BFS fallback: {action_plan}")
                 return action_plan
             
     def _get_frontier_for_action(self, action: str, item: str):
@@ -451,6 +689,29 @@ class ActionPredictorAgent(Agent):
         start_pair = (start_pos, tuple(start_ori))
         return self._get_action_plan(start_pair, goal)
 
+    def _drop_item_at_proper_location(self, item_to_drop: str, start_pos: tuple, start_ori: tuple):
+        """
+        Drop the specified item at its proper staging location.
+        Returns action plan to drop the item.
+        """
+        # Map items to their proper staging locations
+        staging_map = {
+            "onion": self.onion_staging_frontier,
+            "dish": self.dish_staging_frontier,
+            "soup": self.soup_staging_frontier
+        }
+        
+        choices = staging_map.get(item_to_drop, [])
+        if not choices:
+            return []
+        
+        goal = self._find_nearest_goal(choices, start_pos, start_ori)
+        start_pair = (start_pos, tuple(start_ori))
+        drop_plan = self._get_action_plan(start_pair, goal)
+        # Add INTERACT action to drop the item
+        drop_plan.append(Action.INTERACT)
+        return drop_plan
+
     def PickUp(self, item, start_pos, start_ori):
         """Returns an action plan to pick up the specified item."""
         return self._move_to("pickup", item, start_pos, start_ori)
@@ -464,18 +725,38 @@ class ActionPredictorAgent(Agent):
 
         # Check state summary for what agent is currently holding
         if hasattr(self, "last_summary") and self.last_summary:
-            hand_status = self.last_summary.get(f"{item}_hand", "none")
-            print(f"pickup_and_place: hand_status for {item} = {hand_status}")
-            if hand_status == "agent":
-                # Agent already holding the item - do place action
+            # Get what the agent is currently holding
+            onion_hand = self.last_summary.get("onion_hand", "none")
+            dish_hand = self.last_summary.get("dish_hand", "none")
+            soup_hand = self.last_summary.get("soup_hand", "none")
+            
+            # Determine what item the agent is currently holding
+            current_item = None
+            if onion_hand == "agent":
+                current_item = "onion"
+            elif dish_hand == "agent":
+                current_item = "dish"
+            elif soup_hand == "agent":
+                current_item = "soup"
+            
+            # Case 1: Agent is holding the correct item
+            if current_item == item:
                 place_plan = self.Place(item, start_pos, start_ori)
-                print(f"Agent already holding {item}, placing directly: {place_plan}")
                 return place_plan
-            elif hand_status == "none":
-                # Agent not holding the item - do pickup action
+            
+            # Case 2: Agent is holding the wrong item
+            elif current_item is not None:
+                # First drop the wrong item at its proper location
+                drop_plan = self._drop_item_at_proper_location(current_item, start_pos, start_ori)
+                # Then pick up the correct item
                 pickup_plan = self.PickUp(item, start_pos, start_ori)
-                print(f"Agent not holding {item}, picking up: {pickup_plan}")
+                return drop_plan + pickup_plan
+            
+            # Case 3: Agent is holding nothing
+            else:
+                pickup_plan = self.PickUp(item, start_pos, start_ori)
                 return pickup_plan
+        
         # Fallback to original behavior if no state summary
         pickup_plan = self.PickUp(item, start_pos, start_ori)
         pickup_choices = self._get_frontier_for_action("pickup", item)
@@ -499,47 +780,60 @@ class ActionPredictorAgent(Agent):
         plan_text = "\n".join(plan_lines)
 
         prompt = (
-            # f"TERRAIN:\n{json.dumps(self.cleaned_terrain)}\n\n"
-            f"STATE:\n{json.dumps(self.last_summary)}\n\n"
-            f"Summarize the overcooked state. Go over every detail. Do not mention the orientation of players or explicit coordinates for the players."
-            f"Their positions are simply to be referred to relative to landmarks on the terrain.\n\n"
-        ) 
-
-        print(f"{self.last_summary}")
-
-        response = query_ollama("state_summarizer", prompt)
-
-        prompt = (
-        f"STATE SUMMARY:\n{response}\n\n"
-        f"PLAN: {plan_text}\n\n"
+        f"{OVERCOOKED_GAME_MECHANICS}\n\n"
+        f"STATE SUMMARY:\n{self.last_summary}\n\n"
+        f"PLAN:\n{plan_text}\n\n"
         "Based on the current state and plan, determine what the robot should do."
         "Respond in this exact format:\n"
         "primary: <description of the primary event from the plan>\n"
-        "secondary: pickup_and_place(onion) or pickup_and_place(dish) or pickup_and_place(soup)\n"
+        "secondary: pickup_and_place(onion) or pickup_and_place(dish) or pickup_and_place(soup) or NOOP\n"
         "Choose the appropriate primary event and secondary action based on the current state and plan."
     )
 
-        response = query_ollama("action_predictor", prompt)
-        print(f"\nLLM response: {response}")
+        response = query_openai(prompt)
 
         # Parse the function call from LLM response
         primary_event, func_name, item = self._parse_function_call(response)
         print(f"Primary event: {primary_event}")
-        print(f"Parsed function: {func_name}({item})")
+        print(f"Secondary action: {func_name}({item})")
 
         # Get current position and orientation
         my_pos = state.player_positions[self.agent_index]
         my_ori = state.to_dict()["players"][self.agent_index]["orientation"]
-        
-        print(f"Agent position: {my_pos}, orientation: {my_ori}")
 
         if func_name == "NOOP":
-            return Action.STAY, {
-                "primary_event": primary_event,
-                "function_call": "NOOP",
-                "action_plan": [],
-                "response": response
-            }
+            # Check if the agent is blocking important tiles
+            if self._is_blocking_important_tile(my_pos, state):
+                # If blocking, find a safe position to move to
+                safe_pos, action_plan = self._find_safe_position(my_pos, state)
+                if action_plan:
+                    # Return first action from the plan to move to safe position
+                    move = action_plan[0] if action_plan else Action.STAY
+                    return move, {
+                        "primary_event": primary_event,
+                        "function_call": "NOOP_MOVE_TO_SAFE",
+                        "action_plan": action_plan,
+                        "response": response,
+                        "blocking_prevention": True
+                    }
+                else:
+                    # If no safe move found, stay put
+                    return Action.STAY, {
+                        "primary_event": primary_event,
+                        "function_call": "NOOP",
+                        "action_plan": [],
+                        "response": response,
+                        "blocking_prevention": False
+                    }
+            else:
+                # If not blocking, stay put
+                return Action.STAY, {
+                    "primary_event": primary_event,
+                    "function_call": "NOOP",
+                    "action_plan": [],
+                    "response": response,
+                    "blocking_prevention": False
+                }
 
         # Execute the compound action
         if func_name == "pickup_and_place":
@@ -548,9 +842,10 @@ class ActionPredictorAgent(Agent):
             # Fallback to simple movement
             action_plan = [Action.STAY]
 
-        print(f"Action plan: {action_plan}")
         # Return first action from the plan
         move = action_plan[0] if action_plan else Action.STAY
+
+        print("\n\n")
         
         return move, {
             "primary_event": primary_event,

@@ -544,7 +544,7 @@ class OvercookedGame(Game):
         # enough to produce one at every tick
         joint_action = [Action.STAY] * len(self.players)
 
-        # Synchronize individual player actions into a joint-action as required by overcooked logic
+       # Synchronize individual player actions into a joint-action as required by overcooked logic
         for i in range(len(self.players)):
             # if this is a human, don't block and inject
             if self.players[i] in self.human_players:

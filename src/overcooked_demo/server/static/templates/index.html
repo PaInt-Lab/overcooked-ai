@@ -169,11 +169,20 @@
                 </button>
               </div>
             </div>
-            <div class="col-md-4">
-              <button id="askLlmBtn" class="btn btn-light-orange btn-block">
-                Ask LLM
-              </button>
-            </div>
+                         <div class="col-md-4">
+               <button id="askLlmBtn" class="btn btn-light-orange btn-block">
+                 Ask LLM
+               </button>
+               <button id="testSubtasksBtn" class="btn btn-light-yellow btn-block mt-2">
+                 Onion Soup Subtasks (Testing)
+               </button>
+               <button id="testTomatoBtn" class="btn btn-light-red btn-block mt-2">
+                 Tomato Soup Subtasks (Testing)
+               </button>
+               <button id="testOnionTomatoBtn" class="btn btn-light-blue btn-block mt-2">
+                 Onion & Tomato Soup Subtasks (Testing)
+               </button>
+             </div>
           </div>
           <small class="form-text text-muted mt-2">
             Create subtasks individually or ask LLM to generate them from your
@@ -338,6 +347,42 @@
         background-color: #ffcc80;
         border-color: #ffb74d;
         color: #212121;
+      }
+
+      /* Light yellow button for Onion Soup */
+      .btn-light-yellow {
+        background-color: #fff3cd;
+        border-color: #ffeaa7;
+        color: #856404;
+      }
+      .btn-light-yellow:hover {
+        background-color: #ffeaa7;
+        border-color: #fdcb6e;
+        color: #5d4e00;
+      }
+
+      /* Light red button for Tomato Soup */
+      .btn-light-red {
+        background-color: #f8d7da;
+        border-color: #f5c6cb;
+        color: #721c24;
+      }
+      .btn-light-red:hover {
+        background-color: #f5c6cb;
+        border-color: #f1b0b7;
+        color: #491217;
+      }
+
+      /* Light blue button for Onion & Tomato Soup */
+      .btn-light-blue {
+        background-color: #d1ecf1;
+        border-color: #bee5eb;
+        color: #0c5460;
+      }
+      .btn-light-blue:hover {
+        background-color: #bee5eb;
+        border-color: #abdde5;
+        color: #062c33;
       }
 
       .subtask-edit {
@@ -708,6 +753,119 @@
               btn.disabled = false;
               btn.textContent = "Ask LLM";
             }
+          });
+
+        // Test subtasks functionality
+        document
+          .getElementById("testSubtasksBtn")
+          .addEventListener("click", function (e) {
+            e.preventDefault();
+            
+            // Clear existing subtasks
+            const container = document.getElementById("subtaskContainer");
+            const empty = document.getElementById("emptyMessage");
+            if (empty) {
+              empty.style.display = "none";
+            }
+            container.innerHTML = "";
+
+            // Predefined test subtasks
+            const testSubtasks = [
+              "Robot Fetch onion",
+              "Stage onion",
+              "Human Grab onion",
+              "Place onion in pot",
+              "Turn stove on",
+              "Wait till onion cooked",
+              "Robot Fetch dish",
+              "Stage dish",
+              "Human Grab dish",
+              "Pour soup",
+              "Human stage soup",
+              "Robot place soup on serving station"
+            ];
+
+                         // Create cards for each test subtask
+             testSubtasks.forEach((subtask) => {
+               createSubtaskCard(subtask);
+             });
+           });
+
+        // Tomato soup test functionality
+        document
+          .getElementById("testTomatoBtn")
+          .addEventListener("click", function (e) {
+            e.preventDefault();
+            
+            // Clear existing subtasks
+            const container = document.getElementById("subtaskContainer");
+            const empty = document.getElementById("emptyMessage");
+            if (empty) {
+              empty.style.display = "none";
+            }
+            container.innerHTML = "";
+
+            // Tomato soup subtasks (same as onion but with tomato)
+            const tomatoSubtasks = [
+              "Robot Fetch tomato",
+              "Stage tomato",
+              "Human Grab tomato",
+              "Place tomato in pot",
+              "Turn stove on",
+              "Wait till tomato cooked",
+              "Robot Fetch dish",
+              "Stage dish",
+              "Human Grab dish",
+              "Pour soup",
+              "Human stage soup",
+              "Robot place soup on serving station"
+            ];
+
+            // Create cards for each tomato subtask
+            tomatoSubtasks.forEach((subtask) => {
+              createSubtaskCard(subtask);
+            });
+          });
+
+        // Onion & Tomato soup test functionality
+        document
+          .getElementById("testOnionTomatoBtn")
+          .addEventListener("click", function (e) {
+            e.preventDefault();
+            
+            // Clear existing subtasks
+            const container = document.getElementById("subtaskContainer");
+            const empty = document.getElementById("emptyMessage");
+            if (empty) {
+              empty.style.display = "none";
+            }
+            container.innerHTML = "";
+
+            // Onion & Tomato soup subtasks (from your Modelfile)
+            const onionTomatoSubtasks = [
+              "Robot Fetch onion",
+              "Stage onion",
+              "Human Grab onion",
+              "Place onion in pot",
+              "Robot Fetch tomato",
+              "Stage tomato",
+              "Human Grab tomato",
+              "Place tomato in pot",
+              "Turn stove on",
+              "Wait for ingredients to cook",
+              "Robot Fetch dish",
+              "Stage dish",
+              "Human Grab dish",
+              "Pour soup",
+              "Human stage soup",
+              "Robot fetch soup",
+              "Robot place soup on serving station"
+            ];
+
+            // Create cards for each onion & tomato subtask
+            onionTomatoSubtasks.forEach((subtask) => {
+              createSubtaskCard(subtask);
+            });
           });
 
         // Drag and drop for reordering

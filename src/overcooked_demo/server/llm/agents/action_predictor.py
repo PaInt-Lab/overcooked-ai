@@ -9,6 +9,7 @@ from llm.ollama.ollama_client import query_ollama
 from plan_session import PLAN_STORE
 import os
 from openai import OpenAI
+from llm.memory.vector_memory import VectorMemory
 
 OVERCOOKED_GAME_MECHANICS = """
 ## OVERCOOKED GAME MECHANICS (MDP Knowledge)
@@ -237,6 +238,7 @@ class ActionPredictorAgent(Agent):
         self.cleaned_terrain = None
         self.last_summary = None
         self.agent_index = None
+        self.memory = VectorMemory()  # Initialize vector memory
 
     def set_agent_index(self, agent_index: int):
         super().set_agent_index(agent_index)
@@ -847,6 +849,17 @@ class ActionPredictorAgent(Agent):
         print(f"Next Move: {move}")
 
         print("\n\n")
+        
+        # Store in memory for future reference
+        task_title = getattr(self.plan, 'task_title', 'Unknown Task')
+        self.memory.add_game_memory(
+            state_summary=self.last_summary,
+            action_info={
+                "primary_event": primary_event,
+                "function_call": f"{func_name}({item})"
+            },
+            task_title=task_title
+        )
         
         return move, {
             "primary_event": primary_event,

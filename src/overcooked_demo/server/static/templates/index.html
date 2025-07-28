@@ -966,16 +966,23 @@
             (c) => c.querySelector(".subtask-text").textContent.trim()
           );
 
+          // Get the task title from the input field
+          const taskTitle = document.getElementById("taskTitle").value.trim();
+
           fetch("/confirm_subtasks", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ subtasks: seq }),
+            body: JSON.stringify({ 
+              subtasks: seq,
+              taskTitle: taskTitle  // Add the task title
+            }),
           })
             .then((r) => r.json())
             .then((data) => {
               console.log("confirm_subtasks response:", data);
               if (data.status === "success") {
                 window.planSessionId = data.session_id;
+                window.taskTitle = data.taskTitle;  // Store task title globally
                 isConfirmed = true;
                 document.querySelectorAll(".subtask-card").forEach((card) => {
                   card.classList.add("confirmed");

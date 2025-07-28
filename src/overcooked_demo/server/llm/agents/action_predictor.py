@@ -610,7 +610,6 @@ class ActionPredictorAgent(Agent):
         Get action plan between two position/orientation pairs.
         Returns the action plan using the motion planner with BFS fallback.
         """
-        print(f"Getting action plan from {start_pair} to {goal_pair}")
 
         if self.mdp is None:
             return []
@@ -770,6 +769,7 @@ class ActionPredictorAgent(Agent):
             raise RuntimeError("No plan set for ActionPredictorAgent! Did you forget to call set_plan()?")
         info = getattr(self, "last_info", {})       
         self.last_summary = self.summarize_state(state, self.last_info)
+        print(f"Current position: {state.player_positions[self.agent_index]}")
         print(f"State summary: {self.last_summary}")
 
         plan_lines = []
@@ -844,6 +844,7 @@ class ActionPredictorAgent(Agent):
 
         # Return first action from the plan
         move = action_plan[0] if action_plan else Action.STAY
+        print(f"Next Move: {move}")
 
         print("\n\n")
         

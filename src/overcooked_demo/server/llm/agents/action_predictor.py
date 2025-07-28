@@ -774,6 +774,19 @@ class ActionPredictorAgent(Agent):
         print(f"Current position: {state.player_positions[self.agent_index]}")
         print(f"State summary: {self.last_summary}")
 
+        # Retrieve similar past experiences from memory
+        task_title = getattr(self.plan, 'task_title', 'Unknown Task')
+        game_context = ""
+        try:
+            game_context = self.memory.get_game_context(
+                current_state=self.last_summary, 
+                task_title=task_title, 
+                k=3
+            )
+        except Exception as e:
+            print(f"Memory retrieval failed: {e}")
+            game_context = ""
+
         plan_lines = []
         for idx, ev in enumerate(self.plan.events):
             sec = ev["secondary"]
@@ -781,8 +794,14 @@ class ActionPredictorAgent(Agent):
             plan_lines.append(f"{idx+1}) secondary: {sec}, primary: {prim}")
         plan_text = "\n".join(plan_lines)
 
+        # Include game context in the prompt if available
+        context_section = ""
+        if game_context:
+            context_section = f"SIMILAR PAST EXPERIENCES:\n{game_context}\n\n"
+
         prompt = (
         f"{OVERCOOKED_GAME_MECHANICS}\n\n"
+        f"{context_section}"
         f"STATE SUMMARY:\n{self.last_summary}\n\n"
         f"PLAN:\n{plan_text}\n\n"
         "Based on the current state and plan, determine what the robot should do."

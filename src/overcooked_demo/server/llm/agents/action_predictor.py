@@ -871,3 +871,4 @@ class ActionPredictorAgent(Agent):
     def actions(self, states, agent_indices):
         return [self.action(s) for s in states]
 
+

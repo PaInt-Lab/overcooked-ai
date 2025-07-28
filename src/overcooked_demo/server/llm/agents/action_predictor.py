@@ -110,6 +110,26 @@ secondary: <one of pickup_and_place(onion|dish|soup) or NOOP>
 
 OVERCOOKED_MODEL = "ft:gpt-4o-mini-2024-07-18:personal:overcooked-action-predictor:BwDfSRdJ"
 
+def get_model_for_task(task_title: str) -> str:
+    """
+    Select the appropriate model based on the task title.
+    Returns the model name to use for the API call.
+    """
+    task_title_lower = task_title.lower()
+    
+    if "serving onion soup" in task_title_lower and "tomato" not in task_title_lower:
+        # return "overcooked-action-predictor-onion"
+         return OVERCOOKED_MODEL
+    elif "serving tomato soup" in task_title_lower and "onion" not in task_title_lower:
+        # return "overcooked-action-predictor-tomato"
+         return OVERCOOKED_MODEL
+    elif "serving onion and tomato soup" in task_title_lower:
+        # return "overcooked-action-predictor-mixed"
+         return OVERCOOKED_MODEL
+    else:
+        # Default to original model if no specific match
+        return OVERCOOKED_MODEL
+
 def serialize_state(state, mdp) -> str:
     """
     Convert OvercookedState and MDP into a compact JSON string for the LLM prompt.
@@ -230,6 +250,8 @@ class ActionPredictorAgent(Agent):
         self.mdp = None
         self.planner = None
         self.ingredient_spawns = []
+        self.onion_spawns = []
+        self.tomato_spawns = []
         self.stove_tiles = []
         self.dish_spawns = []
         self.delivery_tiles = []
@@ -262,6 +284,14 @@ class ActionPredictorAgent(Agent):
                             for i, row in enumerate(terrain)
                             for j, c in enumerate(row)
                             if c in ('O', 'T')]
+        self.onion_spawns = [(j, i)
+                            for i, row in enumerate(terrain)
+                            for j, c in enumerate(row)
+                            if c == 'O']
+        self.tomato_spawns = [(j, i)
+                            for i, row in enumerate(terrain)
+                            for j, c in enumerate(row)
+                            if c == 'T']
         self.stove_tiles       = [(j, i) # Need to manipulate this for the bot to place dishes next to stove
                             for i, row in enumerate(terrain)
                             for j, c in enumerate(row)
@@ -276,8 +306,9 @@ class ActionPredictorAgent(Agent):
                             if c == 'S']
         # Assign staging stations per stove with directional logic
         self.onion_staging_tiles = []
+        self.tomato_staging_tiles = []
         self.dish_staging_tiles = []
-        H, W = len(terrain), len(terrain[0])
+        H, W = len(terrain), len(terrain[0]) 
         
         for (stove_c, stove_r) in self.stove_tiles:
             # Find all adjacent staging positions for this stove
@@ -299,7 +330,13 @@ class ActionPredictorAgent(Agent):
             elif bottom_stations:
                 self.onion_staging_tiles.extend(bottom_stations)
             
-            # Assign dish staging: prefer right, fallback to top
+            # Assign tomato staging: prefer top, fallback to right
+            if top_stations:
+                self.tomato_staging_tiles.extend(top_stations)
+            elif right_stations:
+                self.tomato_staging_tiles.extend(right_stations)
+            
+            # Assign dish staging: prefer right, fallback to top (if not used by tomato)
             if right_stations:
                 self.dish_staging_tiles.extend(right_stations)
             elif top_stations:
@@ -308,10 +345,13 @@ class ActionPredictorAgent(Agent):
             self.soup_staging_tiles = self.dish_staging_tiles
 
         self.ingredient_frontier = self._compute_frontier(self.ingredient_spawns, terrain)
+        self.onion_frontier = self._compute_frontier(self.onion_spawns, terrain)
+        self.tomato_frontier = self._compute_frontier(self.tomato_spawns, terrain)
         self.stove_frontier      = self._compute_frontier(self.stove_tiles,       terrain) 
         self.dish_frontier       = self._compute_frontier(self.dish_spawns,       terrain)
         self.delivery_frontier   = self._compute_frontier(self.delivery_tiles,    terrain)
         self.onion_staging_frontier = self._compute_frontier(self.onion_staging_tiles, terrain)
+        self.tomato_staging_frontier = self._compute_frontier(self.tomato_staging_tiles, terrain)
         self.dish_staging_frontier  = self._compute_frontier(self.dish_staging_tiles,  terrain)
         self.soup_staging_frontier  = self._compute_frontier(self.soup_staging_tiles,  terrain)
         
@@ -359,6 +399,9 @@ class ActionPredictorAgent(Agent):
         - onion_hand: one of "none", "agent", "partner" 
         - onion_staged: is raw onion on any onion‐staging tile?
         - onion_in_pot: is any onion in any stove tile?
+        - tomato_hand: one of "none", "agent", "partner"
+        - tomato_staged: is raw tomato on any staging tile?
+        - tomato_in_pot: is any tomato in any stove tile?
         - dish_hand: one of "none", "agent", "partner"
         - dish_staged: is any clean dish on any dish‐staging tile?
         - soup_in_dish: is any soup on any dish‐staging tile?
@@ -393,6 +436,12 @@ class ActionPredictorAgent(Agent):
         elif partner_item == "onion":
             onion_hand = "partner"
 
+        tomato_hand = "none"
+        if agent_item == "tomato":
+            tomato_hand = "agent"
+        elif partner_item == "tomato":
+            tomato_hand = "partner"
+
         dish_hand = "none"
         if agent_item == "dish":
             dish_hand = "agent"
@@ -408,7 +457,8 @@ class ActionPredictorAgent(Agent):
 
         # 2) collect what's on every tile and analyze soup states
         tile_contents = {}
-        ingredient_in_pot = False
+        onion_in_pot = False
+        tomato_in_pot = False
         soup_cooking = False
         soup_ready = False
         soup_in_pot_not_cooking = False
@@ -427,7 +477,13 @@ class ActionPredictorAgent(Agent):
                 
                 # Check if soup is on stove (pot)
                 if p in self.stove_tiles:
-                    ingredient_in_pot = True
+                    # Check what ingredients are in the pot
+                    for ingredient in obj["_ingredients"]:
+                        ing_name = ingredient.get("name")
+                        if ing_name == "onion":
+                            onion_in_pot = True
+                        elif ing_name == "tomato":
+                            tomato_in_pot = True
                     
                     # Check cooking states
                     cooking_tick = obj.get("cooking_tick", -1)
@@ -447,13 +503,19 @@ class ActionPredictorAgent(Agent):
             for pos in self.onion_staging_tiles
         )
 
-        # 4) dish_staged?
+        # 4) tomato_staged? (use same staging tiles as onions)
+        tomato_staged = any(
+            "tomato" in tile_contents.get(pos, [])
+            for pos in self.tomato_staging_tiles
+        )
+
+        # 5) dish_staged?
         dish_staged = any(
             "dish" in tile_contents.get(pos, [])
             for pos in self.dish_staging_tiles
         )
 
-        # 5) soup_staged?
+        # 6) soup_staged?
         soup_staged = any(
             "soup" in tile_contents.get(pos, [])
             for pos in self.soup_staging_tiles
@@ -470,7 +532,11 @@ class ActionPredictorAgent(Agent):
         return {
             "onion_hand":               onion_hand,
             "onion_staged":             onion_staged,
-            "ingredient_in_pot":        ingredient_in_pot,
+            "onion_in_pot":             onion_in_pot,
+            "tomato_hand":              tomato_hand,
+            "tomato_staged":            tomato_staged,
+            "tomato_in_pot":            tomato_in_pot,
+            "ingredient_in_pot":        onion_in_pot or tomato_in_pot,  # Legacy support
             "soup_cooking":             soup_cooking,
             "dish_hand":                dish_hand,
             "dish_staged":              dish_staged,
@@ -507,7 +573,7 @@ class ActionPredictorAgent(Agent):
                                     response.lower())
         if secondary_match:
             item = secondary_match.group(1)
-            if item not in ("onion", "dish", "soup"):
+            if item not in ("onion", "tomato", "dish", "soup"):
                 item = "onion"
             return primary_event, "pickup_and_place", item
 
@@ -524,15 +590,19 @@ class ActionPredictorAgent(Agent):
         
         # Add all staging tiles
         important_tiles.update(self.onion_staging_tiles)
+        important_tiles.update(self.tomato_staging_tiles)
         important_tiles.update(self.dish_staging_tiles)
         important_tiles.update(self.soup_staging_tiles)
         
         # Add all frontier tiles (adjacent to important locations)
         important_tiles.update([pos for pos, _ in self.ingredient_frontier])
+        important_tiles.update([pos for pos, _ in self.onion_frontier])
+        important_tiles.update([pos for pos, _ in self.tomato_frontier])
         important_tiles.update([pos for pos, _ in self.stove_frontier])
         important_tiles.update([pos for pos, _ in self.dish_frontier])
         important_tiles.update([pos for pos, _ in self.delivery_frontier])
         important_tiles.update([pos for pos, _ in self.onion_staging_frontier])
+        important_tiles.update([pos for pos, _ in self.tomato_staging_frontier])
         important_tiles.update([pos for pos, _ in self.dish_staging_frontier])
         important_tiles.update([pos for pos, _ in self.soup_staging_frontier])
         
@@ -555,13 +625,17 @@ class ActionPredictorAgent(Agent):
         # Get all important tiles to avoid
         important_tiles = set()
         important_tiles.update(self.onion_staging_tiles)
+        important_tiles.update(self.tomato_staging_tiles)
         important_tiles.update(self.dish_staging_tiles)
         important_tiles.update(self.soup_staging_tiles)
         important_tiles.update([pos for pos, _ in self.ingredient_frontier])
+        important_tiles.update([pos for pos, _ in self.onion_frontier])
+        important_tiles.update([pos for pos, _ in self.tomato_frontier])
         important_tiles.update([pos for pos, _ in self.stove_frontier])
         important_tiles.update([pos for pos, _ in self.dish_frontier])
         important_tiles.update([pos for pos, _ in self.delivery_frontier])
         important_tiles.update([pos for pos, _ in self.onion_staging_frontier])
+        important_tiles.update([pos for pos, _ in self.tomato_staging_frontier])
         important_tiles.update([pos for pos, _ in self.dish_staging_frontier])
         important_tiles.update([pos for pos, _ in self.soup_staging_frontier])
         
@@ -650,13 +724,15 @@ class ActionPredictorAgent(Agent):
         """Get the appropriate frontier based on action and item."""
         if action == "pickup":
             frontier_map = {
-                "onion": self.ingredient_frontier,
+                "onion": self.onion_frontier,
+                "tomato": self.tomato_frontier,
                 "dish": self.dish_frontier,
                 "soup": self.soup_staging_frontier,  
             }
         elif action == "place":
             frontier_map = {
                 "onion": self.onion_staging_frontier,
+                "tomato": self.tomato_staging_frontier,
                 "dish": self.dish_staging_frontier,
                 "soup": self.delivery_frontier,
             }
@@ -698,6 +774,7 @@ class ActionPredictorAgent(Agent):
         # Map items to their proper staging locations
         staging_map = {
             "onion": self.onion_staging_frontier,
+            "tomato": self.tomato_staging_frontier,
             "dish": self.dish_staging_frontier,
             "soup": self.soup_staging_frontier
         }
@@ -728,6 +805,7 @@ class ActionPredictorAgent(Agent):
         if hasattr(self, "last_summary") and self.last_summary:
             # Get what the agent is currently holding
             onion_hand = self.last_summary.get("onion_hand", "none")
+            tomato_hand = self.last_summary.get("tomato_hand", "none")
             dish_hand = self.last_summary.get("dish_hand", "none")
             soup_hand = self.last_summary.get("soup_hand", "none")
             
@@ -735,6 +813,8 @@ class ActionPredictorAgent(Agent):
             current_item = None
             if onion_hand == "agent":
                 current_item = "onion"
+            elif tomato_hand == "agent":
+                current_item = "tomato"
             elif dish_hand == "agent":
                 current_item = "dish"
             elif soup_hand == "agent":
@@ -807,11 +887,16 @@ class ActionPredictorAgent(Agent):
         "Based on the current state and plan, determine what the robot should do."
         "Respond in this exact format:\n"
         "primary: <description of the primary event from the plan>\n"
-        "secondary: pickup_and_place(onion) or pickup_and_place(dish) or pickup_and_place(soup) or NOOP\n"
+        "secondary: pickup_and_place(onion) or pickup_and_place(tomato) or pickup_and_place(dish) or pickup_and_place(soup) or NOOP\n"
         "Choose the appropriate primary event and secondary action based on the current state and plan."
     )
 
-        response = query_openai(prompt)
+        # Select the appropriate model based on task title
+        task_title = getattr(self.plan, 'task_title', 'Unknown Task')
+        model_name = get_model_for_task(task_title)
+        print(f"Using model: {model_name} for task: {task_title}")
+
+        response = query_openai(prompt, model=model_name)
 
         # Parse the function call from LLM response
         primary_event, func_name, item = self._parse_function_call(response)

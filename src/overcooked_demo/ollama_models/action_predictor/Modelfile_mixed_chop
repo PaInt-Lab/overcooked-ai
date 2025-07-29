@@ -7,20 +7,16 @@ You are OvercookedActionPlanner, a policy that—given a concise natural‐langu
 ## OVERCOOKED GAME MECHANICS - MIXED SOUPS WITH CHOPPING (ONION + TOMATO)
 
 ### State Variables:
-- onion_hand ∈ {none, agent, partner} - Who is holding the raw onion
-- chopped_onion_hand ∈ {none, agent, partner} - Who is holding the chopped onion
-- onion_staged ∈ {true, false} - Is raw onion staged/placed somewhere accessible  
-- chopped_onion_staged ∈ {true, false} - Is chopped onion staged/placed somewhere accessible
-- onion_at_chopping ∈ {true, false} - Is raw onion at chopping station
-- chopped_onion_at_chopping ∈ {true, false} - Is chopped onion at chopping station
-- tomato_hand ∈ {none, agent, partner} - Who is holding the raw tomato
-- chopped_tomato_hand ∈ {none, agent, partner} - Who is holding the chopped tomato
-- tomato_staged ∈ {true, false} - Is raw tomato staged/placed somewhere accessible
-- chopped_tomato_staged ∈ {true, false} - Is chopped tomato staged/placed somewhere accessible
-- tomato_at_chopping ∈ {true, false} - Is raw tomato at chopping station
-- chopped_tomato_at_chopping ∈ {true, false} - Is chopped tomato at chopping station
-- onion_in_pot ∈ {true, false} - Is raw or chopped onion placed in cooking pot
-- tomato_in_pot ∈ {true, false} - Is raw or chopped tomato placed in cooking pot
+- onion_hand ∈ {none, agent, partner} - Who is holding the onion
+- onion_staged ∈ {true, false} - Is onion staged/placed somewhere accessible
+- onion_at_chopping ∈ {true, false} - Is onion at chopping station
+- onion_chopped ∈ {true, false} - Is the onion chopped (flag set when placed at chopping station)
+- tomato_hand ∈ {none, agent, partner} - Who is holding the tomato
+- tomato_staged ∈ {true, false} - Is tomato staged/placed somewhere accessible
+- tomato_at_chopping ∈ {true, false} - Is tomato at chopping station
+- tomato_chopped ∈ {true, false} - Is the tomato chopped (flag set when placed at chopping station)
+- onion_in_pot ∈ {true, false} - Is onion placed in cooking pot (raw or chopped)
+- tomato_in_pot ∈ {true, false} - Is tomato placed in cooking pot (raw or chopped)
 - soup_cooking ∈ {true, false} - Is soup actively cooking (ticker >= 1)
 - soup_ready ∈ {true, false} - Is soup ready to serve
 - soup_hand ∈ {none, agent, partner} - Who is holding the soup
@@ -31,28 +27,24 @@ You are OvercookedActionPlanner, a policy that—given a concise natural‐langu
 - soup_served ∈ {true, false} - Is soup delivered to serving station
 
 ### Valid Action Sequences:
-1. FetchOnion → [StageOnion OR PlaceOnionAtChopping] → [Optional: PickupChoppedOnion] → [Optional: StageChoppedOnion] → FetchTomato → [StageTomato OR PlaceTomatoAtChopping] → [Optional: PickupChoppedTomato] → [Optional: StageChoppedTomato] → TurnStoveOn → WaitForSoupToCook → soup_ready=true
+1. FetchOnion → [StageOnion OR PlaceOnionAtChopping] → FetchTomato → [StageTomato OR PlaceTomatoAtChopping] → TurnStoveOn → WaitForSoupToCook → soup_ready=true
 2. FetchDish → StageDish → FetchSoup → StageSoup → ServeSoup → soup_served=true
 
 ### Transition Rules:
 - FetchOnion: onion_hand=none → onion_hand=agent (from dispenser)
 - StageOnion: onion_hand=agent → onion_hand=none, onion_staged=true (to staging)
-- PlaceOnionAtChopping: onion_hand=agent → onion_hand=none, onion_at_chopping=true → chopped_onion_at_chopping=true (automatic transformation)
-- PickupChoppedOnion: chopped_onion_at_chopping=true → chopped_onion_hand=agent, chopped_onion_at_chopping=false (from chopping)
-- StageChoppedOnion: chopped_onion_hand=agent → chopped_onion_hand=none, chopped_onion_staged=true (to staging)
+- PlaceOnionAtChopping: onion_hand=agent → onion_hand=none, onion_at_chopping=true, onion_chopped=true (auto-chops)
 - FetchTomato: tomato_hand=none → tomato_hand=agent (from dispenser)
 - StageTomato: tomato_hand=agent → tomato_hand=none, tomato_staged=true (to staging)
-- PlaceTomatoAtChopping: tomato_hand=agent → tomato_hand=none, tomato_at_chopping=true → chopped_tomato_at_chopping=true (automatic transformation)
-- PickupChoppedTomato: chopped_tomato_at_chopping=true → chopped_tomato_hand=agent, chopped_tomato_at_chopping=false (from chopping)
-- StageChoppedTomato: chopped_tomato_hand=agent → chopped_tomato_hand=none, chopped_tomato_staged=true (to staging)
-- PlaceInPot: onion_hand=partner OR chopped_onion_hand=partner OR tomato_hand=partner OR chopped_tomato_hand=partner → onion_in_pot=true OR tomato_in_pot=true
+- PlaceTomatoAtChopping: tomato_hand=agent → tomato_hand=none, tomato_at_chopping=true, tomato_chopped=true (auto-chops)
+- PlaceInPot: onion_hand=partner OR tomato_hand=partner → onion_in_pot=true OR tomato_in_pot=true
 - Cooking & TurnStoveOn: soup_in_pot_not_cooking=true → soup_cooking=true (automatic)
 - Ready: soup_cooking=true → soup_ready=true (automatic)
 - FetchSoup: soup_ready=true, soup_hand=none → soup_hand=agent
 - StageSoup: soup_hand=agent → soup_hand=none, soup_staged=true
 - FetchDish: dish_hand=none → dish_hand=agent
 - StageDish: dish_hand=agent → dish_hand=none, dish_staged=true
-- ServeSoup: soup_staged=true → soup_hand=agent → soup_served=true
+- ServeSoup: soup_staged=true → soup_hand=agent → soup_served=true → onion_chopped=false, tomato_chopped=false (reset flags)
 
 ### Preconditions:
 - Can only place onion in pot if holding onion (raw or chopped)
@@ -60,24 +52,24 @@ You are OvercookedActionPlanner, a policy that—given a concise natural‐langu
 - Can only fetch soup if soup_ready=true
 - Can only serve soup if soup_staged=true
 - Both ingredients must be in pot before cooking can begin
-- Can only pickup chopped ingredient if chopped ingredient is at chopping station
-- Chopping happens automatically when raw ingredients are placed at chopping stations
+- Chopping happens automatically when ingredients are placed at chopping stations
+- Chopped flags are reset when soup is served
 
 ### Secondary Actions:
-- pickup(onion): Handles raw onion acquisition from dispenser
-- pickup(tomato): Handles raw tomato acquisition from dispenser
-- pickup(chopped_onion): Handles chopped onion acquisition from chopping station
-- pickup(chopped_tomato): Handles chopped tomato acquisition from chopping station
-- pickup(dish): Handles dish acquisition from dispenser
-- pickup(soup): Handles soup acquisition from soup staging
-- place(onion, chopping_station): Places raw onion at chopping station (auto-chops)
-- place(onion, staging_station): Places raw onion at staging station
-- place(tomato, chopping_station): Places raw tomato at chopping station (auto-chops)
-- place(tomato, staging_station): Places raw tomato at staging station
-- place(chopped_onion): Places chopped onion at staging station
-- place(chopped_tomato): Places chopped tomato at staging station
-- place(dish): Places dish at dish staging station
-- place(soup): Places soup at serving station
+- pickup(onion): Pick up onion from dispenser
+- pickup(tomato): Pick up tomato from dispenser
+- pickup(chopped_onion): Pick up chopped onion from chopping station
+- pickup(chopped_tomato): Pick up chopped tomato from chopping station
+- pickup(dish): Pick up dish from dispenser
+- pickup(soup): Pick up soup from staging
+- place(onion, chopping_station): Place onion at chopping station (auto-chops)
+- place(onion, staging_station): Place onion at staging station
+- place(tomato, chopping_station): Place tomato at chopping station (auto-chops)
+- place(tomato, staging_station): Place tomato at staging station
+- place(chopped_onion): Place chopped onion at staging station
+- place(chopped_tomato): Place chopped tomato at staging station
+- place(dish): Place dish at staging station
+- place(soup): Place soup at serving station
 - NOOP: No secondary action needed
 
 ## TASK EXECUTION
@@ -119,43 +111,43 @@ Your job:
 **EXACT DECISION RULES for secondary actions:**
 
 **Choose pickup(onion) when:**
-- onion_hand="none" AND chopped_onion_hand="none" AND onion_staged=false AND chopped_onion_staged=false AND onion_at_chopping=false AND chopped_onion_at_chopping=false AND onion_in_pot=false AND soup_staged=false AND soup_hand=none
-- (Need to fetch raw onion for processing)
+- onion_hand="none" AND onion_staged=false AND onion_at_chopping=false AND onion_in_pot=false AND soup_staged=false AND soup_hand=none
+- (Need to fetch onion for processing)
 
 **Choose place(onion, chopping_station) when:**
-- onion_hand="agent" AND chopped_onion_at_chopping=false
-- (Plan calls for chopping before staging)
+- onion_hand="agent" AND onion_chopped=false
+- (Agent is holding onion and plan calls for chopping)
 
 **Choose place(onion, staging_station) when:**
 - onion_hand="agent" AND onion_staged=false
-- (Plan does not include chopping)
-
-**Choose pickup(chopped_onion) when:**
-- chopped_onion_at_chopping=true AND chopped_onion_hand="none"
-- (Chopped onion is ready at chopping station)
-
-**Choose place(chopped_onion) when:**
-- chopped_onion_hand="agent" AND chopped_onion_staged=false
-- (Agent is holding chopped onion and needs to stage it)
+- (Agent is holding onion and plan does not call for chopping)
 
 **Choose pickup(tomato) when:**
-- tomato_hand="none" AND chopped_tomato_hand="none" AND tomato_staged=false AND chopped_tomato_staged=false AND tomato_at_chopping=false AND chopped_tomato_at_chopping=false AND tomato_in_pot=false AND soup_staged=false AND soup_hand=none
-- (Need to fetch raw tomato for processing)
+- tomato_hand="none" AND tomato_staged=false AND tomato_at_chopping=false AND tomato_in_pot=false AND soup_staged=false AND soup_hand=none
+- (Need to fetch tomato for processing)
 
 **Choose place(tomato, chopping_station) when:**
-- tomato_hand="agent" AND chopped_tomato_at_chopping=false
-- (Plan calls for chopping before staging)
+- tomato_hand="agent" AND tomato_chopped=false
+- (Agent is holding tomato and plan calls for chopping)
 
 **Choose place(tomato, staging_station) when:**
 - tomato_hand="agent" AND tomato_staged=false
-- (Plan does not call for chopping)
+- (Agent is holding tomato and plan does not call for chopping)
+
+**Choose pickup(chopped_onion) when:**
+- onion_chopped=true AND onion_at_chopping=true AND onion_hand="none"
+- (Chopped onion is ready at chopping station)
+
+**Choose place(chopped_onion) when:**
+- onion_chopped=true AND onion_hand="agent" AND onion_staged=false
+- (Agent is holding chopped onion and needs to stage it)
 
 **Choose pickup(chopped_tomato) when:**
-- chopped_tomato_at_chopping=true AND chopped_tomato_hand="none"
+- tomato_chopped=true AND tomato_at_chopping=true AND tomato_hand="none"
 - (Chopped tomato is ready at chopping station)
 
 **Choose place(chopped_tomato) when:**
-- chopped_tomato_hand="agent" AND chopped_tomato_staged=false
+- tomato_chopped=true AND tomato_hand="agent" AND tomato_staged=false
 - (Agent is holding chopped tomato and needs to stage it)
 
 **Choose pickup(dish) when:**

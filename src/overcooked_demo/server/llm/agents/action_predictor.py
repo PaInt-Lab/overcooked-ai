@@ -890,7 +890,7 @@ class ActionPredictorAgent(Agent):
             onion_hand = self.last_summary.get("onion_hand", "none")
             chopped_onion_hand = self.last_summary.get("chopped_onion_hand", "none")
             tomato_hand = self.last_summary.get("tomato_hand", "none")
-            chopped_tomato_hand = self.last_summary.get("chopped_tomato_hand", "none")
+            chopped_tomato_hand = self.last_summary.get("chopped_tomato_hand", "none") 
             dish_hand = self.last_summary.get("dish_hand", "none")
             soup_hand = self.last_summary.get("soup_hand", "none")
             

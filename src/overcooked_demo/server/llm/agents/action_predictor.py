@@ -54,6 +54,8 @@ Note: Cooking states are mutually exclusive: soup_cooking, soup_ready, and soup_
 - pickup_and_place(onion): Handles onion acquisition, staging, and pot placement
 - pickup_and_place(dish): Handles dish acquisition and staging
 - pickup_and_place(soup): Handles soup serving and delivery
+- chop(onion): Transforms raw onion into chopped onion
+- chop(tomato): Transforms raw tomato into chopped tomato
 - NOOP: No secondary action needed
 
 ## TASK EXECUTION
@@ -79,6 +81,8 @@ Your job:
    • pickup_and_place(onion)  
    • pickup_and_place(dish)  
    • pickup_and_place(soup)  
+   • chop(onion)  
+   • chop(tomato)  
    • NOOP
 
 **EXACT DECISION RULES for secondary actions:**
@@ -94,6 +98,14 @@ Your job:
 **Choose pickup_and_place(soup) when:**
 - soup_hand="none" AND soup_staged=true
 - (Soup is staged and ready for serving)
+
+**Choose chop(onion) when:**
+- onion_hand="agent" AND chopped_onion_hand="none"
+- (Agent is holding raw onion and needs to chop it)
+
+**Choose chop(tomato) when:**
+- tomato_hand="agent" AND chopped_tomato_hand="none"
+- (Agent is holding raw tomato and needs to chop it)
 
 **Choose NOOP when:**
 - All required items are already staged or in progress
@@ -414,10 +426,10 @@ class ActionPredictorAgent(Agent):
             if held is None:
                 return "none"
             # raw ingredients sometimes come back under "name"
-            if held.get("name") in ("onion", "tomato"):
+            if held.get("name") in ("onion", "chopped_onion", "tomato", "chopped_tomato"):
                 return held["name"]
             # some objects still use "ingredient"
-            if held.get("ingredient") in ("onion", "tomato"):
+            if held.get("ingredient") in ("onion", "chopped_onion", "tomato", "chopped_tomato"):
                 return held["ingredient"]
             if held.get("name") in ("dish", "soup"):
                 return held["name"]
@@ -436,11 +448,23 @@ class ActionPredictorAgent(Agent):
         elif partner_item == "onion":
             onion_hand = "partner"
 
+        chopped_onion_hand = "none"
+        if agent_item == "chopped_onion":
+            chopped_onion_hand = "agent"
+        elif partner_item == "chopped_onion":
+            chopped_onion_hand = "partner"
+
         tomato_hand = "none"
         if agent_item == "tomato":
             tomato_hand = "agent"
         elif partner_item == "tomato":
             tomato_hand = "partner"
+
+        chopped_tomato_hand = "none"
+        if agent_item == "chopped_tomato":
+            chopped_tomato_hand = "agent"
+        elif partner_item == "chopped_tomato":
+            chopped_tomato_hand = "partner"
 
         dish_hand = "none"
         if agent_item == "dish":
@@ -480,9 +504,9 @@ class ActionPredictorAgent(Agent):
                     # Check what ingredients are in the pot
                     for ingredient in obj["_ingredients"]:
                         ing_name = ingredient.get("name")
-                        if ing_name == "onion":
+                        if ing_name in ("onion", "chopped_onion"):
                             onion_in_pot = True
-                        elif ing_name == "tomato":
+                        elif ing_name in ("tomato", "chopped_tomato"):
                             tomato_in_pot = True
                     
                     # Check cooking states
@@ -499,13 +523,13 @@ class ActionPredictorAgent(Agent):
 
         # 3) onion_staged?
         onion_staged = any(
-            "onion" in tile_contents.get(pos, [])
+            "onion" in tile_contents.get(pos, []) or "chopped_onion" in tile_contents.get(pos, [])
             for pos in self.onion_staging_tiles
         )
 
-        # 4) tomato_staged? (use same staging tiles as onions)
+        # 4) tomato_staged?
         tomato_staged = any(
-            "tomato" in tile_contents.get(pos, [])
+            "tomato" in tile_contents.get(pos, []) or "chopped_tomato" in tile_contents.get(pos, [])
             for pos in self.tomato_staging_tiles
         )
 
@@ -531,9 +555,11 @@ class ActionPredictorAgent(Agent):
 
         return {
             "onion_hand":               onion_hand,
+            "chopped_onion_hand":       chopped_onion_hand,
             "onion_staged":             onion_staged,
             "onion_in_pot":             onion_in_pot,
             "tomato_hand":              tomato_hand,
+            "chopped_tomato_hand":      chopped_tomato_hand,
             "tomato_staged":            tomato_staged,
             "tomato_in_pot":            tomato_in_pot,
             "ingredient_in_pot":        onion_in_pot or tomato_in_pot,  # Legacy support
@@ -573,9 +599,18 @@ class ActionPredictorAgent(Agent):
                                     response.lower())
         if secondary_match:
             item = secondary_match.group(1)
-            if item not in ("onion", "tomato", "dish", "soup"):
+            if item not in ("onion", "chopped_onion", "tomato", "chopped_tomato", "dish", "soup"):
                 item = "onion"
             return primary_event, "pickup_and_place", item
+
+        # check for chop actions
+        chop_match = re.search(r'chop\s*\(\s*(\w+)\s*\)',
+                               response.lower())
+        if chop_match:
+            item = chop_match.group(1)
+            if item not in ("onion", "tomato"):
+                item = "onion"
+            return primary_event, "chop", item
 
         # final fallback
         return primary_event, "pickup_and_place", "onion"
@@ -725,14 +760,18 @@ class ActionPredictorAgent(Agent):
         if action == "pickup":
             frontier_map = {
                 "onion": self.onion_frontier,
+                "chopped_onion": self.onion_frontier,  # Use same frontier as raw onion
                 "tomato": self.tomato_frontier,
+                "chopped_tomato": self.tomato_frontier,  # Use same frontier as raw tomato
                 "dish": self.dish_frontier,
                 "soup": self.soup_staging_frontier,  
             }
         elif action == "place":
             frontier_map = {
                 "onion": self.onion_staging_frontier,
+                "chopped_onion": self.onion_staging_frontier,  # Use same staging as raw onion
                 "tomato": self.tomato_staging_frontier,
+                "chopped_tomato": self.tomato_staging_frontier,  # Use same staging as raw tomato
                 "dish": self.dish_staging_frontier,
                 "soup": self.delivery_frontier,
             }
@@ -774,7 +813,9 @@ class ActionPredictorAgent(Agent):
         # Map items to their proper staging locations
         staging_map = {
             "onion": self.onion_staging_frontier,
+            "chopped_onion": self.onion_staging_frontier,  # Use same staging as raw onion
             "tomato": self.tomato_staging_frontier,
+            "chopped_tomato": self.tomato_staging_frontier,  # Use same staging as raw tomato
             "dish": self.dish_staging_frontier,
             "soup": self.soup_staging_frontier
         }
@@ -805,7 +846,9 @@ class ActionPredictorAgent(Agent):
         if hasattr(self, "last_summary") and self.last_summary:
             # Get what the agent is currently holding
             onion_hand = self.last_summary.get("onion_hand", "none")
+            chopped_onion_hand = self.last_summary.get("chopped_onion_hand", "none")
             tomato_hand = self.last_summary.get("tomato_hand", "none")
+            chopped_tomato_hand = self.last_summary.get("chopped_tomato_hand", "none")
             dish_hand = self.last_summary.get("dish_hand", "none")
             soup_hand = self.last_summary.get("soup_hand", "none")
             
@@ -813,8 +856,12 @@ class ActionPredictorAgent(Agent):
             current_item = None
             if onion_hand == "agent":
                 current_item = "onion"
+            elif chopped_onion_hand == "agent":
+                current_item = "chopped_onion"
             elif tomato_hand == "agent":
                 current_item = "tomato"
+            elif chopped_tomato_hand == "agent":
+                current_item = "chopped_tomato"
             elif dish_hand == "agent":
                 current_item = "dish"
             elif soup_hand == "agent":
@@ -887,7 +934,7 @@ class ActionPredictorAgent(Agent):
         "Based on the current state and plan, determine what the robot should do."
         "Respond in this exact format:\n"
         "primary: <description of the primary event from the plan>\n"
-        "secondary: pickup_and_place(onion) or pickup_and_place(tomato) or pickup_and_place(dish) or pickup_and_place(soup) or NOOP\n"
+        "secondary: pickup_and_place(onion) or pickup_and_place(tomato) or pickup_and_place(dish) or pickup_and_place(soup) or chop(onion) or chop(tomato) or NOOP\n"
         "Choose the appropriate primary event and secondary action based on the current state and plan."
     )
 
@@ -944,6 +991,10 @@ class ActionPredictorAgent(Agent):
         # Execute the compound action
         if func_name == "pickup_and_place":
             action_plan = self.pickup_and_place(item, my_pos, my_ori)
+        elif func_name == "chop":
+            # Chop action: just stay in place and transform the ingredient
+            # The actual transformation will be handled by the game state
+            action_plan = [Action.STAY]
         else:
             # Fallback to simple movement
             action_plan = [Action.STAY]

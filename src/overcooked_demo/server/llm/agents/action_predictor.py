@@ -15,9 +15,16 @@ OVERCOOKED_GAME_MECHANICS = """
 ## OVERCOOKED GAME MECHANICS (MDP Knowledge)
 
 ### State Variables:
-- onion_hand in {none, agent, partner} - Who is holding the onion
-- onion_staged in {true, false} - Is onion staged/placed somewhere accessible  
-- ingredient_in_pot in {true, false} - Is ingredient placed in cooking pot
+- onion_hand in {none, agent, partner} - Who is holding the raw onion
+- chopped_onion_hand in {none, agent, partner} - Who is holding the chopped onion
+- onion_staged in {true, false} - Is raw onion staged/placed somewhere accessible
+- chopped_onion_staged in {true, false} - Is chopped onion staged/placed somewhere accessible
+- tomato_hand in {none, agent, partner} - Who is holding the raw tomato
+- chopped_tomato_hand in {none, agent, partner} - Who is holding the chopped tomato
+- tomato_staged in {true, false} - Is raw tomato staged/placed somewhere accessible
+- chopped_tomato_staged in {true, false} - Is chopped tomato staged/placed somewhere accessible
+- onion_in_pot in {true, false} - Is raw or chopped onion placed in cooking pot
+- tomato_in_pot in {true, false} - Is raw or chopped tomato placed in cooking pot
 - soup_cooking in {true, false} - Is soup actively cooking (ticker >= 1)
 - soup_ready in {true, false} - Is soup ready to serve
 - soup_hand in {none, agent, partner} - Who is holding the soup
@@ -30,13 +37,18 @@ OVERCOOKED_GAME_MECHANICS = """
 Note: Cooking states are mutually exclusive: soup_cooking, soup_ready, and soup_in_pot_not_cooking cannot all be true simultaneously.
 
 ### Valid Action Sequences:
-1. FetchOnion -> StageOnion -> PlaceIngredientInPot -> TurnStoveOn -> WaitForSoupToCook -> soup_ready=true
+1. FetchOnion -> StageOnion -> [Optional: ChopOnion] -> PlaceOnionInPot -> FetchTomato -> StageTomato -> [Optional: ChopTomato] -> PlaceTomatoInPot -> TurnStoveOn -> WaitForSoupToCook -> soup_ready=true
 2. FetchDish -> StageDish -> FetchSoup -> StageSoup -> ServeSoup -> soup_served=true
 
 ### Transition Rules:
 - FetchOnion: onion_hand=none -> onion_hand=agent
 - StageOnion: onion_hand=agent -> onion_hand=none, onion_staged=true
-- PlaceIngredientInPot: onion_hand=partner -> onion_hand=none, ingredient_in_pot=true
+- ChopOnion: onion_hand=agent, onion_staged=true -> chopped_onion_hand=agent, onion_staged=false (transformation at staging location)
+- PlaceOnionInPot: onion_hand=partner OR chopped_onion_hand=partner -> onion_hand=none OR chopped_onion_hand=none, onion_in_pot=true
+- FetchTomato: tomato_hand=none -> tomato_hand=agent
+- StageTomato: tomato_hand=agent -> tomato_hand=none, tomato_staged=true
+- ChopTomato: tomato_hand=agent, tomato_staged=true -> chopped_tomato_hand=agent, tomato_staged=false (transformation at staging location)
+- PlaceTomatoInPot: tomato_hand=partner OR chopped_tomato_hand=partner -> tomato_hand=none OR chopped_tomato_hand=none, tomato_in_pot=true
 - Cooking & TurnStoveOn: soup_in_pot_not_cooking=true -> soup_cooking=true (automatic)
 - Ready: soup_cooking=true -> soup_ready=true (automatic)
 - FetchSoup: soup_ready=true, soup_hand=none -> soup_hand=agent
@@ -46,16 +58,21 @@ Note: Cooking states are mutually exclusive: soup_cooking, soup_ready, and soup_
 - ServeSoup: soup_staged=true -> soup_hand=agent -> soup_served=true
 
 ### Preconditions:
-- Can only place ingredient in pot if holding ingredient
+- Can only place onion in pot if holding onion (raw or chopped)
+- Can only place tomato in pot if holding tomato (raw or chopped)
 - Can only fetch soup if soup_ready=true
 - Can only serve soup if soup_staged=true
+- Both ingredients must be in pot before cooking can begin
+- Can only chop ingredient if holding raw ingredient AND raw ingredient is staged
+- Chopping transforms raw ingredient to chopped ingredient at staging location
 
 ### Secondary Actions:
-- pickup_and_place(onion): Handles onion acquisition, staging, and pot placement
+- pickup_and_place(onion): Handles raw onion acquisition, staging, and pot placement
+- pickup_and_place(tomato): Handles raw tomato acquisition, staging, and pot placement
+- chop(onion): Transforms raw onion into chopped onion at staging location
+- chop(tomato): Transforms raw tomato into chopped tomato at staging location
 - pickup_and_place(dish): Handles dish acquisition and staging
 - pickup_and_place(soup): Handles soup serving and delivery
-- chop(onion): Transforms raw onion into chopped onion
-- chop(tomato): Transforms raw tomato into chopped tomato
 - NOOP: No secondary action needed
 
 ## TASK EXECUTION
@@ -79,17 +96,30 @@ Your job:
 3. **From that step's primary list**, choose exactly one of the canonical primary events (reuse the text exactly as given)
 4. **From the same step's secondary list**, choose exactly one of:
    • pickup_and_place(onion)  
-   • pickup_and_place(dish)  
-   • pickup_and_place(soup)  
+   • pickup_and_place(tomato)  
    • chop(onion)  
    • chop(tomato)  
+   • pickup_and_place(dish)  
+   • pickup_and_place(soup)  
    • NOOP
 
 **EXACT DECISION RULES for secondary actions:**
 
 **Choose pickup_and_place(onion) when:**
-- onion_hand="none" AND onion_staged=false AND ingredient_in_pot=false AND soup_staged=false AND soup_hand=none
-- (Need to fetch and stage onion for cooking)
+- onion_hand="none" AND chopped_onion_hand="none" AND onion_staged=false AND chopped_onion_staged=false AND onion_in_pot=false AND soup_staged=false AND soup_hand=none
+- (Need to fetch and stage raw onion for cooking)
+
+**Choose chop(onion) when:**
+- onion_hand="agent" AND chopped_onion_hand="none" AND onion_staged=true
+- (Agent is holding raw onion and needs to chop it at staging location)
+
+**Choose pickup_and_place(tomato) when:**
+- tomato_hand="none" AND chopped_tomato_hand="none" AND tomato_staged=false AND chopped_tomato_staged=false AND tomato_in_pot=false AND soup_staged=false AND soup_hand=none
+- (Need to fetch and stage raw tomato for cooking)
+
+**Choose chop(tomato) when:**
+- tomato_hand="agent" AND chopped_tomato_hand="none" AND tomato_staged=true
+- (Agent is holding raw tomato and needs to chop it at staging location)
 
 **Choose pickup_and_place(dish) when:**
 - dish_staged=false AND soup_cooking=true
@@ -98,14 +128,6 @@ Your job:
 **Choose pickup_and_place(soup) when:**
 - soup_hand="none" AND soup_staged=true
 - (Soup is staged and ready for serving)
-
-**Choose chop(onion) when:**
-- onion_hand="agent" AND chopped_onion_hand="none"
-- (Agent is holding raw onion and needs to chop it)
-
-**Choose chop(tomato) when:**
-- tomato_hand="agent" AND chopped_tomato_hand="none"
-- (Agent is holding raw tomato and needs to chop it)
 
 **Choose NOOP when:**
 - All required items are already staged or in progress
@@ -116,7 +138,7 @@ Your job:
 Return **only** these two lines (no extra commentary):
 
 primary: <exact primary event text>  
-secondary: <one of pickup_and_place(onion|dish|soup) or NOOP>
+secondary: <one of pickup_and_place(onion|tomato|dish|soup) or chop(onion|tomato) or NOOP>
 """
 
 
@@ -131,13 +153,17 @@ def get_model_for_task(task_title: str) -> str:
     
     if "serving onion soup" in task_title_lower and "tomato" not in task_title_lower:
         # return "overcooked-action-predictor-onion"
-         return OVERCOOKED_MODEL
+        return OVERCOOKED_MODEL
     elif "serving tomato soup" in task_title_lower and "onion" not in task_title_lower:
         # return "overcooked-action-predictor-tomato"
-         return OVERCOOKED_MODEL
+        return OVERCOOKED_MODEL
     elif "serving onion and tomato soup" in task_title_lower:
-        # return "overcooked-action-predictor-mixed"
-         return OVERCOOKED_MODEL
+        # Check if chopping is mentioned in the task
+        if "chop" in task_title_lower:
+            return "overcooked-action-predictor-mixed-chop"
+        else:
+            # return "overcooked-action-predictor-mixed"
+            return OVERCOOKED_MODEL
     else:
         # Default to original model if no specific match
         return OVERCOOKED_MODEL
@@ -409,10 +435,14 @@ class ActionPredictorAgent(Agent):
         """
         Extract exactly the predicates we need for the LLM based on new MDP:
         - onion_hand: one of "none", "agent", "partner" 
+        - chopped_onion_hand: one of "none", "agent", "partner"
         - onion_staged: is raw onion on any onion‐staging tile?
+        - chopped_onion_staged: is chopped onion on any onion‐staging tile?
         - onion_in_pot: is any onion in any stove tile?
         - tomato_hand: one of "none", "agent", "partner"
-        - tomato_staged: is raw tomato on any staging tile?
+        - chopped_tomato_hand: one of "none", "agent", "partner"
+        - tomato_staged: is raw tomato on any staging tile? 
+        - chopped_tomato_staged: is chopped tomato on any staging tile?
         - tomato_in_pot: is any tomato in any stove tile?
         - dish_hand: one of "none", "agent", "partner"
         - dish_staged: is any clean dish on any dish‐staging tile?
@@ -521,15 +551,25 @@ class ActionPredictorAgent(Agent):
                     elif cooking_tick == -1:
                         soup_in_pot_not_cooking = True
 
-        # 3) onion_staged?
+        # 3) Separate staging checks for raw and chopped ingredients
         onion_staged = any(
-            "onion" in tile_contents.get(pos, []) or "chopped_onion" in tile_contents.get(pos, [])
+            "onion" in tile_contents.get(pos, [])
+            for pos in self.onion_staging_tiles
+        )
+        
+        chopped_onion_staged = any(
+            "chopped_onion" in tile_contents.get(pos, [])
             for pos in self.onion_staging_tiles
         )
 
-        # 4) tomato_staged?
+        # 4) Separate staging checks for raw and chopped tomatoes
         tomato_staged = any(
-            "tomato" in tile_contents.get(pos, []) or "chopped_tomato" in tile_contents.get(pos, [])
+            "tomato" in tile_contents.get(pos, [])
+            for pos in self.tomato_staging_tiles
+        )
+        
+        chopped_tomato_staged = any(
+            "chopped_tomato" in tile_contents.get(pos, [])
             for pos in self.tomato_staging_tiles
         )
 
@@ -557,10 +597,12 @@ class ActionPredictorAgent(Agent):
             "onion_hand":               onion_hand,
             "chopped_onion_hand":       chopped_onion_hand,
             "onion_staged":             onion_staged,
+            "chopped_onion_staged":     chopped_onion_staged,
             "onion_in_pot":             onion_in_pot,
             "tomato_hand":              tomato_hand,
             "chopped_tomato_hand":      chopped_tomato_hand,
             "tomato_staged":            tomato_staged,
+            "chopped_tomato_staged":    chopped_tomato_staged,
             "tomato_in_pot":            tomato_in_pot,
             "ingredient_in_pot":        onion_in_pot or tomato_in_pot,  # Legacy support
             "soup_cooking":             soup_cooking,

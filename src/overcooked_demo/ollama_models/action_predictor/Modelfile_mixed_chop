@@ -150,13 +150,13 @@ Your job:
 - tomato_chopped=true AND tomato_hand="agent" AND tomato_staged=false
 - (Agent is holding chopped tomato and needs to stage it)
 
-**Choose pickup(dish) when:**
-- dish_staged=false AND soup_cooking=true
-- (Need dish ready when soup is cooking)
-
 **Choose place(dish) when:**
-- dish_hand="agent" AND dish_staged=false
-- (Agent is holding dish and needs to stage it)
+- dish_hand="agent" AND dish_staged=false AND soup_cooking=true
+- (Agent is holding dish and needs to stage it while soup is cooking)
+
+**Choose pickup(dish) when:**
+- dish_hand="none" AND dish_staged=false AND soup_cooking=true
+- (Need to fetch dish when soup is cooking)
 
 **Choose pickup(soup) when:**
 - soup_hand="none" AND soup_staged=true

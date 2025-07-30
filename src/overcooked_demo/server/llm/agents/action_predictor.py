@@ -988,46 +988,7 @@ class ActionPredictorAgent(Agent):
             action_plan.append(Action.INTERACT)
         return action_plan
 
-    def pickup_and_place(self, item, start_pos, start_ori):
-        """Execute a pickup and place compound action for the given item type."""
 
-        # Check state summary for what agent is currently holding
-        if hasattr(self, "last_summary") and self.last_summary:
-            # Get what the agent is currently holding
-            onion_hand = self.last_summary.get("onion_hand", "none")
-            tomato_hand = self.last_summary.get("tomato_hand", "none")
-            
-            # Determine what item the agent is currently holding
-            current_item = None
-            if onion_hand == "agent":
-                current_item = "onion"
-            elif tomato_hand == "agent":
-                current_item = "tomato"
-            
-            # Case 1: Agent is holding the correct item
-            if current_item == item:
-                place_plan = self.Place(item, start_pos, start_ori)
-                return place_plan
-            
-            # Case 2: Agent is holding the wrong item
-            elif current_item is not None:
-                # First drop the wrong item at its proper location
-                drop_plan = self._drop_item_at_proper_location(current_item, start_pos, start_ori)
-                # Then pick up the correct item
-                pickup_plan = self.PickUp(item, start_pos, start_ori)
-                return drop_plan + pickup_plan
-            
-            # Case 3: Agent is holding nothing
-            else:
-                pickup_plan = self.PickUp(item, start_pos, start_ori)
-                return pickup_plan
-        
-        # Fallback to original behavior if no state summary
-        pickup_plan = self.PickUp(item, start_pos, start_ori)
-        pickup_choices = self._get_frontier_for_action("pickup", item)
-        pickup_goal_pos, pickup_goal_ori = self._find_nearest_goal(pickup_choices, start_pos, start_ori)
-        place_plan = self.Place(item, pickup_goal_pos, pickup_goal_ori)
-        return pickup_plan + place_plan
 
     def action(self, state):
         assert self.agent_index is not None, "agent_index is None in action!"

@@ -185,7 +185,7 @@ secondary: <one of pickup(onion|tomato|dish|soup) or place(onion|tomato|dish|sou
 """
 
 
-OVERCOOKED_MODEL = "ft:gpt-4o-mini-2024-07-18:personal:overcooked-action-predictor:BwDfSRdJ"
+OVERCOOKED_MODEL = "ft:gpt-4o-mini-2024-07-18:personal:ap-onion-tomato-chopped:BysMfU2m"
 
 def get_model_for_task(task_title: str) -> str:
     """
@@ -415,6 +415,8 @@ class ActionPredictorAgent(Agent):
 
             self.soup_staging_tiles = self.dish_staging_tiles
 
+
+
         # Create chopping stations adjacent to staging tiles
         self.onion_chopping_stations = []
         self.tomato_chopping_stations = []
@@ -431,17 +433,10 @@ class ActionPredictorAgent(Agent):
                     self.onion_chopping_stations.append((chopping_c, chopping_r))
                     break
         
-        # Find chopping stations for tomato staging tiles (prefer left, fallback to top)
-        for staging_pos in self.tomato_staging_tiles:
-            staging_c, staging_r = staging_pos
-            # Try left first, then top
-            for dc, dr in [(-1, 0), (0, -1)]:  # left, then top
-                chopping_c, chopping_r = staging_c + dc, staging_r + dr
-                if (0 <= chopping_r < H and 0 <= chopping_c < W and 
-                    terrain[chopping_r][chopping_c] == 'X' and
-                    (chopping_c, chopping_r) not in self.tomato_chopping_stations):
-                    self.tomato_chopping_stations.append((chopping_c, chopping_r))
-                    break
+        # Tomato chopping stations are the same as onion chopping stations
+        self.tomato_chopping_stations = self.onion_chopping_stations.copy()
+
+
 
         self.ingredient_frontier = self._compute_frontier(self.ingredient_spawns, terrain)
         self.onion_frontier = self._compute_frontier(self.onion_spawns, terrain)
@@ -588,9 +583,9 @@ class ActionPredictorAgent(Agent):
                     # Check what ingredients are in the pot
                     for ingredient in obj["_ingredients"]:
                         ing_name = ingredient.get("name")
-                        if ing_name in ("onion", "tomato"):
+                        if ing_name in ("onion", "chopped_onion"):
                             onion_in_pot = True
-                        elif ing_name in ("chopped_onion", "chopped_tomato"):
+                        elif ing_name in ("tomato", "chopped_tomato"):
                             tomato_in_pot = True
                     
                     # Check cooking states
@@ -1068,9 +1063,6 @@ class ActionPredictorAgent(Agent):
         # if game_context:
         #     context_section = f"SIMILAR PAST EXPERIENCES:\n{game_context}\n\n"
 
-        print(f"Plan text: {plan_text}")
-
-        
 
         prompt = (
         f"{OVERCOOKED_GAME_MECHANICS}\n\n"

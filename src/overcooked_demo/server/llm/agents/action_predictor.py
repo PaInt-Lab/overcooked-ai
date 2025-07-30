@@ -401,11 +401,8 @@ class ActionPredictorAgent(Agent):
             elif bottom_stations:
                 self.onion_staging_tiles.extend(bottom_stations)
             
-            # Assign tomato staging: prefer top, fallback to right
-            if top_stations:
-                self.tomato_staging_tiles.extend(top_stations)
-            elif right_stations:
-                self.tomato_staging_tiles.extend(right_stations)
+            # Tomato staging spots are the same as onion staging spots
+            self.tomato_staging_tiles = self.onion_staging_tiles.copy()
             
             # Assign dish staging: prefer right, fallback to top (if not used by tomato)
             if right_stations:

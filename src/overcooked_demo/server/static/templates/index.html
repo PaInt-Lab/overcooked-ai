@@ -182,6 +182,9 @@
                <button id="testOnionTomatoBtn" class="btn btn-light-blue btn-block mt-2">
                  Onion & Tomato Soup Subtasks (Testing)
                </button>
+               <button id="testChoppedBtn" class="btn btn-light-purple btn-block mt-2">
+                 Onion and Tomato - Chopped (Testing)
+               </button>
              </div>
           </div>
           <small class="form-text text-muted mt-2">
@@ -383,6 +386,18 @@
         background-color: #bee5eb;
         border-color: #abdde5;
         color: #062c33;
+      }
+
+      /* Light purple button for Chopped Onion and Tomato */
+      .btn-light-purple {
+        background-color: #e6e6fa;
+        border-color: #d8bfd8;
+        color: #4b0082;
+      }
+      .btn-light-purple:hover {
+        background-color: #d8bfd8;
+        border-color: #c8a2c8;
+        color: #2d004d;
       }
 
       .subtask-edit {
@@ -868,6 +883,49 @@
             });
           });
 
+        // Chopped Onion and Tomato test functionality
+        document
+          .getElementById("testChoppedBtn")
+          .addEventListener("click", function (e) {
+            e.preventDefault();
+            
+            // Clear existing subtasks
+            const container = document.getElementById("subtaskContainer");
+            const empty = document.getElementById("emptyMessage");
+            if (empty) {
+              empty.style.display = "none";
+            }
+            container.innerHTML = "";
+
+            // Chopped Onion and Tomato subtasks
+            const choppedSubtasks = [
+              "Robot Fetch onion",
+              "Chop Onion",
+              "Stage onion",
+              "Human Grab onion",
+              "Place onion in pot",
+              "Robot Fetch tomato",
+              "Chop Tomato",
+              "Stage tomato",
+              "Human Grab tomato",
+              "Place tomato in pot",
+              "Turn stove on",
+              "Wait for ingredients to cook",
+              "Robot Fetch dish",
+              "Stage dish",
+              "Human Grab dish",
+              "Pour soup",
+              "Human stage soup",
+              "Robot fetch soup",
+              "Robot place soup on serving station"
+            ];
+
+            // Create cards for each chopped subtask
+            choppedSubtasks.forEach((subtask) => {
+              createSubtaskCard(subtask);
+            });
+          });
+
         // Drag and drop for reordering
         const container = document.getElementById("subtaskContainer");
 
@@ -966,16 +1024,23 @@
             (c) => c.querySelector(".subtask-text").textContent.trim()
           );
 
+          // Get the task title from the input field
+          const taskTitle = document.getElementById("taskTitle").value.trim();
+
           fetch("/confirm_subtasks", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ subtasks: seq }),
+            body: JSON.stringify({ 
+              subtasks: seq,
+              taskTitle: taskTitle  // Add the task title
+            }),
           })
             .then((r) => r.json())
             .then((data) => {
               console.log("confirm_subtasks response:", data);
               if (data.status === "success") {
                 window.planSessionId = data.session_id;
+                window.taskTitle = data.taskTitle;  // Store task title globally
                 isConfirmed = true;
                 document.querySelectorAll(".subtask-card").forEach((card) => {
                   card.classList.add("confirmed");

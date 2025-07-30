@@ -9,14 +9,22 @@ from llm.ollama.ollama_client import query_ollama
 from plan_session import PLAN_STORE
 import os
 from openai import OpenAI
+from llm.memory.vector_memory import VectorMemory
 
 OVERCOOKED_GAME_MECHANICS = """
 ## OVERCOOKED GAME MECHANICS (MDP Knowledge)
 
 ### State Variables:
 - onion_hand in {none, agent, partner} - Who is holding the onion
-- onion_staged in {true, false} - Is onion staged/placed somewhere accessible  
-- ingredient_in_pot in {true, false} - Is ingredient placed in cooking pot
+- onion_staged in {true, false} - Is onion staged/placed somewhere accessible
+- onion_at_chopping in {true, false} - Is onion at chopping station
+- onion_chopped in {true, false} - Is the onion chopped (flag set when placed at chopping station)
+- tomato_hand in {none, agent, partner} - Who is holding the tomato
+- tomato_staged in {true, false} - Is tomato staged/placed somewhere accessible
+- tomato_at_chopping in {true, false} - Is tomato at chopping station
+- tomato_chopped in {true, false} - Is the tomato chopped (flag set when placed at chopping station)
+- onion_in_pot in {true, false} - Is onion placed in cooking pot (raw or chopped)
+- tomato_in_pot in {true, false} - Is tomato placed in cooking pot (raw or chopped)
 - soup_cooking in {true, false} - Is soup actively cooking (ticker >= 1)
 - soup_ready in {true, false} - Is soup ready to serve
 - soup_hand in {none, agent, partner} - Who is holding the soup
@@ -29,30 +37,49 @@ OVERCOOKED_GAME_MECHANICS = """
 Note: Cooking states are mutually exclusive: soup_cooking, soup_ready, and soup_in_pot_not_cooking cannot all be true simultaneously.
 
 ### Valid Action Sequences:
-1. FetchOnion -> StageOnion -> PlaceIngredientInPot -> TurnStoveOn -> WaitForSoupToCook -> soup_ready=true
-2. FetchDish -> StageDish -> FetchSoup -> StageSoup -> ServeSoup -> soup_served=true
+1. FetchOnion → [StageOnion OR PlaceOnionAtChopping] → FetchTomato → [StageTomato OR PlaceTomatoAtChopping] → TurnStoveOn → WaitForSoupToCook → soup_ready=true
+2. FetchDish → StageDish → FetchSoup → StageSoup → ServeSoup → soup_served=true
 
 ### Transition Rules:
-- FetchOnion: onion_hand=none -> onion_hand=agent
-- StageOnion: onion_hand=agent -> onion_hand=none, onion_staged=true
-- PlaceIngredientInPot: onion_hand=partner -> onion_hand=none, ingredient_in_pot=true
-- Cooking & TurnStoveOn: soup_in_pot_not_cooking=true -> soup_cooking=true (automatic)
-- Ready: soup_cooking=true -> soup_ready=true (automatic)
-- FetchSoup: soup_ready=true, soup_hand=none -> soup_hand=agent
-- StageSoup: soup_hand=agent -> soup_hand=none, soup_staged=true
-- FetchDish: dish_hand=none -> dish_hand=agent
-- StageDish: dish_hand=agent -> dish_hand=none, dish_staged=true
-- ServeSoup: soup_staged=true -> soup_hand=agent -> soup_served=true
+- FetchOnion: onion_hand=none → onion_hand=agent (from dispenser)
+- StageOnion: onion_hand=agent → onion_hand=none, onion_staged=true (to staging)
+- PlaceOnionAtChopping: onion_hand=agent → onion_hand=none, onion_at_chopping=true, onion_chopped=true (auto-chops)
+- FetchTomato: tomato_hand=none → tomato_hand=agent (from dispenser)
+- StageTomato: tomato_hand=agent → tomato_hand=none, tomato_staged=true (to staging)
+- PlaceTomatoAtChopping: tomato_hand=agent → tomato_hand=none, tomato_at_chopping=true, tomato_chopped=true (auto-chops)
+- PlaceInPot: onion_hand=partner OR tomato_hand=partner → onion_in_pot=true OR tomato_in_pot=true
+- Cooking & TurnStoveOn: soup_in_pot_not_cooking=true → soup_cooking=true (automatic)
+- Ready: soup_cooking=true → soup_ready=true (automatic)
+- FetchSoup: soup_ready=true, soup_hand=none → soup_hand=agent
+- StageSoup: soup_hand=agent → soup_hand=none, soup_staged=true
+- FetchDish: dish_hand=none → dish_hand=agent
+- StageDish: dish_hand=agent → dish_hand=none, dish_staged=true
+- ServeSoup: soup_staged=true → soup_hand=agent → soup_served=true → onion_chopped=false, tomato_chopped=false (reset flags)
 
 ### Preconditions:
-- Can only place ingredient in pot if holding ingredient
+- Can only place onion in pot if holding onion (raw or chopped)
+- Can only place tomato in pot if holding tomato (raw or chopped)
 - Can only fetch soup if soup_ready=true
 - Can only serve soup if soup_staged=true
+- Both ingredients must be in pot before cooking can begin
+- Chopping happens automatically when ingredients are placed at chopping stations
+- Chopped flags are reset when soup is served
 
 ### Secondary Actions:
-- pickup_and_place(onion): Handles onion acquisition, staging, and pot placement
-- pickup_and_place(dish): Handles dish acquisition and staging
-- pickup_and_place(soup): Handles soup serving and delivery
+- pickup(onion): Pick up onion from dispenser
+- pickup(tomato): Pick up tomato from dispenser
+- pickup(chopped_onion): Pick up chopped onion from chopping station
+- pickup(chopped_tomato): Pick up chopped tomato from chopping station
+- pickup(dish): Pick up dish from dispenser
+- pickup(soup): Pick up soup from staging
+- place(onion, chopping_station): Place onion at chopping station (auto-chops)
+- place(onion, staging_station): Place onion at staging station
+- place(tomato, chopping_station): Place tomato at chopping station (auto-chops)
+- place(tomato, staging_station): Place tomato at staging station
+- place(chopped_onion): Place chopped onion at staging station
+- place(chopped_tomato): Place chopped tomato at staging station
+- place(dish): Place dish at staging station
+- place(soup): Place soup at serving station
 - NOOP: No secondary action needed
 
 ## TASK EXECUTION
@@ -75,24 +102,75 @@ Your job:
 2. **Identify which plan-step (1...N)** is currently active based on state and progress
 3. **From that step's primary list**, choose exactly one of the canonical primary events (reuse the text exactly as given)
 4. **From the same step's secondary list**, choose exactly one of:
-   • pickup_and_place(onion)  
-   • pickup_and_place(dish)  
-   • pickup_and_place(soup)  
+   • pickup(onion)  
+   • pickup(tomato)
+   • pickup(dish)
+   • pickup(soup)
+   • place(onion, chopping_station)
+   • place(onion, staging_station)
+   • place(tomato, chopping_station)
+   • place(tomato, staging_station)
+   • place(dish)
+   • place(soup)
    • NOOP
 
 **EXACT DECISION RULES for secondary actions:**
 
-**Choose pickup_and_place(onion) when:**
-- onion_hand="none" AND onion_staged=false AND ingredient_in_pot=false AND soup_staged=false AND soup_hand=none
-- (Need to fetch and stage onion for cooking)
+**Choose pickup(onion) when:**
+- onion_hand="none" AND onion_staged=false AND onion_at_chopping=false AND onion_in_pot=false AND soup_staged=false AND soup_hand=none
+- (Need to fetch onion for processing)
 
-**Choose pickup_and_place(dish) when:**
+**Choose place(onion, chopping_station) when:**
+- onion_hand="agent" AND onion_chopped=false
+- (Agent is holding onion and plan calls for chopping)
+
+**Choose place(onion, staging_station) when:**
+- onion_hand="agent" AND onion_staged=false
+- (Agent is holding onion and plan does not call for chopping)
+
+**Choose pickup(tomato) when:**
+- tomato_hand="none" AND tomato_staged=false AND tomato_at_chopping=false AND tomato_in_pot=false AND soup_staged=false AND soup_hand=none
+- (Need to fetch tomato for processing)
+
+**Choose place(tomato, chopping_station) when:**
+- tomato_hand="agent" AND tomato_chopped=false
+- (Agent is holding tomato and plan calls for chopping)
+
+**Choose place(tomato, staging_station) when:**
+- tomato_hand="agent" AND tomato_staged=false
+- (Agent is holding tomato and plan does not call for chopping)
+
+**Choose pickup(chopped_onion) when:**
+- onion_chopped=true AND onion_at_chopping=true AND onion_hand="none"
+- (Chopped onion is ready at chopping station)
+
+**Choose place(chopped_onion) when:**
+- onion_chopped=true AND onion_hand="agent" AND onion_staged=false
+- (Agent is holding chopped onion and needs to stage it)
+
+**Choose pickup(chopped_tomato) when:**
+- tomato_chopped=true AND tomato_at_chopping=true AND tomato_hand="none"
+- (Chopped tomato is ready at chopping station)
+
+**Choose place(chopped_tomato) when:**
+- tomato_chopped=true AND tomato_hand="agent" AND tomato_staged=false
+- (Agent is holding chopped tomato and needs to stage it)
+
+**Choose pickup(dish) when:**
 - dish_staged=false AND soup_cooking=true
 - (Need dish ready when soup is cooking)
 
-**Choose pickup_and_place(soup) when:**
+**Choose place(dish) when:**
+- dish_hand="agent" AND dish_staged=false
+- (Agent is holding dish and needs to stage it)
+
+**Choose pickup(soup) when:**
 - soup_hand="none" AND soup_staged=true
 - (Soup is staged and ready for serving)
+
+**Choose place(soup) when:**
+- soup_hand="agent" AND soup_served=false
+- (Agent is holding soup and needs to serve it)
 
 **Choose NOOP when:**
 - All required items are already staged or in progress
@@ -103,11 +181,20 @@ Your job:
 Return **only** these two lines (no extra commentary):
 
 primary: <exact primary event text>  
-secondary: <one of pickup_and_place(onion|dish|soup) or NOOP>
+secondary: <one of pickup(onion|tomato|dish|soup) or place(onion|tomato|dish|soup) or NOOP>
 """
 
 
-OVERCOOKED_MODEL = "ft:gpt-4o-mini-2024-07-18:personal:overcooked-action-predictor:BwDfSRdJ"
+OVERCOOKED_MODEL = "ft:gpt-4o-mini-2024-07-18:personal:ap-onion-tomato-chopped:BysMfU2m"
+
+def get_model_for_task(task_title: str) -> str:
+    """
+    Select the appropriate model based on the task title.
+    Returns the model name to use for the API call.
+    """
+    # Always use the default OVERCOOKED_MODEL for now
+    # This avoids issues with specialized models that may not be built
+    return OVERCOOKED_MODEL
 
 def serialize_state(state, mdp) -> str:
     """
@@ -229,14 +316,22 @@ class ActionPredictorAgent(Agent):
         self.mdp = None
         self.planner = None
         self.ingredient_spawns = []
+        self.onion_spawns = []
+        self.tomato_spawns = []
         self.stove_tiles = []
         self.dish_spawns = []
         self.delivery_tiles = []
         self.staging_tiles = []
+        self.onion_chopping_stations = []
+        self.tomato_chopping_stations = []
         self.last_info = None
         self.cleaned_terrain = None
         self.last_summary = None
         self.agent_index = None
+        self.memory = VectorMemory()  # Initialize vector memory
+        # Persistent chopped flags that survive across state summaries
+        self.onion_chopped = False
+        self.tomato_chopped = False
 
     def set_agent_index(self, agent_index: int):
         super().set_agent_index(agent_index)
@@ -260,6 +355,14 @@ class ActionPredictorAgent(Agent):
                             for i, row in enumerate(terrain)
                             for j, c in enumerate(row)
                             if c in ('O', 'T')]
+        self.onion_spawns = [(j, i)
+                            for i, row in enumerate(terrain)
+                            for j, c in enumerate(row)
+                            if c == 'O']
+        self.tomato_spawns = [(j, i)
+                            for i, row in enumerate(terrain)
+                            for j, c in enumerate(row)
+                            if c == 'T']
         self.stove_tiles       = [(j, i) # Need to manipulate this for the bot to place dishes next to stove
                             for i, row in enumerate(terrain)
                             for j, c in enumerate(row)
@@ -274,8 +377,9 @@ class ActionPredictorAgent(Agent):
                             if c == 'S']
         # Assign staging stations per stove with directional logic
         self.onion_staging_tiles = []
+        self.tomato_staging_tiles = []
         self.dish_staging_tiles = []
-        H, W = len(terrain), len(terrain[0])
+        H, W = len(terrain), len(terrain[0]) 
         
         for (stove_c, stove_r) in self.stove_tiles:
             # Find all adjacent staging positions for this stove
@@ -297,7 +401,10 @@ class ActionPredictorAgent(Agent):
             elif bottom_stations:
                 self.onion_staging_tiles.extend(bottom_stations)
             
-            # Assign dish staging: prefer right, fallback to top
+            # Tomato staging spots are the same as onion staging spots
+            self.tomato_staging_tiles = self.onion_staging_tiles.copy()
+            
+            # Assign dish staging: prefer right, fallback to top (if not used by tomato)
             if right_stations:
                 self.dish_staging_tiles.extend(right_stations)
             elif top_stations:
@@ -305,13 +412,41 @@ class ActionPredictorAgent(Agent):
 
             self.soup_staging_tiles = self.dish_staging_tiles
 
+
+
+        # Create chopping stations adjacent to staging tiles
+        self.onion_chopping_stations = []
+        self.tomato_chopping_stations = []
+        
+        # Find chopping stations for onion staging tiles (prefer left, fallback to top)
+        for staging_pos in self.onion_staging_tiles:
+            staging_c, staging_r = staging_pos
+            # Try left first, then top
+            for dc, dr in [(-1, 0), (0, -1)]:  # left, then top
+                chopping_c, chopping_r = staging_c + dc, staging_r + dr
+                if (0 <= chopping_r < H and 0 <= chopping_c < W and 
+                    terrain[chopping_r][chopping_c] == 'X' and
+                    (chopping_c, chopping_r) not in self.onion_chopping_stations):
+                    self.onion_chopping_stations.append((chopping_c, chopping_r))
+                    break
+        
+        # Tomato chopping stations are the same as onion chopping stations
+        self.tomato_chopping_stations = self.onion_chopping_stations.copy()
+
+
+
         self.ingredient_frontier = self._compute_frontier(self.ingredient_spawns, terrain)
+        self.onion_frontier = self._compute_frontier(self.onion_spawns, terrain)
+        self.tomato_frontier = self._compute_frontier(self.tomato_spawns, terrain)
         self.stove_frontier      = self._compute_frontier(self.stove_tiles,       terrain) 
         self.dish_frontier       = self._compute_frontier(self.dish_spawns,       terrain)
         self.delivery_frontier   = self._compute_frontier(self.delivery_tiles,    terrain)
         self.onion_staging_frontier = self._compute_frontier(self.onion_staging_tiles, terrain)
+        self.tomato_staging_frontier = self._compute_frontier(self.tomato_staging_tiles, terrain)
         self.dish_staging_frontier  = self._compute_frontier(self.dish_staging_tiles,  terrain)
         self.soup_staging_frontier  = self._compute_frontier(self.soup_staging_tiles,  terrain)
+        self.onion_chopping_frontier = self._compute_frontier(self.onion_chopping_stations, terrain)
+        self.tomato_chopping_frontier = self._compute_frontier(self.tomato_chopping_stations, terrain)
         
         my_goals = {
             'ingredient': self.ingredient_spawns,
@@ -356,7 +491,17 @@ class ActionPredictorAgent(Agent):
         Extract exactly the predicates we need for the LLM based on new MDP:
         - onion_hand: one of "none", "agent", "partner" 
         - onion_staged: is raw onion on any onion‐staging tile?
+        - onion_at_chopping: is raw onion at chopping station?
+        - onion_chopped: is raw onion chopped?
+        - tomato_hand: one of "none", "agent", "partner"
+        - tomato_staged: is raw tomato on any staging tile? 
+        - tomato_at_chopping: is raw tomato at chopping station?
+        - tomato_chopped: is raw tomato chopped?
         - onion_in_pot: is any onion in any stove tile?
+        - tomato_in_pot: is any tomato in any stove tile?
+        - soup_cooking: is soup actively cooking?
+        - soup_ready: is soup ready to serve?
+        - soup_in_pot_not_cooking: is soup in pot but not cooking?
         - dish_hand: one of "none", "agent", "partner"
         - dish_staged: is any clean dish on any dish‐staging tile?
         - soup_in_dish: is any soup on any dish‐staging tile?
@@ -391,6 +536,12 @@ class ActionPredictorAgent(Agent):
         elif partner_item == "onion":
             onion_hand = "partner"
 
+        tomato_hand = "none"
+        if agent_item == "tomato":
+            tomato_hand = "agent"
+        elif partner_item == "tomato":
+            tomato_hand = "partner"
+
         dish_hand = "none"
         if agent_item == "dish":
             dish_hand = "agent"
@@ -406,7 +557,8 @@ class ActionPredictorAgent(Agent):
 
         # 2) collect what's on every tile and analyze soup states
         tile_contents = {}
-        ingredient_in_pot = False
+        onion_in_pot = False
+        tomato_in_pot = False
         soup_cooking = False
         soup_ready = False
         soup_in_pot_not_cooking = False
@@ -425,7 +577,13 @@ class ActionPredictorAgent(Agent):
                 
                 # Check if soup is on stove (pot)
                 if p in self.stove_tiles:
-                    ingredient_in_pot = True
+                    # Check what ingredients are in the pot
+                    for ingredient in obj["_ingredients"]:
+                        ing_name = ingredient.get("name")
+                        if ing_name in ("onion", "chopped_onion"):
+                            onion_in_pot = True
+                        elif ing_name in ("tomato", "chopped_tomato"):
+                            tomato_in_pot = True
                     
                     # Check cooking states
                     cooking_tick = obj.get("cooking_tick", -1)
@@ -439,19 +597,45 @@ class ActionPredictorAgent(Agent):
                     elif cooking_tick == -1:
                         soup_in_pot_not_cooking = True
 
-        # 3) onion_staged?
+        # 3) Check for ingredients at chopping stations and set chopped flags
         onion_staged = any(
             "onion" in tile_contents.get(pos, [])
             for pos in self.onion_staging_tiles
         )
+        
+        onion_at_chopping = any(
+            "onion" in tile_contents.get(pos, [])
+            for pos in self.onion_chopping_stations
+        )
+        
+        # Update persistent chopped flag if onion is at chopping station (auto-chops)
+        if onion_at_chopping:
+            self.onion_chopped = True
+        # Note: self.onion_chopped stays True even after pickup until soup is served
 
-        # 4) dish_staged?
+        # 4) Separate staging checks for raw and chopped tomatoes
+        tomato_staged = any(
+            "tomato" in tile_contents.get(pos, [])
+            for pos in self.tomato_staging_tiles
+        )
+        
+        tomato_at_chopping = any(
+            "tomato" in tile_contents.get(pos, [])
+            for pos in self.tomato_chopping_stations
+        )
+        
+        # Update persistent chopped flag if tomato is at chopping station (auto-chops)
+        if tomato_at_chopping:
+            self.tomato_chopped = True
+        # Note: self.tomato_chopped stays True even after pickup until soup is served
+
+        # 5) dish_staged?
         dish_staged = any(
             "dish" in tile_contents.get(pos, [])
             for pos in self.dish_staging_tiles
         )
 
-        # 5) soup_staged?
+        # 6) soup_staged?
         soup_staged = any(
             "soup" in tile_contents.get(pos, [])
             for pos in self.soup_staging_tiles
@@ -465,17 +649,29 @@ class ActionPredictorAgent(Agent):
                     .get("soup_delivery", [False, False])
             )
 
+        # Reset chopped flags when soup is served (end of meal)
+        if soup_served:
+            self.onion_chopped = False
+            self.tomato_chopped = False
+
         return {
             "onion_hand":               onion_hand,
             "onion_staged":             onion_staged,
-            "ingredient_in_pot":        ingredient_in_pot,
+            "onion_at_chopping":        onion_at_chopping,
+            "onion_chopped":            self.onion_chopped,
+            "tomato_hand":              tomato_hand,
+            "tomato_staged":            tomato_staged,
+            "tomato_at_chopping":       tomato_at_chopping,
+            "tomato_chopped":           self.tomato_chopped,
+            "onion_in_pot":             onion_in_pot,
+            "tomato_in_pot":            tomato_in_pot,
             "soup_cooking":             soup_cooking,
+            "soup_ready":               soup_ready,
+            "soup_in_pot_not_cooking":  soup_in_pot_not_cooking,
             "dish_hand":                dish_hand,
             "dish_staged":              dish_staged,
-            "soup_ready":               soup_ready,
             "soup_hand":                soup_hand,
             "soup_staged":              soup_staged,
-            "soup_in_pot_not_cooking":  soup_in_pot_not_cooking,
             "soup_served":              soup_served
         }
 
@@ -485,9 +681,7 @@ class ActionPredictorAgent(Agent):
         Parse the LLM response to extract both primary event and function call.
         Expected format:
           primary: <event description>
-          secondary: pickup_and_place(onion)
-          or
-          secondary: NOOP
+          secondary: pickup(onion) or place(onion, chopping_station) or NOOP
         """
 
         # grab the primary
@@ -500,17 +694,30 @@ class ActionPredictorAgent(Agent):
         if re.search(r'secondary:\s*noop', response, re.IGNORECASE):
             return primary_event, "NOOP", None
 
-        # otherwise fall back to pickup_and_place(...)
-        secondary_match = re.search(r'pickup_and_place\s*\(\s*(\w+)\s*\)',
-                                    response.lower())
-        if secondary_match:
-            item = secondary_match.group(1)
-            if item not in ("onion", "dish", "soup"):
-                item = "onion"
-            return primary_event, "pickup_and_place", item
+        # Parse pickup actions
+        pickup_match = re.search(r'pickup\(([^)]+)\)', response)
+        if pickup_match:
+            item = pickup_match.group(1).strip()
+            if item in ["onion", "tomato", "chopped_onion", "chopped_tomato", "dish", "soup"]:
+                return primary_event, "pickup", item
+
+        # Parse place actions with destination
+        place_match = re.search(r'place\(([^,]+),\s*([^)]+)\)', response)
+        if place_match:
+            item = place_match.group(1).strip()
+            destination = place_match.group(2).strip()
+            if item in ["onion", "tomato"] and destination in ["chopping_station", "staging_station"]:
+                return primary_event, "place", (item, destination)
+
+        # Parse place actions without destination (for items with fixed destinations)
+        place_simple_match = re.search(r'place\(([^)]+)\)', response)
+        if place_simple_match:
+            item = place_simple_match.group(1).strip()
+            if item in ["chopped_onion", "chopped_tomato", "dish", "soup"]:
+                return primary_event, "place", (item, "default")
 
         # final fallback
-        return primary_event, "pickup_and_place", "onion"
+        return primary_event, "pickup", "onion"
     
     def _is_blocking_important_tile(self, my_pos: tuple, state) -> bool:
         """
@@ -522,17 +729,27 @@ class ActionPredictorAgent(Agent):
         
         # Add all staging tiles
         important_tiles.update(self.onion_staging_tiles)
+        important_tiles.update(self.tomato_staging_tiles)
         important_tiles.update(self.dish_staging_tiles)
         important_tiles.update(self.soup_staging_tiles)
         
+        # Add all chopping stations
+        important_tiles.update(self.onion_chopping_stations)
+        important_tiles.update(self.tomato_chopping_stations)
+        
         # Add all frontier tiles (adjacent to important locations)
         important_tiles.update([pos for pos, _ in self.ingredient_frontier])
+        important_tiles.update([pos for pos, _ in self.onion_frontier])
+        important_tiles.update([pos for pos, _ in self.tomato_frontier])
         important_tiles.update([pos for pos, _ in self.stove_frontier])
         important_tiles.update([pos for pos, _ in self.dish_frontier])
         important_tiles.update([pos for pos, _ in self.delivery_frontier])
         important_tiles.update([pos for pos, _ in self.onion_staging_frontier])
+        important_tiles.update([pos for pos, _ in self.tomato_staging_frontier])
         important_tiles.update([pos for pos, _ in self.dish_staging_frontier])
         important_tiles.update([pos for pos, _ in self.soup_staging_frontier])
+        important_tiles.update([pos for pos, _ in self.onion_chopping_frontier])
+        important_tiles.update([pos for pos, _ in self.tomato_chopping_frontier])
         
         # Check if current position is blocking an important tile
         is_blocking = my_pos in important_tiles
@@ -553,15 +770,23 @@ class ActionPredictorAgent(Agent):
         # Get all important tiles to avoid
         important_tiles = set()
         important_tiles.update(self.onion_staging_tiles)
+        important_tiles.update(self.tomato_staging_tiles)
         important_tiles.update(self.dish_staging_tiles)
         important_tiles.update(self.soup_staging_tiles)
+        important_tiles.update(self.onion_chopping_stations)
+        important_tiles.update(self.tomato_chopping_stations)
         important_tiles.update([pos for pos, _ in self.ingredient_frontier])
+        important_tiles.update([pos for pos, _ in self.onion_frontier])
+        important_tiles.update([pos for pos, _ in self.tomato_frontier])
         important_tiles.update([pos for pos, _ in self.stove_frontier])
         important_tiles.update([pos for pos, _ in self.dish_frontier])
         important_tiles.update([pos for pos, _ in self.delivery_frontier])
         important_tiles.update([pos for pos, _ in self.onion_staging_frontier])
+        important_tiles.update([pos for pos, _ in self.tomato_staging_frontier])
         important_tiles.update([pos for pos, _ in self.dish_staging_frontier])
         important_tiles.update([pos for pos, _ in self.soup_staging_frontier])
+        important_tiles.update([pos for pos, _ in self.onion_chopping_frontier])
+        important_tiles.update([pos for pos, _ in self.tomato_chopping_frontier])
         
         # Get other player position to avoid blocking them
         other_player_pos = state.player_positions[1 - self.agent_index]
@@ -644,24 +869,48 @@ class ActionPredictorAgent(Agent):
                 # print(f"Plan BFS fallback: {action_plan}")
                 return action_plan
             
-    def _get_frontier_for_action(self, action: str, item: str):
-        """Get the appropriate frontier based on action and item."""
+    def _get_frontier_for_action(self, action: str, item: str, destination: str = None):
+        """Get the appropriate frontier for a given action and item."""
         if action == "pickup":
+            # Pickup actions - always from specific locations
             frontier_map = {
-                "onion": self.ingredient_frontier,
-                "dish": self.dish_frontier,
-                "soup": self.soup_staging_frontier,  
+                "onion": self.onion_frontier,  # From onion dispenser
+                "tomato": self.tomato_frontier,  # From tomato dispenser
+                "chopped_onion": self.onion_chopping_frontier,  # From chopping station
+                "chopped_tomato": self.tomato_chopping_frontier,  # From chopping station
+                "dish": self.dish_frontier,  # From dish dispenser
+                "soup": self.soup_staging_frontier,  # From soup staging
             }
+            return frontier_map.get(item)
+            
         elif action == "place":
-            frontier_map = {
-                "onion": self.onion_staging_frontier,
-                "dish": self.dish_staging_frontier,
-                "soup": self.delivery_frontier,
-            }
+            # Place actions - simplified destination logic
+            if destination == "chopping_station":
+                # Place at chopping station (only for onions and tomatoes)
+                frontier_map = {
+                    "onion": self.onion_chopping_frontier,
+                    "tomato": self.tomato_chopping_frontier,
+                }
+                return frontier_map.get(item)
+            elif destination == "staging_station":
+                # Place at appropriate staging station (only for onions and tomatoes)
+                frontier_map = {
+                    "onion": self.onion_staging_frontier,
+                    "tomato": self.tomato_staging_frontier,
+                }
+                return frontier_map.get(item)
+            else:
+                # Default destinations for other items (no destination needed)
+                frontier_map = {
+                    "chopped_onion": self.onion_staging_frontier,  # Always to onion staging
+                    "chopped_tomato": self.tomato_staging_frontier,  # Always to tomato staging
+                    "dish": self.dish_staging_frontier,  # Always to dish staging
+                    "soup": self.delivery_frontier,  # Always to serving station
+                }
+                return frontier_map.get(item)
+            
         else:
             return None
-        
-        return frontier_map.get(item)
 
     def _find_nearest_goal(self, choices, my_pos: tuple, my_ori: tuple) -> tuple:
         """Find the nearest goal from a list of choices."""
@@ -678,9 +927,9 @@ class ActionPredictorAgent(Agent):
         goal_pos, goal_orient = min(choices, key=sort_key)
         return (goal_pos, goal_orient)
 
-    def _move_to(self, action: str, item: str, start_pos: tuple, start_ori: tuple):
+    def _move_to(self, action: str, item: str, start_pos: tuple, start_ori: tuple, destination: str = None):
         """Move to the appropriate location for the given action and item."""
-        choices = self._get_frontier_for_action(action, item)
+        choices = self._get_frontier_for_action(action, item, destination)
         if choices is None:
             return []
         
@@ -696,6 +945,7 @@ class ActionPredictorAgent(Agent):
         # Map items to their proper staging locations
         staging_map = {
             "onion": self.onion_staging_frontier,
+            "tomato": self.tomato_staging_frontier,
             "dish": self.dish_staging_frontier,
             "soup": self.soup_staging_frontier
         }
@@ -713,55 +963,29 @@ class ActionPredictorAgent(Agent):
 
     def PickUp(self, item, start_pos, start_ori):
         """Returns an action plan to pick up the specified item."""
-        return self._move_to("pickup", item, start_pos, start_ori)
+        action_plan = self._move_to("pickup", item, start_pos, start_ori)
+        # Add INTERACT action to pick up the item
+        if action_plan:
+            action_plan.append(Action.INTERACT)
+        return action_plan
 
-    def Place(self, item, start_pos, start_ori):
-        """Returns an action plan to place the specified item at the correct location."""
-        return self._move_to("place", item, start_pos, start_ori)
-
-    def pickup_and_place(self, item, start_pos, start_ori):
-        """Execute a pickup and place compound action for the given item type."""
-
-        # Check state summary for what agent is currently holding
-        if hasattr(self, "last_summary") and self.last_summary:
-            # Get what the agent is currently holding
-            onion_hand = self.last_summary.get("onion_hand", "none")
-            dish_hand = self.last_summary.get("dish_hand", "none")
-            soup_hand = self.last_summary.get("soup_hand", "none")
-            
-            # Determine what item the agent is currently holding
-            current_item = None
-            if onion_hand == "agent":
-                current_item = "onion"
-            elif dish_hand == "agent":
-                current_item = "dish"
-            elif soup_hand == "agent":
-                current_item = "soup"
-            
-            # Case 1: Agent is holding the correct item
-            if current_item == item:
-                place_plan = self.Place(item, start_pos, start_ori)
-                return place_plan
-            
-            # Case 2: Agent is holding the wrong item
-            elif current_item is not None:
-                # First drop the wrong item at its proper location
-                drop_plan = self._drop_item_at_proper_location(current_item, start_pos, start_ori)
-                # Then pick up the correct item
-                pickup_plan = self.PickUp(item, start_pos, start_ori)
-                return drop_plan + pickup_plan
-            
-            # Case 3: Agent is holding nothing
-            else:
-                pickup_plan = self.PickUp(item, start_pos, start_ori)
-                return pickup_plan
+    def Place(self, item, start_pos, start_ori, destination: str = "default"):
+        """Returns an action plan to place the specified item at the destination."""
+        # For onions and tomatoes, destination is required
+        # For other items, destination is ignored and uses default behavior
+        if destination == "default":
+            # Use default destination based on item type
+            action_plan = self._move_to("place", item, start_pos, start_ori, destination)
+        else:
+            # Use specified destination (for onions and tomatoes)
+            action_plan = self._move_to("place", item, start_pos, start_ori, destination)
         
-        # Fallback to original behavior if no state summary
-        pickup_plan = self.PickUp(item, start_pos, start_ori)
-        pickup_choices = self._get_frontier_for_action("pickup", item)
-        pickup_goal_pos, pickup_goal_ori = self._find_nearest_goal(pickup_choices, start_pos, start_ori)
-        place_plan = self.Place(item, pickup_goal_pos, pickup_goal_ori)
-        return pickup_plan + place_plan
+        # Add INTERACT action to place the item
+        if action_plan:
+            action_plan.append(Action.INTERACT)
+        return action_plan
+
+
 
     def action(self, state):
         assert self.agent_index is not None, "agent_index is None in action!"
@@ -772,6 +996,19 @@ class ActionPredictorAgent(Agent):
         print(f"Current position: {state.player_positions[self.agent_index]}")
         print(f"State summary: {self.last_summary}")
 
+        # Retrieve similar past experiences from memory
+        # task_title = getattr(self.plan, 'task_title', 'Unknown Task')
+        # game_context = ""
+        # try:
+        #     game_context = self.memory.get_game_context(
+        #         current_state=self.last_summary, 
+        #         task_title=task_title, 
+        #         k=3
+        #     )
+        # except Exception as e:
+        #     print(f"Memory retrieval failed: {e}")
+        #     game_context = ""
+
         plan_lines = []
         for idx, ev in enumerate(self.plan.events):
             sec = ev["secondary"]
@@ -779,18 +1016,29 @@ class ActionPredictorAgent(Agent):
             plan_lines.append(f"{idx+1}) secondary: {sec}, primary: {prim}")
         plan_text = "\n".join(plan_lines)
 
+        # Include game context in the prompt if available
+        # context_section = ""
+        # if game_context:
+        #     context_section = f"SIMILAR PAST EXPERIENCES:\n{game_context}\n\n"
+
+
         prompt = (
         f"{OVERCOOKED_GAME_MECHANICS}\n\n"
+        # f"{context_section}"
         f"STATE SUMMARY:\n{self.last_summary}\n\n"
         f"PLAN:\n{plan_text}\n\n"
         "Based on the current state and plan, determine what the robot should do."
         "Respond in this exact format:\n"
         "primary: <description of the primary event from the plan>\n"
-        "secondary: pickup_and_place(onion) or pickup_and_place(dish) or pickup_and_place(soup) or NOOP\n"
+        "secondary: pickup(onion) or pickup(tomato) or pickup(dish) or pickup(soup) or place(onion, chopping_station) or place(onion, staging_station) or place(tomato, chopping_station) or place(tomato, staging_station) or place(dish) or place(soup) or NOOP\n"
         "Choose the appropriate primary event and secondary action based on the current state and plan."
     )
 
-        response = query_openai(prompt)
+        # Select the appropriate model based on task title
+        task_title = getattr(self.plan, 'task_title', 'Unknown Task')
+        model_name = get_model_for_task(task_title)
+
+        response = query_openai(prompt, model=model_name)
 
         # Parse the function call from LLM response
         primary_event, func_name, item = self._parse_function_call(response)
@@ -836,8 +1084,11 @@ class ActionPredictorAgent(Agent):
                 }
 
         # Execute the compound action
-        if func_name == "pickup_and_place":
-            action_plan = self.pickup_and_place(item, my_pos, my_ori)
+        if func_name == "pickup":
+            action_plan = self.PickUp(item, my_pos, my_ori)
+        elif func_name == "place":
+            item_to_place, destination = item
+            action_plan = self.Place(item_to_place, my_pos, my_ori, destination)
         else:
             # Fallback to simple movement
             action_plan = [Action.STAY]
@@ -848,6 +1099,17 @@ class ActionPredictorAgent(Agent):
 
         print("\n\n")
         
+        # Store in memory for future reference
+        task_title = getattr(self.plan, 'task_title', 'Unknown Task')
+        self.memory.add_game_memory(
+            state_summary=self.last_summary,
+            action_info={
+                "primary_event": primary_event,
+                "function_call": f"{func_name}({item})"
+            },
+            task_title=task_title
+        )
+        
         return move, {
             "primary_event": primary_event,
             "function_call": f"{func_name}({item})",
@@ -857,4 +1119,5 @@ class ActionPredictorAgent(Agent):
 
     def actions(self, states, agent_indices):
         return [self.action(s) for s in states]
+
 

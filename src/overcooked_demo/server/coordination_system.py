@@ -59,8 +59,15 @@ class CoordinatedActionSelector:
         
         for edge in edges:
             action = edge.action
-            # Only include robot actions (not human or environmental)
-            if not action.startswith('human_') and not action.startswith('cooking_') and action != 'soup_ready':
+            # Only include robot actions (not human, environmental, or stove-related)
+            if (not action.startswith('human_') and 
+                not action.startswith('cooking_') and 
+                not action.startswith('turn_stove') and
+                not action.startswith('robot_place_') and  # Exclude robot pot placement
+                not action.startswith('human_place_') and  # Exclude human pot placement
+                action != 'soup_ready' and
+                action != 'cooking_start' and
+                action != 'reset_after_serving'):
                 robot_actions.append(action)
         
         return robot_actions

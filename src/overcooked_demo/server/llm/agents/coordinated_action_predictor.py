@@ -591,6 +591,117 @@ class CoordinatedActionPredictorAgent(Agent):
         
         return "NOOP"  # No robot action found in path
 
+    def _is_blocking_important_tile(self, my_pos: tuple, state) -> bool:
+        """
+        Check if the agent is currently blocking an important staging tile.
+        Returns True if blocking, False otherwise.
+        """
+        # Get all important tiles that shouldn't be blocked
+        important_tiles = set()
+        
+        # Add all staging tiles
+        important_tiles.update(self.onion_staging_tiles)
+        important_tiles.update(self.tomato_staging_tiles)
+        important_tiles.update(self.dish_staging_tiles)
+        important_tiles.update(self.soup_staging_tiles)
+        
+        # Add all chopping stations
+        important_tiles.update(self.onion_chopping_stations)
+        important_tiles.update(self.tomato_chopping_stations)
+        
+        # Add all frontier tiles (adjacent to important locations)
+        important_tiles.update([pos for pos, _ in self.ingredient_frontier])
+        important_tiles.update([pos for pos, _ in self.onion_frontier])
+        important_tiles.update([pos for pos, _ in self.tomato_frontier])
+        important_tiles.update([pos for pos, _ in self.stove_frontier])
+        important_tiles.update([pos for pos, _ in self.dish_frontier])
+        important_tiles.update([pos for pos, _ in self.delivery_frontier])
+        important_tiles.update([pos for pos, _ in self.onion_staging_frontier])
+        important_tiles.update([pos for pos, _ in self.tomato_staging_frontier])
+        important_tiles.update([pos for pos, _ in self.dish_staging_frontier])
+        important_tiles.update([pos for pos, _ in self.soup_staging_frontier])
+        important_tiles.update([pos for pos, _ in self.onion_chopping_frontier])
+        important_tiles.update([pos for pos, _ in self.tomato_chopping_frontier])
+        
+        # Check if current position is blocking an important tile
+        is_blocking = my_pos in important_tiles
+        
+        return is_blocking
+
+    def _find_safe_position(self, my_pos: tuple, state) -> tuple:
+        """
+        Find a safe position to move to that doesn't block important tiles.
+        Returns (new_position, action_plan) or (my_pos, []) if no safe move found.
+        """
+        if not self.mdp:
+            return my_pos, []
+            
+        terrain = self.mdp.terrain_mtx
+        H, W = len(terrain), len(terrain[0])
+        
+        # Get all important tiles to avoid
+        important_tiles = set()
+        important_tiles.update(self.onion_staging_tiles)
+        important_tiles.update(self.tomato_staging_tiles)
+        important_tiles.update(self.dish_staging_tiles)
+        important_tiles.update(self.soup_staging_tiles)
+        important_tiles.update(self.onion_chopping_stations)
+        important_tiles.update(self.tomato_chopping_stations)
+        important_tiles.update([pos for pos, _ in self.ingredient_frontier])
+        important_tiles.update([pos for pos, _ in self.onion_frontier])
+        important_tiles.update([pos for pos, _ in self.tomato_frontier])
+        important_tiles.update([pos for pos, _ in self.stove_frontier])
+        important_tiles.update([pos for pos, _ in self.dish_frontier])
+        important_tiles.update([pos for pos, _ in self.delivery_frontier])
+        important_tiles.update([pos for pos, _ in self.onion_staging_frontier])
+        important_tiles.update([pos for pos, _ in self.tomato_staging_frontier])
+        important_tiles.update([pos for pos, _ in self.dish_staging_frontier])
+        important_tiles.update([pos for pos, _ in self.soup_staging_frontier])
+        important_tiles.update([pos for pos, _ in self.onion_chopping_frontier])
+        important_tiles.update([pos for pos, _ in self.tomato_chopping_frontier])
+        
+        # Get other player position to avoid blocking them
+        other_player_pos = state.player_positions[1 - self.agent_index]
+        
+        # Find safe positions within reasonable distance (max 3 steps)
+        safe_positions = []
+        for distance in range(1, 4):  # Check 1, 2, 3 steps away
+            for dc in range(-distance, distance + 1):
+                for dr in range(-distance, distance + 1):
+                    if abs(dc) + abs(dr) == distance:  # Manhattan distance
+                        new_col = my_pos[0] + dc
+                        new_row = my_pos[1] + dr
+                        
+                        # Check bounds
+                        if 0 <= new_row < H and 0 <= new_col < W:
+                            new_pos = (new_col, new_row)
+                            
+                            # Check if position is walkable and not important
+                            if (terrain[new_row][new_col] == ' ' and 
+                                new_pos not in important_tiles and
+                                new_pos != other_player_pos):
+                                safe_positions.append(new_pos)
+            
+            # If we found safe positions at this distance, stop searching
+            if safe_positions:
+                break
+        
+        # If no safe positions found, stay put
+        if not safe_positions:
+            return my_pos, []
+        
+        # Choose the closest safe position
+        best_pos = min(safe_positions, key=lambda pos: abs(pos[0] - my_pos[0]) + abs(pos[1] - my_pos[1]))
+        
+        # Generate action plan to move to safe position
+        my_ori = state.to_dict()["players"][self.agent_index]["orientation"]
+        start_pair = (my_pos, tuple(my_ori))
+        goal_pair = (best_pos, tuple(my_ori))  # Keep same orientation
+        
+        action_plan = self._get_action_plan(start_pair, goal_pair)
+        
+        return best_pos, action_plan
+
     def _parse_dual_predictions(self, response: str, possible_actions: list) -> tuple:
         """
         Parse the LLM response to extract both human and robot action predictions.
@@ -805,15 +916,47 @@ class CoordinatedActionPredictorAgent(Agent):
         my_ori = state.to_dict()["players"][self.agent_index]["orientation"]
 
         if best_robot_action == "NOOP":
-            return Action.STAY, {
-                "predicted_human_action": predicted_human_action,
-                "best_robot_action": best_robot_action,
-                "next_planned_action": next_planned_action,
-                "llm_response": response,
-                "possible_actions": possible_actions,
-                "possible_human_actions": possible_human_actions,
-                "reasoning": "No action needed"
-            }
+            # Check if the agent is blocking important tiles
+            if self._is_blocking_important_tile(my_pos, state):
+                # If blocking, find a safe position to move to
+                safe_pos, action_plan = self._find_safe_position(my_pos, state)
+                if action_plan:
+                    # Return first action from the plan to move to safe position
+                    move = action_plan[0] if action_plan else Action.STAY
+                    return move, {
+                        "predicted_human_action": predicted_human_action,
+                        "best_robot_action": best_robot_action,
+                        "next_planned_action": next_planned_action,
+                        "llm_response": response,
+                        "possible_actions": possible_actions,
+                        "possible_human_actions": possible_human_actions,
+                        "reasoning": "Moving to safe position to avoid blocking",
+                        "blocking_prevention": True
+                    }
+                else:
+                    # If no safe move found, stay put
+                    return Action.STAY, {
+                        "predicted_human_action": predicted_human_action,
+                        "best_robot_action": best_robot_action,
+                        "next_planned_action": next_planned_action,
+                        "llm_response": response,
+                        "possible_actions": possible_actions,
+                        "possible_human_actions": possible_human_actions,
+                        "reasoning": "No action needed",
+                        "blocking_prevention": False
+                    }
+            else:
+                # If not blocking, stay put
+                return Action.STAY, {
+                    "predicted_human_action": predicted_human_action,
+                    "best_robot_action": best_robot_action,
+                    "next_planned_action": next_planned_action,
+                    "llm_response": response,
+                    "possible_actions": possible_actions,
+                    "possible_human_actions": possible_human_actions,
+                    "reasoning": "No action needed",
+                    "blocking_prevention": False
+                }
 
         # Parse action and execute
         if best_robot_action.startswith("pickup("):

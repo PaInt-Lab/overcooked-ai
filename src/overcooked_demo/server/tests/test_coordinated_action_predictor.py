@@ -47,6 +47,8 @@ def test_coordinated_action_predictor():
     print(f"Next planned action: {info.get('next_planned_action')}")
     print(f"Possible robot actions: {info.get('possible_actions')}")
     print(f"Possible human actions: {info.get('possible_human_actions')}")
+    print(f"Blocking prevention: {info.get('blocking_prevention', False)}")
+    print(f"Reasoning: {info.get('reasoning', 'N/A')}")
     print(f"LLM Response: {info.get('llm_response')}")
     
     # Verify that we got all the required information

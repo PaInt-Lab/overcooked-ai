@@ -37,7 +37,7 @@ OVERCOOKED_GAME_MECHANICS = """
 Note: Cooking states are mutually exclusive: soup_cooking, soup_ready, and soup_in_pot_not_cooking cannot all be true simultaneously.
 
 ### Valid Action Sequences:
-1. FetchOnion → [StageOnion OR PlaceOnionAtChopping] → FetchTomato → [StageTomato OR PlaceTomatoAtChopping] → TurnStoveOn → WaitForSoupToCook → soup_ready=true
+1. FetchOnion → [StageOnion OR PlaceOnionAtChopping] → FetchTomato → [StageTomato OR PlaceTomatoAtChopping] → [Human: TurnStoveOn] → WaitForSoupToCook → soup_ready=true
 2. FetchDish → StageDish → FetchSoup → StageSoup → ServeSoup → soup_served=true
 
 ### Transition Rules:
@@ -48,7 +48,7 @@ Note: Cooking states are mutually exclusive: soup_cooking, soup_ready, and soup_
 - StageTomato: tomato_hand=agent → tomato_hand=none, tomato_staged=true (to staging)
 - PlaceTomatoAtChopping: tomato_hand=agent → tomato_hand=none, tomato_at_chopping=true, tomato_chopped=true (auto-chops)
 - PlaceInPot: onion_hand=partner OR tomato_hand=partner → onion_in_pot=true OR tomato_in_pot=true
-- Cooking & TurnStoveOn: soup_in_pot_not_cooking=true → soup_cooking=true (automatic)
+- Cooking & TurnStoveOn: soup_in_pot_not_cooking=true → soup_cooking=true (human action)
 - Ready: soup_cooking=true → soup_ready=true (automatic)
 - FetchSoup: soup_ready=true, soup_hand=none → soup_hand=agent
 - StageSoup: soup_hand=agent → soup_hand=none, soup_staged=true

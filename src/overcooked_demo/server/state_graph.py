@@ -566,6 +566,13 @@ class StateGraphGenerator:
             new_state['tomato_in_pot'] = False
             new_state['soup_ready'] = False
             self._add_transition(node_id, new_state, 'human_pour_soup')
+        
+        # Human can turn stove on (when both ingredients are in pot but not cooking)
+        if state['onion_in_pot'] and state['tomato_in_pot'] and state['soup_in_pot_not_cooking']:
+            new_state = state.copy()
+            new_state['soup_in_pot_not_cooking'] = False
+            new_state['soup_cooking'] = True
+            self._add_transition(node_id, new_state, 'human_turn_stove_on')
     
     def _generate_environmental_transitions(self, node_id: str, state: Dict):
         """Generate transitions for environmental changes"""
@@ -582,13 +589,6 @@ class StateGraphGenerator:
             new_state['soup_cooking'] = False
             new_state['soup_ready'] = True
             self._add_transition(node_id, new_state, 'soup_ready')
-        
-        # Turn stove on action (when both ingredients are in pot but not cooking)
-        if state['onion_in_pot'] and state['tomato_in_pot'] and state['soup_in_pot_not_cooking']:
-            new_state = state.copy()
-            new_state['soup_in_pot_not_cooking'] = False
-            new_state['soup_cooking'] = True
-            self._add_transition(node_id, new_state, 'turn_stove_on')
         
         # When soup is served, reset the chopped flags and pot states
         if state['soup_served']:

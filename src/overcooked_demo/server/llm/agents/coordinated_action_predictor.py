@@ -11,6 +11,7 @@ from openai import OpenAI
 from llm.memory.vector_memory import VectorMemory
 from ...state_graph import StateGraphGenerator, StateGraph
 from ...coordination_system import CoordinationManager
+from plan_session import PLAN_STORE
 
 OVERCOOKED_GAME_MECHANICS = """
 ## OVERCOOKED GAME MECHANICS (MDP Knowledge)
@@ -49,7 +50,7 @@ You are navigating through a state space toward the goal of serving soup. Your j
 - **Goal Progress**: Actions that advance toward serving soup
 - **Adaptive Strategy**: Choose actions based on current coordination context
 
-### Available Actions:
+### Available Robot Actions:
 - pickup(onion): Pick up onion from dispenser
 - pickup(tomato): Pick up tomato from dispenser
 - pickup(chopped_onion): Pick up chopped onion from chopping station
@@ -66,6 +67,30 @@ You are navigating through a state space toward the goal of serving soup. Your j
 - place(soup): Place soup at serving station
 - NOOP: No action needed
 
+### Available Human Actions:
+- human_pickup_onion: Human picks up onion from dispenser
+- human_pickup_tomato: Human picks up tomato from dispenser
+- human_pickup_chopped_onion: Human picks up chopped onion from chopping station
+- human_pickup_chopped_tomato: Human picks up chopped tomato from chopping station
+- human_pickup_dish: Human picks up dish from dispenser
+- human_pickup_soup: Human picks up soup from staging
+- human_grab_onion: Human grabs onion from staging
+- human_grab_tomato: Human grabs tomato from staging
+- human_grab_dish: Human grabs dish from staging
+- human_grab_soup: Human grabs soup from staging
+- human_place_onion_chopping: Human places onion at chopping station
+- human_place_onion_staging: Human places onion at staging station
+- human_place_tomato_chopping: Human places tomato at chopping station
+- human_place_tomato_staging: Human places tomato at staging station
+- human_place_chopped_onion: Human places chopped onion at staging
+- human_place_chopped_tomato: Human places chopped tomato at staging
+- human_place_dish: Human places dish at staging
+- human_place_soup: Human places soup at serving station
+- human_place_onion_in_pot: Human places onion in cooking pot
+- human_place_tomato_in_pot: Human places tomato in cooking pot
+- human_pour_soup: Human pours soup from pot
+- human_turn_stove_on: Human turns stove on to start cooking
+
 ### IMPORTANT: Robot Restrictions
 - The robot CANNOT place ingredients in the pot/stove
 - The robot CANNOT turn on the stove
@@ -80,19 +105,20 @@ Each call you receive has this structure:
 STATE SUMMARY:
 <current state description>
 
-COORDINATION CONTEXT:
-<predicted human action, coordination quality, conflict risk, goal progress>
+POSSIBLE ROBOT ACTIONS:
+<list of available robot actions>
 
 Your job:
 
-1. **Analyze the current state** and coordination context
-2. **Choose the best action** that balances goal progress and coordination
-3. **Consider the predicted human action** when making your decision
-4. **Return the optimal action** for the current situation
+1. **Analyze the current state** to understand the game situation
+2. **Predict what the human is most likely to do** based on the current state
+3. **Choose the best robot action** that coordinates well with the predicted human action
+4. **Return both predictions** in the specified format
 
-Return **only** the action name (no extra commentary):
+Return **only** these two lines (no extra commentary):
 
-<action_name>
+predicted_human_action: <human_action_name>
+best_robot_action: <robot_action_name>
 """
 
 OVERCOOKED_MODEL = "ft:gpt-4o-mini-2024-07-18:personal:ap-onion-tomato-chopped:BysMfU2m"
@@ -220,6 +246,10 @@ class CoordinatedActionPredictorAgent(Agent):
     def set_agent_index(self, agent_index: int):
         super().set_agent_index(agent_index)
         self.agent_index = agent_index
+
+    def set_plan(self, session_id: str):
+        """Attach the full PlanSession to this agent."""
+        self.plan = PLAN_STORE[session_id]
 
     TERRAIN_MAPPING = {
         "X": "Wall",
@@ -504,6 +534,93 @@ class CoordinatedActionPredictorAgent(Agent):
             "soup_served": soup_served
         }
 
+    def _generate_plan_to_goal(self, current_state: dict) -> str:
+        """
+        Generate a plan from current state to goal state using A* pathfinding.
+        Returns the next action from the optimal path to goal.
+        """
+        # Define goal state (soup served)
+        goal_state = {
+            'onion_hand': 'none',
+            'onion_staged': False,
+            'onion_at_chopping': False,
+            'onion_chopped': False,
+            'tomato_hand': 'none',
+            'tomato_staged': False,
+            'tomato_at_chopping': False,
+            'tomato_chopped': False,
+            'onion_in_pot': False,
+            'tomato_in_pot': False,
+            'soup_cooking': False,
+            'soup_ready': False,
+            'soup_in_pot_not_cooking': False,
+            'dish_hand': 'none',
+            'dish_staged': False,
+            'soup_hand': 'none',
+            'soup_staged': False,
+            'soup_served': True  # Goal state
+        }
+        
+        # Get current and goal node IDs
+        current_node_id = self.coordination_manager.action_selector._get_node_id_for_state(current_state)
+        goal_node_id = self.coordination_manager.action_selector._get_node_id_for_state(goal_state)
+        
+        if not current_node_id or not goal_node_id:
+            return "NOOP"  # No plan possible
+        
+        # Find path from current state to goal
+        path = self.state_graph.find_path_to_goal(current_node_id, goal_node_id)
+        
+        if len(path) < 2:
+            return "NOOP"  # Already at goal or no path found
+        
+        # Get the next action from the path
+        next_node_id = path[1]
+        edges = self.state_graph.get_edges_from(current_node_id)
+        
+        for edge in edges:
+            if edge.to_node == next_node_id:
+                # Only return robot actions (not human or environmental)
+                if (not edge.action.startswith('human_') and 
+                    not edge.action.startswith('cooking_') and 
+                    not edge.action.startswith('turn_stove') and
+                    edge.action != 'soup_ready' and
+                    edge.action != 'cooking_start' and
+                    edge.action != 'reset_after_serving'):
+                    return edge.action
+        
+        return "NOOP"  # No robot action found in path
+
+    def _parse_dual_predictions(self, response: str, possible_actions: list) -> tuple:
+        """
+        Parse the LLM response to extract both human and robot action predictions.
+        Expected format:
+          predicted_human_action: <human_action_name>
+          best_robot_action: <robot_action_name>
+        """
+        # Default values
+        predicted_human_action = "human_NOOP"
+        best_robot_action = "NOOP"
+        
+        # Parse human action prediction
+        human_match = re.search(r'predicted_human_action:\s*(.+?)(?:\n|best_robot_action:|$)', 
+                               response, re.IGNORECASE)
+        if human_match:
+            predicted_human_action = human_match.group(1).strip()
+        
+        # Parse robot action prediction
+        robot_match = re.search(r'best_robot_action:\s*(.+?)(?:\n|$)', 
+                               response, re.IGNORECASE)
+        if robot_match:
+            best_robot_action = robot_match.group(1).strip()
+        
+        # Validate that the robot action is in our possible actions
+        if best_robot_action not in possible_actions:
+            print(f"Warning: LLM returned robot action '{best_robot_action}' but it's not in possible actions. Using first available action.")
+            best_robot_action = possible_actions[0] if possible_actions else 'NOOP'
+        
+        return predicted_human_action, best_robot_action
+
     def _get_action_plan(self, start_pair, goal_pair):
         """Get action plan between two position/orientation pairs."""
         if self.mdp is None:
@@ -608,70 +725,109 @@ class CoordinatedActionPredictorAgent(Agent):
         else:
             possible_actions = ['NOOP']
         
-        print(f"Possible actions: {possible_actions}")
+        print(f"Possible robot actions: {possible_actions}")
+        
+        # Get possible human actions from state graph
+        possible_human_actions = []
+        if current_node_id:
+            edges = self.state_graph.get_edges_from(current_node_id)
+            for edge in edges:
+                action = edge.action
+                if action.startswith('human_'):
+                    possible_human_actions.append(action)
+        
+        print(f"Possible human actions: {possible_human_actions}")
 
-        # Create LLM prompt with current state and possible actions
+        # Generate plan to goal and get next planned action
+        next_planned_action = self._generate_plan_to_goal(self.last_summary)
+        print(f"Next planned action: {next_planned_action}")
+
+        # Get the old plan-based approach (if plan is available)
+        old_plan_text = ""
+        if hasattr(self, 'plan') and self.plan is not None:
+            plan_lines = []
+            for idx, ev in enumerate(self.plan.events):
+                sec = ev["secondary"]
+                prim = ev["primary"]
+                plan_lines.append(f"{idx+1}) secondary: {sec}, primary: {prim}")
+            old_plan_text = "\n".join(plan_lines)
+        else:
+            old_plan_text = "No plan session available"
+
+        # Create LLM prompt with current state, plan, and possible actions
         prompt = f"""
             {OVERCOOKED_GAME_MECHANICS}
 
             CURRENT STATE:
             {self.last_summary}
 
-            POSSIBLE ACTIONS:
+            OLD PLAN-BASED APPROACH:
+            {old_plan_text}
+
+            NEW STATE GRAPH PLANNING:
+            Based on current state analysis and A* pathfinding to goal, the next planned action is:
+            {next_planned_action}
+
+            NEXT PLANNED ACTION:
+            {next_planned_action}
+
+            POSSIBLE ROBOT ACTIONS:
             {possible_actions}
+
+            POSSIBLE HUMAN ACTIONS:
+            {possible_human_actions}
 
             GOAL: Serve soup (soup_served = true)
 
-            Based on the current state and available actions, what is the best robot action to take?
-            Choose from the possible actions list above.
+            Based on the current state, both planning approaches, and available actions:
+            2. Predict what the human is most likely to do (choose from possible human actions)
+            3. Choose the best robot action that coordinates well with the predicted human action
+            4. Consider both planning approaches - the new state graph planning provides the optimal next action
+            5. Prioritize coordination with human while advancing toward the goal
 
-            Consider:
-            1. Which action advances toward the goal of serving soup?
-            2. Which action coordinates well with potential human actions?
-            3. Which action is most efficient given the current state?
-
-            Return only the action name (e.g., "pickup(onion)" or "place(onion, chopping_station)" or "NOOP"):
+            Return only these two lines:
+            predicted_human_action: <human_action_name>
+            best_robot_action: <robot_action_name>
             """
 
-        # Call LLM to get the best action
+        # Call LLM to get both human and robot predictions
         response = query_openai(prompt, OVERCOOKED_MODEL)
         print(f"LLM Response: {response}")
         
-        # Parse the response to get the action
-        action = response.strip()
+        # Parse the response to get both human and robot actions
+        predicted_human_action, best_robot_action = self._parse_dual_predictions(response, possible_actions)
         
-        # Validate that the action is in our possible actions
-        if action not in possible_actions:
-            print(f"Warning: LLM returned '{action}' but it's not in possible actions. Using first available action.")
-            action = possible_actions[0] if possible_actions else 'NOOP'
-        
-        print(f"Selected action: {action}")
+        print(f"Predicted human action: {predicted_human_action}")
+        print(f"Best robot action: {best_robot_action}")
 
         # Convert high-level action to low-level movement
         my_pos = state.player_positions[self.agent_index]
         my_ori = state.to_dict()["players"][self.agent_index]["orientation"]
 
-        if action == "NOOP":
+        if best_robot_action == "NOOP":
             return Action.STAY, {
-                "action": action,
+                "predicted_human_action": predicted_human_action,
+                "best_robot_action": best_robot_action,
+                "next_planned_action": next_planned_action,
                 "llm_response": response,
                 "possible_actions": possible_actions,
+                "possible_human_actions": possible_human_actions,
                 "reasoning": "No action needed"
             }
 
         # Parse action and execute
-        if action.startswith("pickup("):
-            item = action[7:-1]  # Extract item from pickup(item)
+        if best_robot_action.startswith("pickup("):
+            item = best_robot_action[7:-1]  # Extract item from pickup(item)
             action_plan = self.PickUp(item, my_pos, my_ori)
-        elif action.startswith("place("):
+        elif best_robot_action.startswith("place("):
             # Parse place(action, destination) or place(item)
-            if "," in action:
-                parts = action[6:-1].split(", ")
+            if "," in best_robot_action:
+                parts = best_robot_action[6:-1].split(", ")
                 item = parts[0]
                 destination = parts[1]
                 action_plan = self.Place(item, my_pos, my_ori, destination)
             else:
-                item = action[6:-1]  # Extract item from place(item)
+                item = best_robot_action[6:-1]  # Extract item from place(item)
                 action_plan = self.Place(item, my_pos, my_ori)
         else:
             action_plan = [Action.STAY]
@@ -680,21 +836,32 @@ class CoordinatedActionPredictorAgent(Agent):
         move = action_plan[0] if action_plan else Action.STAY
         print(f"Next Move: {move}")
 
+        # Update coordination context with predicted human action
+        coordination_context = self.coordination_manager.get_coordination_status()
+        if coordination_context:
+            coordination_context.predicted_human_action = predicted_human_action
+        
         # Store in memory for future reference
         self.memory.add_game_memory(
             state_summary=self.last_summary,
             action_info={
-                "action": action,
+                "predicted_human_action": predicted_human_action,
+                "best_robot_action": best_robot_action,
+                "next_planned_action": next_planned_action,
                 "llm_response": response,
-                "possible_actions": possible_actions
+                "possible_actions": possible_actions,
+                "possible_human_actions": possible_human_actions
             },
             task_title="Coordinated Navigation"
         )
         
         return move, {
-            "action": action,
+            "predicted_human_action": predicted_human_action,
+            "best_robot_action": best_robot_action,
+            "next_planned_action": next_planned_action,
             "llm_response": response,
             "possible_actions": possible_actions,
+            "possible_human_actions": possible_human_actions,
             "action_plan": action_plan
         }
 

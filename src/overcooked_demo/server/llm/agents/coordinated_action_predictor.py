@@ -907,10 +907,7 @@ class CoordinatedActionPredictorAgent(Agent):
             {old_plan_text}
 
             NEW STATE GRAPH PLANNING:
-            Based on current state analysis and A* pathfinding to goal, the next planned action is:
-            {next_planned_action}
-
-            NEXT PLANNED ACTION:
+            Based on current state analysis and A* pathfinding to goal, from our new plan the next planned action is:
             {next_planned_action}
 
             POSSIBLE ROBOT ACTIONS:

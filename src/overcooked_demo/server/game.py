@@ -11,6 +11,7 @@ import ray
 from utils import DOCKER_VOLUME, create_dirs
 
 from llm.agents.action_predictor import ActionPredictorAgent
+from llm.agents.coordinated_action_predictor import CoordinatedActionPredictorAgent
 from human_aware_rl.rllib.rllib import load_agent
 from overcooked_ai_py.mdp.actions import Action, Direction
 from overcooked_ai_py.mdp.overcooked_env import OvercookedEnv
@@ -691,7 +692,7 @@ class OvercookedGame(Game):
     def get_policy(self, npc_id, idx=0):
         if npc_id == "overcooked_llm":
             assert idx is not None, "Agent index must not be None for LLM agent!"
-            agent = ActionPredictorAgent()
+            agent = CoordinatedActionPredictorAgent()
             agent.set_agent_index(idx)
             plan_id = getattr(self, "plan_session_id", None)
             if plan_id:

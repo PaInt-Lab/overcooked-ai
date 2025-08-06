@@ -238,10 +238,28 @@ class CoordinatedActionPredictorAgent(Agent):
     def _initialize_state_graph(self):
         """Initialize the state graph and coordination system"""
         print("Initializing state graph...")
-        generator = StateGraphGenerator()
-        self.state_graph = generator.generate_state_graph()
+        
+        # Try to load from cache first
+        cache_file = os.path.join(os.path.dirname(__file__), '..', 'cached_state_graph.pkl')
+        if os.path.exists(cache_file):
+            print("📂 Loading state graph from cache...")
+            import pickle
+            with open(cache_file, 'rb') as f:
+                self.state_graph = pickle.load(f)
+            print(f"✅ State graph loaded from cache with {len(self.state_graph.nodes)} nodes")
+        else:
+            print("🔄 Cache not found, generating state graph...")
+            generator = StateGraphGenerator()
+            self.state_graph = generator.generate_state_graph()
+            print(f"✅ State graph generated with {len(self.state_graph.nodes)} nodes")
+            
+            # Save to cache for next time
+            print("💾 Saving state graph to cache...")
+            with open(cache_file, 'wb') as f:
+                pickle.dump(self.state_graph, f)
+            print("✅ State graph cached for future use")
+        
         self.coordination_manager = CoordinationManager(self.state_graph)
-        print(f"State graph initialized with {len(self.state_graph.nodes)} nodes")
 
     def set_agent_index(self, agent_index: int):
         super().set_agent_index(agent_index)

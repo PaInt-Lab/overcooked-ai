@@ -9,8 +9,8 @@ from llm.ollama.ollama_client import query_ollama
 import os
 from openai import OpenAI
 from llm.memory.vector_memory import VectorMemory
-from ...state_graph import StateGraphGenerator, StateGraph
-from ...coordination_system import CoordinationManager
+from state_graph import StateGraphGenerator, StateGraph
+from coordination_system import CoordinationManager
 from plan_session import PLAN_STORE
 
 OVERCOOKED_GAME_MECHANICS = """
@@ -133,8 +133,8 @@ predicted_human_action: <human_action_name>
 best_robot_action: <robot_action_name>
 """
 
-# OVERCOOKED_MODEL = "ft:gpt-4o-mini-2024-07-18:personal:ap-onion-tomato-chopped:BysMfU2m"
-OVERCOOKED_MODEL = "gpt-4o-mini"
+OVERCOOKED_MODEL = "ft:gpt-4o-mini-2024-07-18:personal:ap-onion-tomato-chopped:BysMfU2m"
+# OVERCOOKED_MODEL = "gpt-4o-mini"
 
 def query_openai(prompt: str, model: str = OVERCOOKED_MODEL, temperature: float = 0.0) -> str:
     """Query the OpenAI API with the given prompt and return the response text."""

@@ -98,6 +98,18 @@ You are navigating through a state space toward the goal of serving soup. Your j
 - Only the human player handles cooking and stove interactions
 - The robot focuses on preparation tasks: chopping and staging ingredients
 
+### Handling Uncertainty in Human Behavior:
+When the same game state can have multiple valid actions (e.g., human might grab onion OR wait for robot to grab onion), use this priority system:
+
+1. **Follow the Plan**: If there's a clear plan indicating who should do what, prioritize that
+2. **Choose Complementary Action**: If human is likely to do X, robot should do Y
+3. **Default to Goal Progress**: When uncertain, choose actions that advance toward soup completion
+
+**Example**: If plan says "robot gets onions first" but human might grab onion:
+- Predict human will wait (following plan)
+- Robot should grab onion (following plan)
+- If human actually grabs onion, adapt in next turn
+
 ## TASK EXECUTION
 
 Each call you receive has this structure:
@@ -121,7 +133,8 @@ predicted_human_action: <human_action_name>
 best_robot_action: <robot_action_name>
 """
 
-OVERCOOKED_MODEL = "ft:gpt-4o-mini-2024-07-18:personal:ap-onion-tomato-chopped:BysMfU2m"
+# OVERCOOKED_MODEL = "ft:gpt-4o-mini-2024-07-18:personal:ap-onion-tomato-chopped:BysMfU2m"
+OVERCOOKED_MODEL = "gpt-4o-mini"
 
 def query_openai(prompt: str, model: str = OVERCOOKED_MODEL, temperature: float = 0.0) -> str:
     """Query the OpenAI API with the given prompt and return the response text."""
@@ -909,10 +922,11 @@ class CoordinatedActionPredictorAgent(Agent):
             GOAL: Serve soup (soup_served = true)
 
             Based on the current state, both planning approaches, and available actions:
-            2. Predict what the human is most likely to do (choose from possible human actions)
-            3. Choose the best robot action that coordinates well with the predicted human action
-            4. Consider both planning approaches - the new state graph planning provides the optimal next action
-            5. Prioritize coordination with human while advancing toward the goal
+            1. **Follow the Plan When Uncertain**: If the plan clearly indicates who should do what, when really uncertain, prioritize the plan
+            2. **Predict human behavior**: Consider what the human is most likely to do (choose from possible human actions)
+            3. **Choose complementary robot action**: Select the best robot action that coordinates well with the predicted human action
+            4. **Use state graph planning**: The new state graph planning provides the optimal next action toward the goal
+            5. **Handle uncertainty**: When human behavior is ambiguous, default to following the plan or choosing goal-progressing actions
 
             Return only these two lines:
             predicted_human_action: <human_action_name>

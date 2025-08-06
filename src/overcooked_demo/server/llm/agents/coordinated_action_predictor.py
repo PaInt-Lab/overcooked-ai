@@ -344,13 +344,13 @@ class CoordinatedActionPredictorAgent(Agent):
             elif bottom_stations:
                 self.onion_staging_tiles.extend(bottom_stations)
             
-            self.tomato_staging_tiles = self.onion_staging_tiles.copy()
-            
             if right_stations:
                 self.dish_staging_tiles.extend(right_stations)
             elif top_stations:
                 self.dish_staging_tiles.extend(top_stations)
 
+            self.tomato_staging_tiles = self.dish_staging_tiles.copy()
+            
             self.soup_staging_tiles = self.dish_staging_tiles
 
         # Create chopping stations

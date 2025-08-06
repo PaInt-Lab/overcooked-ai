@@ -1,7 +1,7 @@
 from typing import Dict, List, Optional, Tuple
 from dataclasses import dataclass
 import json
-from .state_graph import StateGraph, StateNode
+from state_graph import StateGraph, StateNode
 
 @dataclass
 class CoordinationContext:

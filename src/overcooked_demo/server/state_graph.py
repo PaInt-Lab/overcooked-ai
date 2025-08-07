@@ -350,6 +350,8 @@ class StateGraphGenerator:
         if onion_locations > 1:
             return False
         
+
+        
         # 6. Can't have tomato in multiple places at once
         tomato_locations = 0
         if state['tomato_hand'] != 'none':
@@ -391,8 +393,8 @@ class StateGraphGenerator:
         if state['soup_ready'] and (not state['onion_in_pot'] or not state['tomato_in_pot']):
             return False
         
-        # 12. Can't have soup in pot not cooking without both ingredients
-        if state['soup_in_pot_not_cooking'] and (not state['onion_in_pot'] or not state['tomato_in_pot']):
+        # 12. Can't have soup in pot not cooking without at least one ingredient
+        if state['soup_in_pot_not_cooking'] and (not state['onion_in_pot'] and not state['tomato_in_pot']):
             return False
         
         return True
@@ -666,29 +668,27 @@ class StateGraphGenerator:
             new_state['tomato_chopped'] = False
             self._add_transition(node_id, new_state, 'human_place_soup')
         
-        # Human can place items in pot
-        if state['onion_hand'] == 'partner':
+        # Human can place items in pot (only if they were chopped and staged)
+        if state['onion_hand'] == 'partner' and state['onion_chopped']:
             new_state = state.copy()
             new_state['onion_hand'] = 'none'
             new_state['onion_in_pot'] = True
             # If it was at chopping, remove it from there
             if state['onion_at_chopping']:
                 new_state['onion_at_chopping'] = False
-            # Set soup_in_pot_not_cooking to True when ingredients are placed in pot
-            if new_state['tomato_in_pot']:
-                new_state['soup_in_pot_not_cooking'] = True
+            # Set soup_in_pot_not_cooking to True when ANY ingredient is placed in pot
+            new_state['soup_in_pot_not_cooking'] = True
             self._add_transition(node_id, new_state, 'human_place_onion_in_pot')
         
-        if state['tomato_hand'] == 'partner':
+        if state['tomato_hand'] == 'partner' and state['tomato_chopped']:
             new_state = state.copy()
             new_state['tomato_hand'] = 'none'
             new_state['tomato_in_pot'] = True
             # If it was at chopping, remove it from there
             if state['tomato_at_chopping']:
                 new_state['tomato_at_chopping'] = False
-            # Set soup_in_pot_not_cooking to True when ingredients are placed in pot
-            if new_state['onion_in_pot']:
-                new_state['soup_in_pot_not_cooking'] = True
+            # Set soup_in_pot_not_cooking to True when ANY ingredient is placed in pot
+            new_state['soup_in_pot_not_cooking'] = True
             self._add_transition(node_id, new_state, 'human_place_tomato_in_pot')
         
         # Human can pour soup from pot into their hand (when soup is ready)
@@ -743,10 +743,18 @@ class StateGraphGenerator:
         to_node_id = self.state_to_node_id.get(to_state_key)
         
         if to_node_id and to_node_id != from_node_id:
+            # Set edge weight based on action type to encourage robot actions
+            weight = 1.0  # Default weight
+            if action.startswith('pickup(') or action.startswith('place('):
+                weight = 0.8  # Robot actions get lower cost (preferred)
+            elif action.startswith('human_'):
+                weight = 1.2  # Human actions get higher cost (less preferred)
+            
             edge = StateEdge(
                 from_node=from_node_id,
                 to_node=to_node_id,
-                action=action
+                action=action,
+                weight=weight
             )
             self.graph.add_edge(edge)
         else:

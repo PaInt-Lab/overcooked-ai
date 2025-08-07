@@ -667,6 +667,9 @@ class StateGraphGenerator:
             # If it was at chopping, remove it from there
             if state['onion_at_chopping']:
                 new_state['onion_at_chopping'] = False
+            # Set soup_in_pot_not_cooking to True when ingredients are placed in pot
+            if new_state['tomato_in_pot']:
+                new_state['soup_in_pot_not_cooking'] = True
             self._add_transition(node_id, new_state, 'human_place_onion_in_pot')
         
         if state['tomato_hand'] == 'partner':
@@ -676,6 +679,9 @@ class StateGraphGenerator:
             # If it was at chopping, remove it from there
             if state['tomato_at_chopping']:
                 new_state['tomato_at_chopping'] = False
+            # Set soup_in_pot_not_cooking to True when ingredients are placed in pot
+            if new_state['onion_in_pot']:
+                new_state['soup_in_pot_not_cooking'] = True
             self._add_transition(node_id, new_state, 'human_place_tomato_in_pot')
         
         # Human can pour soup from pot into their hand (when soup is ready)

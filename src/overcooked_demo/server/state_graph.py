@@ -738,17 +738,38 @@ class StateGraphGenerator:
             self._add_transition(node_id, new_state, 'reset_after_serving')
     
     def _add_transition(self, from_node_id: str, to_state: Dict, action: str):
-        """Add a transition between states"""
+        """Add a transition between states with strategic weighting"""
         to_state_key = json.dumps(to_state, sort_keys=True)
         to_node_id = self.state_to_node_id.get(to_state_key)
         
         if to_node_id and to_node_id != from_node_id:
-            # Set edge weight based on action type to encourage robot actions
+            # Strategic weighting system:
+            # - Robot secondary tasks: 0.5 (BEST - preferred)
+            # - Human primary tasks: 0.5 (SAME AS ROBOT SECONDARY - also preferred)
+            # - Human secondary tasks: 1.0 (HIGHER - less preferred)
+            # - Robot primary tasks: 1000.0 (BLOCKED - impossible)
+            
             weight = 1.0  # Default weight
+            
+            # Robot actions
             if action.startswith('pickup(') or action.startswith('place('):
-                weight = 0.8  # Robot actions get lower cost (preferred)
+                # Robot secondary tasks (fetching, staging, serving)
+                if any(keyword in action for keyword in ['pickup(', 'place(', 'staging_station', 'delivery']):
+                    weight = 0.5  # Preferred robot secondary tasks
+                else:
+                    weight = 1000.0  # Block robot primary tasks
+            
+            # Human actions
             elif action.startswith('human_'):
-                weight = 1.2  # Human actions get higher cost (less preferred)
+                # Human primary tasks (cooking, placing in pot, pouring)
+                if any(keyword in action for keyword in ['place_onion_in_pot', 'place_tomato_in_pot', 'pour_soup', 'turn_stove_on']):
+                    weight = 0.5  # Preferred human primary tasks
+                else:
+                    weight = 1.0  # Human secondary tasks (less preferred but allowed)
+            
+            # Environmental actions (normal weight)
+            else:
+                weight = 1.0
             
             edge = StateEdge(
                 from_node=from_node_id,

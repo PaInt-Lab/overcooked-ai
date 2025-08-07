@@ -61,7 +61,11 @@ class StateGraph:
     def find_path_to_goal(self, start_node_id: str, goal_node_id: str) -> List[str]:
         """Find shortest path from start to goal using A*"""
         if start_node_id not in self.nodes or goal_node_id not in self.nodes:
+            print(f"❌ Pathfinding failed: start_node_id={start_node_id}, goal_node_id={goal_node_id}")
+            print(f"   Available nodes: {list(self.nodes.keys())[:5]}...")
             return []
+        
+        print(f"🔍 Starting pathfinding from {start_node_id} to {goal_node_id}")
         
         # Priority queue for A*: (f_score, node_id, path)
         open_set = [(0, start_node_id, [start_node_id])]
@@ -70,10 +74,15 @@ class StateGraph:
         # g_score[node] = cost from start to node
         g_score = {start_node_id: 0}
         
-        while open_set:
+        iterations = 0
+        max_iterations = 10000  # Prevent infinite loops
+        
+        while open_set and iterations < max_iterations:
+            iterations += 1
             f_score, current_id, path = heapq.heappop(open_set)
             
             if current_id == goal_node_id:
+                print(f"✅ Path found in {iterations} iterations: {path}")
                 return path
             
             if current_id in closed_set:
@@ -81,7 +90,11 @@ class StateGraph:
                 
             closed_set.add(current_id)
             
-            for edge in self.get_edges_from(current_id):
+            edges = self.get_edges_from(current_id)
+            if iterations == 1:  # Debug first iteration
+                print(f"   First node edges: {[edge.action for edge in edges]}")
+            
+            for edge in edges:
                 neighbor_id = edge.to_node
                 tentative_g_score = g_score[current_id] + edge.weight
                 
@@ -92,13 +105,36 @@ class StateGraph:
                     f_score = tentative_g_score + h_score
                     heapq.heappush(open_set, (f_score, neighbor_id, new_path))
         
+        if iterations >= max_iterations:
+            print(f"⚠️ Pathfinding timed out after {iterations} iterations")
+        else:
+            print(f"❌ No path found after {iterations} iterations")
+        
         return []  # No path found
     
     def _heuristic(self, node_id: str, goal_id: str) -> float:
         """Heuristic function for A* - distance to goal"""
-        # Simple heuristic: count how many steps away from goal
-        # This can be improved with more sophisticated distance calculation
-        return 0  # Placeholder - will be improved
+        # Get the states for both nodes
+        current_node = self.get_node(node_id)
+        goal_node = self.get_node(goal_id)
+        
+        if not current_node or not goal_node:
+            return 0
+        
+        current_state = current_node.state_summary
+        goal_state = goal_node.state_summary
+        
+        # Calculate heuristic based on how many state variables differ
+        # This is admissible (never overestimates) and helps guide the search
+        differences = 0
+        
+        # Check each state variable
+        for key in current_state:
+            if current_state[key] != goal_state[key]:
+                differences += 1
+        
+        # Weight the heuristic - each difference requires at least one action
+        return differences * 0.5  # Conservative estimate
     
     def get_next_action(self, current_node_id: str, goal_node_id: str) -> Optional[str]:
         """Get the next action to take toward the goal"""

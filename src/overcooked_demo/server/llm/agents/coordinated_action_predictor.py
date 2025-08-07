@@ -614,21 +614,117 @@ class CoordinatedActionPredictorAgent(Agent):
         current_node_id = self.coordination_manager.action_selector._get_node_id_for_state(current_state)
         goal_node_id = self.coordination_manager.action_selector._get_node_id_for_state(goal_state)
         
-        if not current_node_id or not goal_node_id:
-            return "NOOP"  # No plan possible
+        print(f"🔍 State Graph Debug:")
+        print(f"   Current state: {current_state}")
+        print(f"   Goal state: {goal_state}")
+        print(f"   Current node ID: {current_node_id}")
+        print(f"   Goal node ID: {goal_node_id}")
         
+        # Debug: Check if nodes exist in graph
+        if current_node_id:
+            current_node = self.state_graph.get_node(current_node_id)
+            print(f"   Current node exists: {current_node is not None}")
+            if current_node:
+                print(f"   Current node state: {current_node.state_summary}")
+        
+        if goal_node_id:
+            goal_node = self.state_graph.get_node(goal_node_id)
+            print(f"   Goal node exists: {goal_node is not None}")
+            if goal_node:
+                print(f"   Goal node state: {goal_node.state_summary}")
+        
+        # Debug: Check graph connectivity
+        if current_node_id and current_node_id in self.state_graph.edges:
+            edge_count = len(self.state_graph.edges[current_node_id])
+            print(f"   Edges from current node: {edge_count}")
+            if edge_count > 0:
+                print(f"   Sample edges: {[edge.action for edge in self.state_graph.edges[current_node_id][:3]]}")
+        
+        if goal_node_id and goal_node_id in self.state_graph.reverse_edges:
+            incoming_count = len(self.state_graph.reverse_edges[goal_node_id])
+            print(f"   Edges to goal node: {incoming_count}")
+            if incoming_count > 0:
+                print(f"   Sample incoming edges: {[edge.action for edge in self.state_graph.reverse_edges[goal_node_id][:3]]}")
+        
+        if not current_node_id or not goal_node_id:
+            print(f"   ❌ No plan possible - missing node IDs")
+            return "NOOP"  # No plan possible
+
+    def _get_fallback_action(self, current_state: dict) -> str:
+        """
+        Simple heuristic-based action selection when state graph planning fails.
+        This provides a basic fallback strategy for goal-directed behavior.
+        """
+        # Priority-based action selection
+        # 1. If we have soup in hand, serve it
+        if current_state['soup_hand'] == 'agent':
+            return 'place(soup)'
+        
+        # 2. If soup is ready and staged, pick it up
+        if current_state['soup_ready'] and current_state['soup_staged'] and current_state['soup_hand'] == 'none':
+            return 'pickup(soup)'
+        
+        # 3. If we have chopped onion, place it at staging
+        if current_state['onion_hand'] == 'agent' and current_state['onion_chopped']:
+            return 'place(chopped_onion)'
+        
+        # 4. If we have chopped tomato, place it at staging
+        if current_state['tomato_hand'] == 'agent' and current_state['tomato_chopped']:
+            return 'place(chopped_tomato)'
+        
+        # 5. If we have raw onion, chop it
+        if current_state['onion_hand'] == 'agent' and not current_state['onion_chopped']:
+            return 'place(onion, chopping_station)'
+        
+        # 6. If we have raw tomato, chop it
+        if current_state['tomato_hand'] == 'agent' and not current_state['tomato_chopped']:
+            return 'place(tomato, chopping_station)'
+        
+        # 7. If onion is at chopping and chopped, pick it up
+        if current_state['onion_at_chopping'] and current_state['onion_chopped'] and current_state['onion_hand'] == 'none':
+            return 'pickup(chopped_onion)'
+        
+        # 8. If tomato is at chopping and chopped, pick it up
+        if current_state['tomato_at_chopping'] and current_state['tomato_chopped'] and current_state['tomato_hand'] == 'none':
+            return 'pickup(chopped_tomato)'
+        
+        # 9. If we have dish, place it at staging
+        if current_state['dish_hand'] == 'agent':
+            return 'place(dish)'
+        
+        # 10. If soup is cooking and we don't have dish, get dish
+        if current_state['soup_cooking'] and current_state['dish_hand'] == 'none':
+            return 'pickup(dish)'
+        
+        # 11. If we have nothing and onion is available, get onion
+        if (current_state['onion_hand'] == 'none' and not current_state['onion_staged'] and 
+            not current_state['onion_at_chopping'] and not current_state['onion_in_pot']):
+            return 'pickup(onion)'
+        
+        # 12. If we have nothing and tomato is available, get tomato
+        if (current_state['tomato_hand'] == 'none' and not current_state['tomato_staged'] and 
+            not current_state['tomato_at_chopping'] and not current_state['tomato_in_pot']):
+            return 'pickup(tomato)'
+        
+        # Default: no action needed
+        return 'NOOP'
+
         # Find path from current state to goal
         path = self.state_graph.find_path_to_goal(current_node_id, goal_node_id)
+        print(f"   Path found: {path}")
         
         if len(path) < 2:
+            print(f"   ❌ Path too short or no path found")
             return "NOOP"  # Already at goal or no path found
         
         # Get the next action from the path
         next_node_id = path[1]
         edges = self.state_graph.get_edges_from(current_node_id)
+        print(f"   Edges from current node: {[edge.action for edge in edges]}")
         
         for edge in edges:
             if edge.to_node == next_node_id:
+                print(f"   Found edge to next node: {edge.action}")
                 # Only return robot actions (not human or environmental)
                 if (not edge.action.startswith('human_') and 
                     not edge.action.startswith('cooking_') and 
@@ -636,9 +732,75 @@ class CoordinatedActionPredictorAgent(Agent):
                     edge.action != 'soup_ready' and
                     edge.action != 'cooking_start' and
                     edge.action != 'reset_after_serving'):
+                    print(f"   ✅ Returning robot action: {edge.action}")
                     return edge.action
+                else:
+                    print(f"   ⚠️ Skipping non-robot action: {edge.action}")
         
-        return "NOOP"  # No robot action found in path
+        print(f"   ❌ No robot action found in path")
+        
+        # Fallback: Use simple heuristic-based action selection
+        print(f"   🔄 Using fallback heuristic action selection")
+        fallback_action = self._get_fallback_action(current_state)
+        print(f"   ✅ Fallback action: {fallback_action}")
+        return fallback_action
+        """
+        Simple heuristic-based action selection when state graph planning fails.
+        This provides a basic fallback strategy for goal-directed behavior.
+        """
+        # Priority-based action selection
+        # 1. If we have soup in hand, serve it
+        if current_state['soup_hand'] == 'agent':
+            return 'place(soup)'
+        
+        # 2. If soup is ready and staged, pick it up
+        if current_state['soup_ready'] and current_state['soup_staged'] and current_state['soup_hand'] == 'none':
+            return 'pickup(soup)'
+        
+        # 3. If we have chopped onion, place it at staging
+        if current_state['onion_hand'] == 'agent' and current_state['onion_chopped']:
+            return 'place(chopped_onion)'
+        
+        # 4. If we have chopped tomato, place it at staging
+        if current_state['tomato_hand'] == 'agent' and current_state['tomato_chopped']:
+            return 'place(chopped_tomato)'
+        
+        # 5. If we have raw onion, chop it
+        if current_state['onion_hand'] == 'agent' and not current_state['onion_chopped']:
+            return 'place(onion, chopping_station)'
+        
+        # 6. If we have raw tomato, chop it
+        if current_state['tomato_hand'] == 'agent' and not current_state['tomato_chopped']:
+            return 'place(tomato, chopping_station)'
+        
+        # 7. If onion is at chopping and chopped, pick it up
+        if current_state['onion_at_chopping'] and current_state['onion_chopped'] and current_state['onion_hand'] == 'none':
+            return 'pickup(chopped_onion)'
+        
+        # 8. If tomato is at chopping and chopped, pick it up
+        if current_state['tomato_at_chopping'] and current_state['tomato_chopped'] and current_state['tomato_hand'] == 'none':
+            return 'pickup(chopped_tomato)'
+        
+        # 9. If we have dish, place it at staging
+        if current_state['dish_hand'] == 'agent':
+            return 'place(dish)'
+        
+        # 10. If soup is cooking and we don't have dish, get dish
+        if current_state['soup_cooking'] and current_state['dish_hand'] == 'none':
+            return 'pickup(dish)'
+        
+        # 11. If we have nothing and onion is available, get onion
+        if (current_state['onion_hand'] == 'none' and not current_state['onion_staged'] and 
+            not current_state['onion_at_chopping'] and not current_state['onion_in_pot']):
+            return 'pickup(onion)'
+        
+        # 12. If we have nothing and tomato is available, get tomato
+        if (current_state['tomato_hand'] == 'none' and not current_state['tomato_staged'] and 
+            not current_state['tomato_at_chopping'] and not current_state['tomato_in_pot']):
+            return 'pickup(tomato)'
+        
+        # Default: no action needed
+        return 'NOOP'
 
     def _is_blocking_important_tile(self, my_pos: tuple, state) -> bool:
         """

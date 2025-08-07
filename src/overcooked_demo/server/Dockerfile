@@ -19,8 +19,14 @@ COPY requirements.txt .
 # remove old TF1 x, old greenlet pin, old dnspython pin, and any old openai
 RUN sed -i '/^tensorflow==2\.0\.3/d;/^greenlet==0\.4\.16/d;/^dnspython==1\.16\.0/d;/^openai==/d' requirements.txt
 
+# 3.5. Pin NumPy FIRST (ADD THIS)
+RUN pip install "numpy<2.0"
+
 # 4. Install Python deps (without openai for now)
 RUN pip install --no-cache-dir -r requirements.txt
+
+# 4.5. Downgrade NumPy for compatibility (ADD THIS)
+RUN pip install "numpy<2.0" --force-reinstall
 
 # 5. Install compatible networking packages
 RUN pip install --upgrade "urllib3>=1.26.0,<2.0" "requests>=2.20.0,<3.0"
@@ -29,6 +35,9 @@ RUN pip install --upgrade "urllib3>=1.26.0,<2.0" "requests>=2.20.0,<3.0"
 RUN pip install tensorflow-cpu==2.11.0
 RUN pip install "dnspython>=2.0,<3.0"
 RUN pip install tf-keras
+
+# 6.5. Fix PyTorch for CPU environment (ADD THIS)
+RUN pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
 
 # 7. Install OpenAI before Overcooked-AI
 RUN pip install openai>=1.0.0
@@ -48,7 +57,7 @@ RUN echo "import os; DATA_DIR=os.path.abspath('.')" \
 RUN pip install -e /overcooked_ai[harl]
 
 # 10. Reinstall OpenAI and eventlet after Overcooked-AI (in case they got overridden)
-RUN pip install --force-reinstall openai>=1.0.0 eventlet
+RUN pip install --force-reinstall openai>=1.0.0 eventlet "numpy<2.0" sentence-transformers>=2.2.0
 
 # 11. Copy demo server files (including your graphics .js)
 COPY . /app

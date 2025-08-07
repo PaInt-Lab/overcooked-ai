@@ -134,9 +134,10 @@ predicted_human_action: <human_action_name>
 best_robot_action: <robot_action_name>
 """
 
-# OVERCOOKED_MODEL = "ft:gpt-4o-mini-2024-07-18:personal:ap-onion-tomato-chopped:BysMfU2m"
+OVERCOOKED_MODEL = "ft:gpt-4o-mini-2024-07-18:personal:ap-onion-tomato-chopped:BysMfU2m"
 # OVERCOOKED_MODEL = "gpt-4o-mini"
-OVERCOOKED_MODEL = "nothing"
+# OVERCOOKED_MODEL = "nothing"
+
 def query_openai(prompt: str, model: str = OVERCOOKED_MODEL, temperature: float = 0.0) -> str:
     """Query the OpenAI API with the given prompt and return the response text."""
     api_key = os.getenv("OPENAI_API_KEY")
@@ -1092,6 +1093,8 @@ class CoordinatedActionPredictorAgent(Agent):
             old_plan_text = "\n".join(plan_lines)
         else:
             old_plan_text = "No plan session available"
+
+        print(f"Old plan text: {old_plan_text}")
 
         # Create LLM prompt with current state, plan, and possible actions
         prompt = f"""

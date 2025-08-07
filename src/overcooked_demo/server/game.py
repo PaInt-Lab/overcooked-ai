@@ -537,50 +537,32 @@ class OvercookedGame(Game):
         """
         return super(OvercookedGame, self).is_ready() and not self.is_empty()
 
-    def apply_action(self, player_id, action):
-        pass
-
-    def apply_actions(self):
-        # Default joint action, as NPC policies and clients probably don't enqueue actions fast
-        # enough to produce one at every tick
+    def apply_action(self, player_idx, action):
+        """Apply a single human action immediately for real-time movement"""
+        if player_idx >= len(self.players):
+            return
+        
+        player_id = self.players[player_idx]
+        if player_id not in self.human_players:
+            # Only process human actions here
+            return
+            
+        # Action is already an overcooked action (converted in enqueue_action)
+        overcooked_action = action
+        
+        # Create a joint action with this human action and STAY for others
         joint_action = [Action.STAY] * len(self.players)
-
-       # Synchronize individual player actions into a joint-action as required by overcooked logic
-        for i in range(len(self.players)):
-            # if this is a human, don't block and inject
-            if self.players[i] in self.human_players:
-                try:
-                    # we don't block here in case humans want to Stay
-                    joint_action[i] = self.pending_actions[i].get(block=False)
-                except Empty:
-                    pass
-            else:
-                # we block on agent actions to ensure that the agent gets to do one action per state
-                joint_action[i] = self.pending_actions[i].get(block=True)
-
-        # Apply overcooked game logic to get state transition
+        joint_action[player_idx] = overcooked_action
+        
+        # Apply the action to the current state
         prev_state = self.state
-        self.state, info = self.mdp.get_state_transition(
-            prev_state, joint_action
-        )
-
-        for agent in self.npc_policies.values():
-            agent.last_info = info
-
-        if self.show_potential:
-            self.phi = self.mdp.potential_function(
-                prev_state, self.mp, gamma=0.99
-            )
-
-        # Send next state to all background consumers if needed
-        if self.curr_tick % self.ticks_per_ai_action == 0:
-            for npc_id in self.npc_policies:
-                self.npc_state_queues[npc_id].put(self.state, block=False)
-
-        # Update score based on soup deliveries that might have occured
+        self.state, info = self.mdp.get_state_transition(prev_state, joint_action)
+        
+        # Update score if there was a reward
         curr_reward = sum(info["sparse_reward_by_agent"])
         self.score += curr_reward
-
+        
+        # Log the transition for trajectory
         transition = {
             "state": json.dumps(prev_state.to_dict()),
             "joint_action": json.dumps(joint_action),
@@ -597,17 +579,93 @@ class OvercookedGame(Game):
             "player_0_is_human": self.players[0] in self.human_players,
             "player_1_is_human": self.players[1] in self.human_players,
         }
-
         self.trajectory.append(transition)
 
-        # Return about the current transition
-        return prev_state, joint_action, info
+    def apply_actions(self):
+        # Process human actions immediately (real-time movement)
+        for i in range(len(self.players)):
+            if self.players[i] in self.human_players:
+                try:
+                    # Process all pending human actions immediately
+                    while True:
+                        action = self.pending_actions[i].get(block=False)
+                        self.apply_action(i, action)
+                except Empty:
+                    pass  # No more human actions to process
+        
+        # Check if there are any agents in the game
+        if not self.npc_players:
+            # Human-only game, no agent actions to process
+            return None, None, None
+        
+        # Process agent actions when ready (blocking)
+        joint_action = [Action.STAY] * len(self.players)
+        agent_actions_processed = False
+        
+        for i in range(len(self.players)):
+            if self.players[i] not in self.human_players:
+                try:
+                    # Block on agent actions to ensure they get to do one action per state
+                    joint_action[i] = self.pending_actions[i].get(block=True, timeout=0.1)
+                    agent_actions_processed = True
+                except Empty:
+                    # Agent didn't respond in time, stay in place
+                    pass
+
+        # Only apply agent actions if at least one agent provided an action
+        if agent_actions_processed:
+            # Apply overcooked game logic to get state transition
+            prev_state = self.state
+            self.state, info = self.mdp.get_state_transition(prev_state, joint_action)
+
+            for agent in self.npc_policies.values():
+                agent.last_info = info
+
+            if self.show_potential:
+                self.phi = self.mdp.potential_function(prev_state, self.mp, gamma=0.99)
+
+            # Send next state to all background consumers if needed
+            if self.curr_tick % self.ticks_per_ai_action == 0:
+                for npc_id in self.npc_policies:
+                    self.npc_state_queues[npc_id].put(self.state, block=False)
+
+            # Update score based on soup deliveries that might have occurred
+            curr_reward = sum(info["sparse_reward_by_agent"])
+            self.score += curr_reward
+
+            # Log the transition for trajectory
+            transition = {
+                "state": json.dumps(prev_state.to_dict()),
+                "joint_action": json.dumps(joint_action),
+                "reward": curr_reward,
+                "time_left": max(self.max_time - (time() - self.start_time), 0),
+                "score": self.score,
+                "time_elapsed": time() - self.start_time,
+                "cur_gameloop": self.curr_tick,
+                "layout": json.dumps(self.mdp.terrain_mtx),
+                "layout_name": self.curr_layout,
+                "trial_id": str(self.start_time),
+                "player_0_id": self.players[0],
+                "player_1_id": self.players[1],
+                "player_0_is_human": self.players[0] in self.human_players,
+                "player_1_is_human": self.players[1] in self.human_players,
+            }
+            self.trajectory.append(transition)
+
+            return prev_state, joint_action, info
+        
+        return None, None, None
 
     def enqueue_action(self, player_id, action):
         overcooked_action = self.action_to_overcooked_action[action]
-        super(OvercookedGame, self).enqueue_action(
-            player_id, overcooked_action
-        )
+        
+        # For human players, apply the action immediately for real-time movement
+        if player_id in self.human_players:
+            player_idx = self.players.index(player_id)
+            self.apply_action(player_idx, overcooked_action)
+        else:
+            # For agents, queue the action normally
+            super(OvercookedGame, self).enqueue_action(player_id, overcooked_action)
 
     def reset(self):
         status = super(OvercookedGame, self).reset()

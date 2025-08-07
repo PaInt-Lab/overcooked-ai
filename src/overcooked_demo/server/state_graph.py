@@ -446,20 +446,35 @@ class StateGraphGenerator:
             new_state['tomato_at_chopping'] = False
             self._add_transition(node_id, new_state, 'pickup(chopped_tomato)')
         
-        # Pickup dish from dispenser
+        # Pickup dish from dispenser (when soup is cooking - proactive behavior)
         if (state['dish_hand'] == 'none' and not state['dish_staged'] and 
             state['soup_cooking']):
             new_state = state.copy()
             new_state['dish_hand'] = 'agent'
             self._add_transition(node_id, new_state, 'pickup(dish)')
         
-        # Pickup soup from staging
+        # Pickup dish from dispenser (when soup is ready - backup behavior)
+        if (state['dish_hand'] == 'none' and not state['dish_staged'] and 
+            state['soup_ready']):
+            new_state = state.copy()
+            new_state['dish_hand'] = 'agent'
+            self._add_transition(node_id, new_state, 'pickup(dish_ready)')
+        
+        # Pickup soup from staging (when soup is ready and staged)
         if (state['soup_ready'] and state['soup_staged'] and 
             state['soup_hand'] == 'none'):
             new_state = state.copy()
             new_state['soup_hand'] = 'agent'
             new_state['soup_staged'] = False
             self._add_transition(node_id, new_state, 'pickup(soup)')
+        
+        # Pickup soup from staging (when soup is staged, even if not ready - for proactive behavior)
+        if (state['soup_staged'] and state['soup_hand'] == 'none' and 
+            not state['soup_ready']):
+            new_state = state.copy()
+            new_state['soup_hand'] = 'agent'
+            new_state['soup_staged'] = False
+            self._add_transition(node_id, new_state, 'pickup(soup_staged)')
         
         # Robot place actions
         # Place onion at chopping station (auto-chops)

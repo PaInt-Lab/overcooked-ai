@@ -521,7 +521,7 @@ class StateGraphGenerator:
             # Reset chopped flags when soup is served
             new_state['onion_chopped'] = False
             new_state['tomato_chopped'] = False
-            self._add_transition(node_id, new_state, 'place(soup)')
+            self._add_transition(node_id, new_state, 'robot_serve_soup')
         
     def _generate_human_transitions(self, node_id: str, state: Dict):
         """Generate transitions for human actions"""
@@ -648,6 +648,13 @@ class StateGraphGenerator:
             new_state['dish_hand'] = 'none'
             new_state['dish_staged'] = True
             self._add_transition(node_id, new_state, 'human_place_dish')
+        
+        # Human can place soup at staging station
+        if state['soup_hand'] == 'partner' and not state['soup_staged']:
+            new_state = state.copy()
+            new_state['soup_hand'] = 'none'
+            new_state['soup_staged'] = True
+            self._add_transition(node_id, new_state, 'human_stage_soup')
         
         # Human can place soup at serving station
         if state['soup_hand'] == 'partner' and not state['soup_served']:

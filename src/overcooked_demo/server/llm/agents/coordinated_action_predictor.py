@@ -368,7 +368,7 @@ class CoordinatedActionPredictorAgent(Agent):
             elif top_stations:
                 self.dish_staging_tiles.extend(top_stations)
 
-            self.tomato_staging_tiles = self.dish_staging_tiles.copy()
+            self.tomato_staging_tiles = self.onion_staging_tiles.copy()
             
             self.soup_staging_tiles = self.dish_staging_tiles
 

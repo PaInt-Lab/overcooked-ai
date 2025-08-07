@@ -1,5 +1,6 @@
 from collections import deque
 import json
+import pickle
 import re
 from overcooked_ai_py.agents.agent import Agent
 from overcooked_ai_py.mdp.overcooked_mdp import OvercookedGridworld
@@ -256,10 +257,27 @@ class CoordinatedActionPredictorAgent(Agent):
         cache_file = os.path.join(os.path.dirname(__file__), '..', 'cached_state_graph.pkl')
         if os.path.exists(cache_file):
             print("📂 Loading state graph from cache...")
-            import pickle
-            with open(cache_file, 'rb') as f:
-                self.state_graph = pickle.load(f)
-            print(f"✅ State graph loaded from cache with {len(self.state_graph.nodes)} nodes")
+            try:
+                with open(cache_file, 'rb') as f:
+                    self.state_graph = pickle.load(f)
+                print(f"✅ State graph loaded from cache with {len(self.state_graph.nodes)} nodes")
+            except (EOFError, pickle.UnpicklingError, Exception) as e:
+                print(f"⚠️ Cache file corrupted or empty, regenerating state graph... (Error: {e})")
+                # Remove the corrupted cache file
+                try:
+                    os.remove(cache_file)
+                except:
+                    pass
+                # Fall through to generate new state graph
+                generator = StateGraphGenerator()
+                self.state_graph = generator.generate_state_graph()
+                print(f"✅ State graph generated with {len(self.state_graph.nodes)} nodes")
+                
+                # Save to cache for next time
+                print("💾 Saving state graph to cache...")
+                with open(cache_file, 'wb') as f:
+                    pickle.dump(self.state_graph, f)
+                print("✅ State graph cached for future use")
         else:
             print("🔄 Cache not found, generating state graph...")
             generator = StateGraphGenerator()

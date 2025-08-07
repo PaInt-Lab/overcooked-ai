@@ -60,57 +60,70 @@ class StateGraph:
     
     def find_path_to_goal(self, start_node_id: str, goal_node_id: str) -> List[str]:
         """Find shortest path from start to goal using A*"""
-        if start_node_id not in self.nodes or goal_node_id not in self.nodes:
-            print(f"❌ Pathfinding failed: start_node_id={start_node_id}, goal_node_id={goal_node_id}")
-            print(f"   Available nodes: {list(self.nodes.keys())[:5]}...")
+        try:
+            if start_node_id not in self.nodes or goal_node_id not in self.nodes:
+                print(f"❌ Pathfinding failed: start_node_id={start_node_id}, goal_node_id={goal_node_id}")
+                print(f"   Available nodes: {list(self.nodes.keys())[:5]}...")
+                return []
+            
+            print(f"🔍 Starting pathfinding from {start_node_id} to {goal_node_id}")
+            
+            # Priority queue for A*: (f_score, node_id, path)
+            open_set = [(0, start_node_id, [start_node_id])]
+            closed_set = set()
+            
+            # g_score[node] = cost from start to node
+            g_score = {start_node_id: 0}
+            
+            iterations = 0
+            max_iterations = 50000  # Reasonable limit
+            
+            while open_set and iterations < max_iterations:
+                iterations += 1
+                f_score, current_id, path = heapq.heappop(open_set)
+                
+                if current_id == goal_node_id:
+                    print(f"✅ Path found in {iterations} iterations: {path}")
+                    return path
+                
+                if current_id in closed_set:
+                    continue
+                    
+                closed_set.add(current_id)
+                
+                edges = self.get_edges_from(current_id)
+                if iterations == 1:  # Debug first iteration
+                    print(f"   First node edges: {[edge.action for edge in edges]}")
+                
+                for edge in edges:
+                    neighbor_id = edge.to_node
+                    tentative_g_score = g_score[current_id] + edge.weight
+                    
+                    if neighbor_id not in g_score or tentative_g_score < g_score[neighbor_id]:
+                        g_score[neighbor_id] = tentative_g_score
+                        new_path = path + [neighbor_id]
+                        h_score = self._heuristic(neighbor_id, goal_node_id)
+                        f_score = tentative_g_score + h_score
+                        heapq.heappush(open_set, (f_score, neighbor_id, new_path))
+            
+            # Progress reporting
+            if iterations % 1000 == 0:
+                print(f"   Pathfinding progress: {iterations} iterations, open set size: {len(open_set)}")
+            
+            if iterations >= max_iterations:
+                print(f"⚠️ Pathfinding timed out after {iterations} iterations")
+                print(f"   Open set size: {len(open_set)}, Closed set size: {len(closed_set)}")
+            else:
+                print(f"❌ No path found after {iterations} iterations")
+                print(f"   Open set size: {len(open_set)}, Closed set size: {len(closed_set)}")
+            
+            return []  # No path found
+            
+        except Exception as e:
+            print(f"❌ Exception during pathfinding: {e}")
+            import traceback
+            traceback.print_exc()
             return []
-        
-        print(f"🔍 Starting pathfinding from {start_node_id} to {goal_node_id}")
-        
-        # Priority queue for A*: (f_score, node_id, path)
-        open_set = [(0, start_node_id, [start_node_id])]
-        closed_set = set()
-        
-        # g_score[node] = cost from start to node
-        g_score = {start_node_id: 0}
-        
-        iterations = 0
-        max_iterations = 10000  # Prevent infinite loops
-        
-        while open_set and iterations < max_iterations:
-            iterations += 1
-            f_score, current_id, path = heapq.heappop(open_set)
-            
-            if current_id == goal_node_id:
-                print(f"✅ Path found in {iterations} iterations: {path}")
-                return path
-            
-            if current_id in closed_set:
-                continue
-                
-            closed_set.add(current_id)
-            
-            edges = self.get_edges_from(current_id)
-            if iterations == 1:  # Debug first iteration
-                print(f"   First node edges: {[edge.action for edge in edges]}")
-            
-            for edge in edges:
-                neighbor_id = edge.to_node
-                tentative_g_score = g_score[current_id] + edge.weight
-                
-                if neighbor_id not in g_score or tentative_g_score < g_score[neighbor_id]:
-                    g_score[neighbor_id] = tentative_g_score
-                    new_path = path + [neighbor_id]
-                    h_score = self._heuristic(neighbor_id, goal_node_id)
-                    f_score = tentative_g_score + h_score
-                    heapq.heappush(open_set, (f_score, neighbor_id, new_path))
-        
-        if iterations >= max_iterations:
-            print(f"⚠️ Pathfinding timed out after {iterations} iterations")
-        else:
-            print(f"❌ No path found after {iterations} iterations")
-        
-        return []  # No path found
     
     def _heuristic(self, node_id: str, goal_id: str) -> float:
         """Heuristic function for A* - distance to goal"""
@@ -124,17 +137,34 @@ class StateGraph:
         current_state = current_node.state_summary
         goal_state = goal_node.state_summary
         
-        # Calculate heuristic based on how many state variables differ
-        # This is admissible (never overestimates) and helps guide the search
-        differences = 0
+        # Calculate heuristic based on key differences
+        # Prioritize soup_served as the main goal
+        if goal_state['soup_served'] and not current_state['soup_served']:
+            # We need to get soup served - this is the main goal
+            if current_state['soup_hand'] == 'agent' and not current_state['soup_served']:
+                return 1.0  # Just need to place soup
+            elif current_state['soup_ready'] and current_state['soup_hand'] == 'none':
+                return 2.0  # Need to pour soup then place it
+            elif current_state['soup_cooking']:
+                return 3.0  # Need to wait for cooking, then pour, then place
+            elif current_state['onion_in_pot'] and current_state['tomato_in_pot']:
+                return 4.0  # Need to start cooking, wait, pour, place
+            else:
+                # Need to get ingredients, put in pot, cook, etc.
+                missing_ingredients = 0
+                if not current_state['onion_in_pot']:
+                    missing_ingredients += 1
+                if not current_state['tomato_in_pot']:
+                    missing_ingredients += 1
+                return 5.0 + missing_ingredients
         
-        # Check each state variable
+        # For other goals, use simple difference counting
+        differences = 0
         for key in current_state:
             if current_state[key] != goal_state[key]:
                 differences += 1
         
-        # Weight the heuristic - each difference requires at least one action
-        return differences * 0.5  # Conservative estimate
+        return differences * 0.5
     
     def get_next_action(self, current_node_id: str, goal_node_id: str) -> Optional[str]:
         """Get the next action to take toward the goal"""
@@ -158,16 +188,71 @@ class StateGraphGenerator:
         
     def generate_state_graph(self):
         """Generate all possible states and transitions"""
+        print(f"🔧 Generating state graph...")
+        
         # Generate all possible state combinations
         self._generate_all_states()
+        print(f"   Generated {len(self.graph.nodes)} states")
         
         # Generate all possible transitions
         self._generate_all_transitions()
+        total_edges = sum(len(edges) for edges in self.graph.edges.values())
+        print(f"   Generated {total_edges} transitions")
         
         # Make the state mapping accessible through the graph
         self.graph.state_to_node_id = self.state_to_node_id
         
+        # Debug: Check if goal states exist
+        goal_states = [node for node in self.graph.nodes.values() if node.is_goal_state]
+        print(f"   Found {len(goal_states)} goal states")
+        if goal_states:
+            print(f"   Sample goal state: {goal_states[0].state_summary}")
+        
+        # Test connectivity
+        self.test_connectivity()
+        
         return self.graph
+    
+    def test_connectivity(self):
+        """Test if the graph is well-connected"""
+        print(f"🔍 Testing graph connectivity...")
+        
+        # Find initial and goal states
+        initial_states = []
+        goal_states = []
+        
+        for node in self.graph.nodes.values():
+            if (node.state_summary['onion_hand'] == 'none' and 
+                node.state_summary['tomato_hand'] == 'none' and
+                node.state_summary['dish_hand'] == 'none' and
+                node.state_summary['soup_hand'] == 'none' and
+                not node.state_summary['soup_served']):
+                initial_states.append(node)
+            
+            if node.is_goal_state:
+                goal_states.append(node)
+        
+        print(f"   Found {len(initial_states)} initial states")
+        print(f"   Found {len(goal_states)} goal states")
+        
+        if initial_states and goal_states:
+            # Test path from first initial to first goal
+            start_node = initial_states[0]
+            goal_node = goal_states[0]
+            
+            print(f"   Testing path from {start_node.node_id} to {goal_node.node_id}")
+            print(f"   Start state: {start_node.state_summary}")
+            print(f"   Goal state: {goal_node.state_summary}")
+            
+            path = self.graph.find_path_to_goal(start_node.node_id, goal_node.node_id)
+            if path:
+                print(f"   ✅ Path found with {len(path)} steps")
+                return True
+            else:
+                print(f"   ❌ No path found")
+                return False
+        
+        return False
     
     def _generate_all_states(self):
         """Generate all possible state combinations"""
@@ -651,6 +736,19 @@ class StateGraphGenerator:
                 action=action
             )
             self.graph.add_edge(edge)
+        else:
+            # Debug: Log missing transitions
+            if not to_node_id:
+                print(f"⚠️ Missing target state for transition: {action}")
+                print(f"   From: {from_node_id}")
+                print(f"   To state: {to_state}")
+                print(f"   To state key: {to_state_key}")
+                print(f"   Available states: {len(self.state_to_node_id)}")
+                # Check if this state should be valid
+                if self._is_valid_state(to_state):
+                    print(f"   State is valid but not in mapping!")
+                else:
+                    print(f"   State is invalid according to rules")
     
     def get_node_id_for_state(self, state: Dict) -> Optional[str]:
         """Get the node ID for a given state"""

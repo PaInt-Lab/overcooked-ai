@@ -46,10 +46,23 @@ class CoordinatedActionSelector:
         # Use the state graph's mapping if available
         if hasattr(self.state_graph, 'state_to_node_id'):
             state_key = json.dumps(state, sort_keys=True)
-            return self.state_graph.state_to_node_id.get(state_key)
+            node_id = self.state_graph.state_to_node_id.get(state_key)
+            if node_id:
+                return node_id
         
-        # Fallback to simple hash-based ID if mapping not available
+        # Try to find a matching node by comparing state summaries
         state_key = json.dumps(state, sort_keys=True)
+        print(f"🔍 Looking for state: {state_key}")
+        print(f"   Available mappings: {len(self.state_graph.state_to_node_id) if hasattr(self.state_graph, 'state_to_node_id') else 0}")
+        
+        for node_id, node in self.state_graph.nodes.items():
+            node_state_key = json.dumps(node.state_summary, sort_keys=True)
+            if node_state_key == state_key:
+                print(f"   ✅ Found matching node: {node_id}")
+                return node_id
+        
+        print(f"   ❌ No exact match found")
+        # Fallback to simple hash-based ID if no exact match found
         return f"state_{hash(state_key) % 1000000:06d}"
     
     def _get_possible_robot_actions(self, node_id: str) -> List[str]:

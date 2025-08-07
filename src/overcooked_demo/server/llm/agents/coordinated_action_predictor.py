@@ -648,7 +648,32 @@ class CoordinatedActionPredictorAgent(Agent):
         
         if not current_node_id or not goal_node_id:
             print(f"   ❌ No plan possible - missing node IDs")
-            return "NOOP"  # No plan possible
+            return self._get_fallback_action(current_state)  # Use fallback when no nodes found
+
+        # Find path from current state to goal
+        try:
+            path = self.state_graph.find_path_to_goal(current_node_id, goal_node_id)
+            print(f"   Path found: {path}")
+            
+            if len(path) < 2:
+                print(f"   ❌ Path too short or no path found")
+                return self._get_fallback_action(current_state)  # Use fallback when no path found
+            
+            # Get the next action from the path
+            next_node_id = path[1]  # First node is current, second is next
+            for edge in self.state_graph.get_edges_from(current_node_id):
+                if edge.to_node == next_node_id:
+                    print(f"   ✅ Next planned action: {edge.action}")
+                    return edge.action
+            
+            print(f"   ❌ No edge found to next node")
+            return self._get_fallback_action(current_state)  # Use fallback when no edge found
+            
+        except Exception as e:
+            print(f"   ❌ Exception during pathfinding: {e}")
+            import traceback
+            traceback.print_exc()
+            return self._get_fallback_action(current_state)  # Use fallback on any exception
 
     def _get_fallback_action(self, current_state: dict) -> str:
         """
@@ -708,14 +733,6 @@ class CoordinatedActionPredictorAgent(Agent):
         
         # Default: no action needed
         return 'NOOP'
-
-        # Find path from current state to goal
-        path = self.state_graph.find_path_to_goal(current_node_id, goal_node_id)
-        print(f"   Path found: {path}")
-        
-        if len(path) < 2:
-            print(f"   ❌ Path too short or no path found")
-            return "NOOP"  # Already at goal or no path found
         
         # Get the next action from the path
         next_node_id = path[1]

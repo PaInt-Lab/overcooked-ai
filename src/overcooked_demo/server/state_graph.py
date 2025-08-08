@@ -821,3 +821,914 @@ class StateGraphGenerator:
     def get_state_mapping(self) -> Dict[str, str]:
         """Get the state to node ID mapping"""
         return self.state_to_node_id 
+
+
+class BaseStateGraphGenerator:
+    """Base class for state graph generators with common functionality"""
+    
+    def __init__(self, soup_type: str):
+        self.soup_type = soup_type
+        self.state_graph = StateGraph()
+        
+    def generate_state_graph(self):
+        """Generate state graph for specific soup type"""
+        raise NotImplementedError
+        
+    def _is_valid_state(self, state: Dict) -> bool:
+        """Check if state is valid for this soup type"""
+        raise NotImplementedError
+        
+    def _generate_robot_transitions(self, node_id: str, state: Dict):
+        """Generate robot transitions for this soup type"""
+        raise NotImplementedError
+        
+    def _generate_human_transitions(self, node_id: str, state: Dict):
+        """Generate human transitions for this soup type"""
+        raise NotImplementedError
+
+
+class PlainOnionSoupStateGraphGenerator(BaseStateGraphGenerator):
+    """State graph generator for plain onion soup (no chopping)"""
+    
+    def __init__(self):
+        super().__init__("plain_onion_soup")
+        
+    def generate_state_graph(self):
+        """Generate state graph for plain onion soup"""
+        print(f"🔄 Generating state graph for {self.soup_type}...")
+        
+        # Generate all valid states
+        all_states = self._generate_all_states()
+        print(f"📊 Generated {len(all_states)} valid states")
+        
+        # Add nodes to graph
+        for state in all_states:
+            node_id = self._get_state_id(state)
+            node = StateNode(
+                node_id=node_id,
+                state_summary=state,
+                is_goal_state=self._is_goal_state(state)
+            )
+            self.state_graph.add_node(node)
+        
+        # Generate transitions
+        self._generate_all_transitions()
+        print(f"🔗 Generated transitions between states")
+        
+        return self.state_graph
+        
+    def _generate_all_states(self):
+        """Generate all valid states for plain onion soup"""
+        states = []
+        
+        # State variables for plain onion soup
+        onion_hand_options = ['none', 'agent', 'partner']
+        onion_staged_options = [True, False]
+        onion_in_pot_options = [True, False]
+        soup_cooking_options = [True, False]
+        soup_ready_options = [True, False]
+        soup_hand_options = ['none', 'agent', 'partner']
+        soup_staged_options = [True, False]
+        soup_in_pot_not_cooking_options = [True, False]
+        dish_hand_options = ['none', 'agent', 'partner']
+        dish_staged_options = [True, False]
+        soup_served_options = [True, False]
+        
+        # Generate all combinations
+        for onion_hand in onion_hand_options:
+            for onion_staged in onion_staged_options:
+                for onion_in_pot in onion_in_pot_options:
+                    for soup_cooking in soup_cooking_options:
+                        for soup_ready in soup_ready_options:
+                            for soup_hand in soup_hand_options:
+                                for soup_staged in soup_staged_options:
+                                    for soup_in_pot_not_cooking in soup_in_pot_not_cooking_options:
+                                        for dish_hand in dish_hand_options:
+                                            for dish_staged in dish_staged_options:
+                                                for soup_served in soup_served_options:
+                                                    state = {
+                                                        'onion_hand': onion_hand,
+                                                        'onion_staged': onion_staged,
+                                                        'onion_in_pot': onion_in_pot,
+                                                        'soup_cooking': soup_cooking,
+                                                        'soup_ready': soup_ready,
+                                                        'soup_hand': soup_hand,
+                                                        'soup_staged': soup_staged,
+                                                        'soup_in_pot_not_cooking': soup_in_pot_not_cooking,
+                                                        'dish_hand': dish_hand,
+                                                        'dish_staged': dish_staged,
+                                                        'soup_served': soup_served
+                                                    }
+                                                    
+                                                    if self._is_valid_state(state):
+                                                        states.append(state)
+        
+        return states
+        
+    def _is_valid_state(self, state: Dict) -> bool:
+        """Check if state is valid for plain onion soup"""
+        # Basic validity checks
+        if state['soup_served'] and not state['soup_ready']:
+            return False  # Can't serve unready soup
+            
+        if state['soup_cooking'] and state['soup_in_pot_not_cooking']:
+            return False  # Can't be cooking and not cooking at same time
+            
+        if state['onion_in_pot'] and state['onion_hand'] != 'none':
+            return False  # Can't hold onion if it's in pot
+                
+        return True
+        
+    def _is_goal_state(self, state: Dict) -> bool:
+        """Check if state is a goal state (soup served)"""
+        return state['soup_served']
+        
+    def _get_state_id(self, state: Dict) -> str:
+        """Generate unique ID for state"""
+        return f"onion_plain_{hash(str(sorted(state.items())))}"
+        
+    def _generate_all_transitions(self):
+        """Generate all transitions between states"""
+        for node_id, node in self.state_graph.nodes.items():
+            self._generate_robot_transitions(node_id, node.state_summary)
+            self._generate_human_transitions(node_id, node.state_summary)
+            
+    def _generate_robot_transitions(self, node_id: str, state: Dict):
+        """Generate robot transitions for plain onion soup"""
+        # Robot can pick up onion
+        if state['onion_hand'] == 'none' and not state['onion_staged'] and not state['onion_in_pot']:
+            new_state = state.copy()
+            new_state['onion_hand'] = 'agent'
+            self._add_transition(node_id, new_state, 'pickup(onion)')
+            
+        # Robot can place onion at staging
+        if state['onion_hand'] == 'agent':
+            new_state = state.copy()
+            new_state['onion_hand'] = 'none'
+            new_state['onion_staged'] = True
+            self._add_transition(node_id, new_state, 'place(onion, staging_station)')
+            
+        # Robot can pick up dish
+        if state['dish_hand'] == 'none' and not state['dish_staged']:
+            new_state = state.copy()
+            new_state['dish_hand'] = 'agent'
+            self._add_transition(node_id, new_state, 'pickup(dish)')
+            
+        # Robot can place dish at staging
+        if state['dish_hand'] == 'agent':
+            new_state = state.copy()
+            new_state['dish_hand'] = 'none'
+            new_state['dish_staged'] = True
+            self._add_transition(node_id, new_state, 'place(dish)')
+            
+        # Robot can pick up soup
+        if state['soup_ready'] and state['soup_hand'] == 'none' and state['soup_staged']:
+            new_state = state.copy()
+            new_state['soup_hand'] = 'agent'
+            self._add_transition(node_id, new_state, 'pickup(soup)')
+            
+        # Robot can serve soup
+        if state['soup_hand'] == 'agent':
+            new_state = state.copy()
+            new_state['soup_hand'] = 'none'
+            new_state['soup_served'] = True
+            self._add_transition(node_id, new_state, 'place(soup)')
+            
+    def _generate_human_transitions(self, node_id: str, state: Dict):
+        """Generate human transitions for plain onion soup"""
+        # Human can grab onion from staging
+        if state['onion_staged'] and state['onion_hand'] == 'none':
+            new_state = state.copy()
+            new_state['onion_hand'] = 'partner'
+            new_state['onion_staged'] = False
+            self._add_transition(node_id, new_state, 'human_grab_onion')
+            
+        # Human can place onion in pot
+        if state['onion_hand'] == 'partner':
+            new_state = state.copy()
+            new_state['onion_hand'] = 'none'
+            new_state['onion_in_pot'] = True
+            self._add_transition(node_id, new_state, 'human_place_onion_in_pot')
+            
+        # Human can turn stove on
+        if state['onion_in_pot'] and not state['soup_cooking'] and not state['soup_ready']:
+            new_state = state.copy()
+            new_state['soup_cooking'] = True
+            self._add_transition(node_id, new_state, 'human_turn_stove_on')
+            
+        # Human can pour soup
+        if state['soup_ready'] and not state['soup_staged']:
+            new_state = state.copy()
+            new_state['soup_staged'] = True
+            self._add_transition(node_id, new_state, 'human_pour_soup')
+            
+        # Human can grab dish from staging
+        if state['dish_staged'] and state['dish_hand'] == 'none':
+            new_state = state.copy()
+            new_state['dish_hand'] = 'partner'
+            new_state['dish_staged'] = False
+            self._add_transition(node_id, new_state, 'human_grab_dish')
+            
+    def _add_transition(self, from_node_id: str, to_state: Dict, action: str):
+        """Add a transition to the state graph"""
+        to_node_id = self._get_state_id(to_state)
+        if to_node_id in self.state_graph.nodes:
+            edge = StateEdge(
+                from_node=from_node_id,
+                to_node=to_node_id,
+                action=action,
+                weight=1.0
+            )
+            self.state_graph.add_edge(edge)
+
+
+class PlainTomatoSoupStateGraphGenerator(BaseStateGraphGenerator):
+    """State graph generator for plain tomato soup (no chopping)"""
+    
+    def __init__(self):
+        super().__init__("plain_tomato_soup")
+        
+    def generate_state_graph(self):
+        """Generate state graph for plain tomato soup"""
+        print(f"🔄 Generating state graph for {self.soup_type}...")
+        
+        # Generate all valid states
+        all_states = self._generate_all_states()
+        print(f"📊 Generated {len(all_states)} valid states")
+        
+        # Add nodes to graph
+        for state in all_states:
+            node_id = self._get_state_id(state)
+            node = StateNode(
+                node_id=node_id,
+                state_summary=state,
+                is_goal_state=self._is_goal_state(state)
+            )
+            self.state_graph.add_node(node)
+        
+        # Generate transitions
+        self._generate_all_transitions()
+        print(f"🔗 Generated transitions between states")
+        
+        return self.state_graph
+        
+    def _generate_all_states(self):
+        """Generate all valid states for plain tomato soup"""
+        states = []
+        
+        # State variables for plain tomato soup
+        tomato_hand_options = ['none', 'agent', 'partner']
+        tomato_staged_options = [True, False]
+        tomato_in_pot_options = [True, False]
+        soup_cooking_options = [True, False]
+        soup_ready_options = [True, False]
+        soup_hand_options = ['none', 'agent', 'partner']
+        soup_staged_options = [True, False]
+        soup_in_pot_not_cooking_options = [True, False]
+        dish_hand_options = ['none', 'agent', 'partner']
+        dish_staged_options = [True, False]
+        soup_served_options = [True, False]
+        
+        # Generate all combinations
+        for tomato_hand in tomato_hand_options:
+            for tomato_staged in tomato_staged_options:
+                for tomato_in_pot in tomato_in_pot_options:
+                    for soup_cooking in soup_cooking_options:
+                        for soup_ready in soup_ready_options:
+                            for soup_hand in soup_hand_options:
+                                for soup_staged in soup_staged_options:
+                                    for soup_in_pot_not_cooking in soup_in_pot_not_cooking_options:
+                                        for dish_hand in dish_hand_options:
+                                            for dish_staged in dish_staged_options:
+                                                for soup_served in soup_served_options:
+                                                    state = {
+                                                        'tomato_hand': tomato_hand,
+                                                        'tomato_staged': tomato_staged,
+                                                        'tomato_in_pot': tomato_in_pot,
+                                                        'soup_cooking': soup_cooking,
+                                                        'soup_ready': soup_ready,
+                                                        'soup_hand': soup_hand,
+                                                        'soup_staged': soup_staged,
+                                                        'soup_in_pot_not_cooking': soup_in_pot_not_cooking,
+                                                        'dish_hand': dish_hand,
+                                                        'dish_staged': dish_staged,
+                                                        'soup_served': soup_served
+                                                    }
+                                                    
+                                                    if self._is_valid_state(state):
+                                                        states.append(state)
+        
+        return states
+        
+    def _is_valid_state(self, state: Dict) -> bool:
+        """Check if state is valid for plain tomato soup"""
+        # Basic validity checks
+        if state['soup_served'] and not state['soup_ready']:
+            return False  # Can't serve unready soup
+            
+        if state['soup_cooking'] and state['soup_in_pot_not_cooking']:
+            return False  # Can't be cooking and not cooking at same time
+            
+        if state['tomato_in_pot'] and state['tomato_hand'] != 'none':
+            return False  # Can't hold tomato if it's in pot
+                
+        return True
+        
+    def _is_goal_state(self, state: Dict) -> bool:
+        """Check if state is a goal state (soup served)"""
+        return state['soup_served']
+        
+    def _get_state_id(self, state: Dict) -> str:
+        """Generate unique ID for state"""
+        return f"tomato_plain_{hash(str(sorted(state.items())))}"
+        
+    def _generate_all_transitions(self):
+        """Generate all transitions between states"""
+        for node_id, node in self.state_graph.nodes.items():
+            self._generate_robot_transitions(node_id, node.state_summary)
+            self._generate_human_transitions(node_id, node.state_summary)
+            
+    def _generate_robot_transitions(self, node_id: str, state: Dict):
+        """Generate robot transitions for plain tomato soup"""
+        # Robot can pick up tomato
+        if state['tomato_hand'] == 'none' and not state['tomato_staged'] and not state['tomato_in_pot']:
+            new_state = state.copy()
+            new_state['tomato_hand'] = 'agent'
+            self._add_transition(node_id, new_state, 'pickup(tomato)')
+            
+        # Robot can place tomato at staging
+        if state['tomato_hand'] == 'agent':
+            new_state = state.copy()
+            new_state['tomato_hand'] = 'none'
+            new_state['tomato_staged'] = True
+            self._add_transition(node_id, new_state, 'place(tomato, staging_station)')
+            
+        # Robot can pick up dish
+        if state['dish_hand'] == 'none' and not state['dish_staged']:
+            new_state = state.copy()
+            new_state['dish_hand'] = 'agent'
+            self._add_transition(node_id, new_state, 'pickup(dish)')
+            
+        # Robot can place dish at staging
+        if state['dish_hand'] == 'agent':
+            new_state = state.copy()
+            new_state['dish_hand'] = 'none'
+            new_state['dish_staged'] = True
+            self._add_transition(node_id, new_state, 'place(dish)')
+            
+        # Robot can pick up soup
+        if state['soup_ready'] and state['soup_hand'] == 'none' and state['soup_staged']:
+            new_state = state.copy()
+            new_state['soup_hand'] = 'agent'
+            self._add_transition(node_id, new_state, 'pickup(soup)')
+            
+        # Robot can serve soup
+        if state['soup_hand'] == 'agent':
+            new_state = state.copy()
+            new_state['soup_hand'] = 'none'
+            new_state['soup_served'] = True
+            self._add_transition(node_id, new_state, 'place(soup)')
+            
+    def _generate_human_transitions(self, node_id: str, state: Dict):
+        """Generate human transitions for plain tomato soup"""
+        # Human can grab tomato from staging
+        if state['tomato_staged'] and state['tomato_hand'] == 'none':
+            new_state = state.copy()
+            new_state['tomato_hand'] = 'partner'
+            new_state['tomato_staged'] = False
+            self._add_transition(node_id, new_state, 'human_grab_tomato')
+            
+        # Human can place tomato in pot
+        if state['tomato_hand'] == 'partner':
+            new_state = state.copy()
+            new_state['tomato_hand'] = 'none'
+            new_state['tomato_in_pot'] = True
+            self._add_transition(node_id, new_state, 'human_place_tomato_in_pot')
+            
+        # Human can turn stove on
+        if state['tomato_in_pot'] and not state['soup_cooking'] and not state['soup_ready']:
+            new_state = state.copy()
+            new_state['soup_cooking'] = True
+            self._add_transition(node_id, new_state, 'human_turn_stove_on')
+            
+        # Human can pour soup
+        if state['soup_ready'] and not state['soup_staged']:
+            new_state = state.copy()
+            new_state['soup_staged'] = True
+            self._add_transition(node_id, new_state, 'human_pour_soup')
+            
+        # Human can grab dish from staging
+        if state['dish_staged'] and state['dish_hand'] == 'none':
+            new_state = state.copy()
+            new_state['dish_hand'] = 'partner'
+            new_state['dish_staged'] = False
+            self._add_transition(node_id, new_state, 'human_grab_dish')
+            
+    def _add_transition(self, from_node_id: str, to_state: Dict, action: str):
+        """Add a transition to the state graph"""
+        to_node_id = self._get_state_id(to_state)
+        if to_node_id in self.state_graph.nodes:
+            edge = StateEdge(
+                from_node=from_node_id,
+                to_node=to_node_id,
+                action=action,
+                weight=1.0
+            )
+            self.state_graph.add_edge(edge)
+
+
+class ChoppedTomatoSoupStateGraphGenerator(BaseStateGraphGenerator):
+    """State graph generator for chopped tomato soup"""
+    
+    def __init__(self):
+        super().__init__("chopped_tomato_soup")
+        
+    def generate_state_graph(self):
+        """Generate state graph for chopped tomato soup"""
+        print(f"🔄 Generating state graph for {self.soup_type}...")
+        
+        # Generate all valid states
+        all_states = self._generate_all_states()
+        print(f"📊 Generated {len(all_states)} valid states")
+        
+        # Add nodes to graph
+        for state in all_states:
+            node_id = self._get_state_id(state)
+            node = StateNode(
+                node_id=node_id,
+                state_summary=state,
+                is_goal_state=self._is_goal_state(state)
+            )
+            self.state_graph.add_node(node)
+        
+        # Generate transitions
+        self._generate_all_transitions()
+        print(f"🔗 Generated transitions between states")
+        
+        return self.state_graph
+        
+    def _generate_all_states(self):
+        """Generate all valid states for chopped tomato soup"""
+        states = []
+        
+        # State variables for chopped tomato soup (includes chopping mechanics)
+        tomato_hand_options = ['none', 'agent', 'partner']
+        tomato_staged_options = [True, False]
+        tomato_at_chopping_options = [True, False]
+        tomato_chopped_options = [True, False]
+        tomato_in_pot_options = [True, False]
+        soup_cooking_options = [True, False]
+        soup_ready_options = [True, False]
+        soup_hand_options = ['none', 'agent', 'partner']
+        soup_staged_options = [True, False]
+        soup_in_pot_not_cooking_options = [True, False]
+        dish_hand_options = ['none', 'agent', 'partner']
+        dish_staged_options = [True, False]
+        soup_served_options = [True, False]
+        
+        # Generate all combinations
+        for tomato_hand in tomato_hand_options:
+            for tomato_staged in tomato_staged_options:
+                for tomato_at_chopping in tomato_at_chopping_options:
+                    for tomato_chopped in tomato_chopped_options:
+                        for tomato_in_pot in tomato_in_pot_options:
+                            for soup_cooking in soup_cooking_options:
+                                for soup_ready in soup_ready_options:
+                                    for soup_hand in soup_hand_options:
+                                        for soup_staged in soup_staged_options:
+                                            for soup_in_pot_not_cooking in soup_in_pot_not_cooking_options:
+                                                for dish_hand in dish_hand_options:
+                                                    for dish_staged in dish_staged_options:
+                                                        for soup_served in soup_served_options:
+                                                            state = {
+                                                                'tomato_hand': tomato_hand,
+                                                                'tomato_staged': tomato_staged,
+                                                                'tomato_at_chopping': tomato_at_chopping,
+                                                                'tomato_chopped': tomato_chopped,
+                                                                'tomato_in_pot': tomato_in_pot,
+                                                                'soup_cooking': soup_cooking,
+                                                                'soup_ready': soup_ready,
+                                                                'soup_hand': soup_hand,
+                                                                'soup_staged': soup_staged,
+                                                                'soup_in_pot_not_cooking': soup_in_pot_not_cooking,
+                                                                'dish_hand': dish_hand,
+                                                                'dish_staged': dish_staged,
+                                                                'soup_served': soup_served
+                                                            }
+                                                            
+                                                            if self._is_valid_state(state):
+                                                                states.append(state)
+        
+        return states
+        
+    def _is_valid_state(self, state: Dict) -> bool:
+        """Check if state is valid for chopped tomato soup"""
+        # Basic validity checks
+        if state['soup_served'] and not state['soup_ready']:
+            return False  # Can't serve unready soup
+            
+        if state['soup_cooking'] and state['soup_in_pot_not_cooking']:
+            return False  # Can't be cooking and not cooking at same time
+            
+        if state['tomato_in_pot'] and state['tomato_hand'] != 'none':
+            return False  # Can't hold tomato if it's in pot
+            
+        # Chopping-specific checks
+        if state['tomato_at_chopping'] and not state['tomato_chopped']:
+            return False  # If at chopping, must be chopped
+            
+        if state['tomato_chopped'] and not state['tomato_at_chopping'] and not state['tomato_in_pot']:
+            return False  # Chopped tomato must be at chopping or in pot
+                
+        return True
+        
+    def _is_goal_state(self, state: Dict) -> bool:
+        """Check if state is a goal state (soup served)"""
+        return state['soup_served']
+        
+    def _get_state_id(self, state: Dict) -> str:
+        """Generate unique ID for state"""
+        return f"tomato_chopped_{hash(str(sorted(state.items())))}"
+        
+    def _generate_all_transitions(self):
+        """Generate all transitions between states"""
+        for node_id, node in self.state_graph.nodes.items():
+            self._generate_robot_transitions(node_id, node.state_summary)
+            self._generate_human_transitions(node_id, node.state_summary)
+            
+    def _generate_robot_transitions(self, node_id: str, state: Dict):
+        """Generate robot transitions for chopped tomato soup"""
+        # Robot can pick up raw tomato
+        if state['tomato_hand'] == 'none' and not state['tomato_staged'] and not state['tomato_at_chopping'] and not state['tomato_in_pot']:
+            new_state = state.copy()
+            new_state['tomato_hand'] = 'agent'
+            self._add_transition(node_id, new_state, 'pickup(tomato)')
+            
+        # Robot can place tomato at chopping station
+        if state['tomato_hand'] == 'agent':
+            new_state = state.copy()
+            new_state['tomato_hand'] = 'none'
+            new_state['tomato_at_chopping'] = True
+            new_state['tomato_chopped'] = True
+            self._add_transition(node_id, new_state, 'place(tomato, chopping_station)')
+            
+        # Robot can pick up chopped tomato
+        if state['tomato_at_chopping'] and state['tomato_hand'] == 'none':
+            new_state = state.copy()
+            new_state['tomato_hand'] = 'agent'
+            new_state['tomato_at_chopping'] = False
+            self._add_transition(node_id, new_state, 'pickup(chopped_tomato)')
+            
+        # Robot can pick up chopped tomato from staging (if it was placed there)
+        if state['tomato_staged'] and state['tomato_hand'] == 'none' and state['tomato_chopped']:
+            new_state = state.copy()
+            new_state['tomato_hand'] = 'agent'
+            new_state['tomato_staged'] = False
+            self._add_transition(node_id, new_state, 'pickup(chopped_tomato)')
+            
+        # Robot can place chopped tomato at staging
+        if state['tomato_hand'] == 'agent' and state['tomato_chopped']:
+            new_state = state.copy()
+            new_state['tomato_hand'] = 'none'
+            new_state['tomato_staged'] = True
+            self._add_transition(node_id, new_state, 'place(chopped_tomato)')
+            
+        # Robot can pick up dish
+        if state['dish_hand'] == 'none' and not state['dish_staged']:
+            new_state = state.copy()
+            new_state['dish_hand'] = 'agent'
+            self._add_transition(node_id, new_state, 'pickup(dish)')
+            
+        # Robot can place dish at staging
+        if state['dish_hand'] == 'agent':
+            new_state = state.copy()
+            new_state['dish_hand'] = 'none'
+            new_state['dish_staged'] = True
+            self._add_transition(node_id, new_state, 'place(dish)')
+            
+        # Robot can pick up soup
+        if state['soup_ready'] and state['soup_hand'] == 'none' and state['soup_staged']:
+            new_state = state.copy()
+            new_state['soup_hand'] = 'agent'
+            self._add_transition(node_id, new_state, 'pickup(soup)')
+            
+        # Robot can serve soup
+        if state['soup_hand'] == 'agent':
+            new_state = state.copy()
+            new_state['soup_hand'] = 'none'
+            new_state['soup_served'] = True
+            self._add_transition(node_id, new_state, 'place(soup)')
+            
+    def _generate_human_transitions(self, node_id: str, state: Dict):
+        """Generate human transitions for chopped tomato soup"""
+        # Human can grab chopped tomato from staging
+        if state['tomato_staged'] and state['tomato_hand'] == 'none' and state['tomato_chopped']:
+            new_state = state.copy()
+            new_state['tomato_hand'] = 'partner'
+            new_state['tomato_staged'] = False
+            self._add_transition(node_id, new_state, 'human_grab_tomato')
+            
+        # Human can place chopped tomato in pot
+        if state['tomato_hand'] == 'partner' and state['tomato_chopped']:
+            new_state = state.copy()
+            new_state['tomato_hand'] = 'none'
+            new_state['tomato_in_pot'] = True
+            self._add_transition(node_id, new_state, 'human_place_tomato_in_pot')
+            
+        # Human can turn stove on
+        if state['tomato_in_pot'] and not state['soup_cooking'] and not state['soup_ready']:
+            new_state = state.copy()
+            new_state['soup_cooking'] = True
+            self._add_transition(node_id, new_state, 'human_turn_stove_on')
+            
+        # Human can pour soup
+        if state['soup_ready'] and not state['soup_staged']:
+            new_state = state.copy()
+            new_state['soup_staged'] = True
+            self._add_transition(node_id, new_state, 'human_pour_soup')
+            
+        # Human can grab dish from staging
+        if state['dish_staged'] and state['dish_hand'] == 'none':
+            new_state = state.copy()
+            new_state['dish_hand'] = 'partner'
+            new_state['dish_staged'] = False
+            self._add_transition(node_id, new_state, 'human_grab_dish')
+            
+    def _add_transition(self, from_node_id: str, to_state: Dict, action: str):
+        """Add a transition to the state graph"""
+        to_node_id = self._get_state_id(to_state)
+        if to_node_id in self.state_graph.nodes:
+            edge = StateEdge(
+                from_node=from_node_id,
+                to_node=to_node_id,
+                action=action,
+                weight=1.0
+            )
+            self.state_graph.add_edge(edge)
+
+
+class ChoppedOnionSoupStateGraphGenerator(BaseStateGraphGenerator):
+    """State graph generator for chopped onion soup"""
+    
+    def __init__(self):
+        super().__init__("chopped_onion_soup")
+        
+    def generate_state_graph(self):
+        """Generate state graph for chopped onion soup"""
+        print(f"🔄 Generating state graph for {self.soup_type}...")
+        
+        # Generate all valid states
+        all_states = self._generate_all_states()
+        print(f"📊 Generated {len(all_states)} valid states")
+        
+        # Add nodes to graph
+        for state in all_states:
+            node_id = self._get_state_id(state)
+            node = StateNode(
+                node_id=node_id,
+                state_summary=state,
+                is_goal_state=self._is_goal_state(state)
+            )
+            self.state_graph.add_node(node)
+        
+        # Generate transitions
+        self._generate_all_transitions()
+        print(f"🔗 Generated transitions between states")
+        
+        return self.state_graph
+        
+    def _generate_all_states(self):
+        """Generate all valid states for chopped onion soup"""
+        states = []
+        
+        # State variables for chopped onion soup (includes chopping mechanics)
+        onion_hand_options = ['none', 'agent', 'partner']
+        onion_staged_options = [True, False]
+        onion_at_chopping_options = [True, False]
+        onion_chopped_options = [True, False]
+        onion_in_pot_options = [True, False]
+        soup_cooking_options = [True, False]
+        soup_ready_options = [True, False]
+        soup_hand_options = ['none', 'agent', 'partner']
+        soup_staged_options = [True, False]
+        soup_in_pot_not_cooking_options = [True, False]
+        dish_hand_options = ['none', 'agent', 'partner']
+        dish_staged_options = [True, False]
+        soup_served_options = [True, False]
+        
+        # Generate all combinations
+        for onion_hand in onion_hand_options:
+            for onion_staged in onion_staged_options:
+                for onion_at_chopping in onion_at_chopping_options:
+                    for onion_chopped in onion_chopped_options:
+                        for onion_in_pot in onion_in_pot_options:
+                            for soup_cooking in soup_cooking_options:
+                                for soup_ready in soup_ready_options:
+                                    for soup_hand in soup_hand_options:
+                                        for soup_staged in soup_staged_options:
+                                            for soup_in_pot_not_cooking in soup_in_pot_not_cooking_options:
+                                                for dish_hand in dish_hand_options:
+                                                    for dish_staged in dish_staged_options:
+                                                        for soup_served in soup_served_options:
+                                                            state = {
+                                                                'onion_hand': onion_hand,
+                                                                'onion_staged': onion_staged,
+                                                                'onion_at_chopping': onion_at_chopping,
+                                                                'onion_chopped': onion_chopped,
+                                                                'onion_in_pot': onion_in_pot,
+                                                                'soup_cooking': soup_cooking,
+                                                                'soup_ready': soup_ready,
+                                                                'soup_hand': soup_hand,
+                                                                'soup_staged': soup_staged,
+                                                                'soup_in_pot_not_cooking': soup_in_pot_not_cooking,
+                                                                'dish_hand': dish_hand,
+                                                                'dish_staged': dish_staged,
+                                                                'soup_served': soup_served
+                                                            }
+                                                            
+                                                            if self._is_valid_state(state):
+                                                                states.append(state)
+        
+        return states
+        
+    def _is_valid_state(self, state: Dict) -> bool:
+        """Check if state is valid for chopped onion soup"""
+        # Basic validity checks
+        if state['soup_served'] and not state['soup_ready']:
+            return False  # Can't serve unready soup
+            
+        if state['soup_cooking'] and state['soup_in_pot_not_cooking']:
+            return False  # Can't be cooking and not cooking at same time
+            
+        if state['onion_in_pot'] and state['onion_hand'] != 'none':
+            return False  # Can't hold onion if it's in pot
+            
+        # Chopping-specific checks
+        if state['onion_at_chopping'] and not state['onion_chopped']:
+            return False  # If at chopping, must be chopped
+            
+        if state['onion_chopped'] and not state['onion_at_chopping'] and not state['onion_in_pot']:
+            return False  # Chopped onion must be at chopping or in pot
+                
+        return True
+        
+    def _is_goal_state(self, state: Dict) -> bool:
+        """Check if state is a goal state (soup served)"""
+        return state['soup_served']
+        
+    def _get_state_id(self, state: Dict) -> str:
+        """Generate unique ID for state"""
+        return f"onion_chopped_{hash(str(sorted(state.items())))}"
+        
+    def _generate_all_transitions(self):
+        """Generate all transitions between states"""
+        for node_id, node in self.state_graph.nodes.items():
+            self._generate_robot_transitions(node_id, node.state_summary)
+            self._generate_human_transitions(node_id, node.state_summary)
+            
+    def _generate_robot_transitions(self, node_id: str, state: Dict):
+        """Generate robot transitions for chopped onion soup"""
+        # Robot can pick up raw onion
+        if state['onion_hand'] == 'none' and not state['onion_staged'] and not state['onion_at_chopping'] and not state['onion_in_pot']:
+            new_state = state.copy()
+            new_state['onion_hand'] = 'agent'
+            self._add_transition(node_id, new_state, 'pickup(onion)')
+            
+        # Robot can place onion at chopping station
+        if state['onion_hand'] == 'agent':
+            new_state = state.copy()
+            new_state['onion_hand'] = 'none'
+            new_state['onion_at_chopping'] = True
+            new_state['onion_chopped'] = True
+            self._add_transition(node_id, new_state, 'place(onion, chopping_station)')
+            
+        # Robot can pick up chopped onion
+        if state['onion_at_chopping'] and state['onion_hand'] == 'none':
+            new_state = state.copy()
+            new_state['onion_hand'] = 'agent'
+            new_state['onion_at_chopping'] = False
+            self._add_transition(node_id, new_state, 'pickup(chopped_onion)')
+            
+        # Robot can pick up chopped onion from staging (if it was placed there)
+        if state['onion_staged'] and state['onion_hand'] == 'none' and state['onion_chopped']:
+            new_state = state.copy()
+            new_state['onion_hand'] = 'agent'
+            new_state['onion_staged'] = False
+            self._add_transition(node_id, new_state, 'pickup(chopped_onion)')
+            
+        # Robot can place chopped onion at staging
+        if state['onion_hand'] == 'agent' and state['onion_chopped']:
+            new_state = state.copy()
+            new_state['onion_hand'] = 'none'
+            new_state['onion_staged'] = True
+            self._add_transition(node_id, new_state, 'place(chopped_onion)')
+            
+        # Robot can pick up dish
+        if state['dish_hand'] == 'none' and not state['dish_staged']:
+            new_state = state.copy()
+            new_state['dish_hand'] = 'agent'
+            self._add_transition(node_id, new_state, 'pickup(dish)')
+            
+        # Robot can place dish at staging
+        if state['dish_hand'] == 'agent':
+            new_state = state.copy()
+            new_state['dish_hand'] = 'none'
+            new_state['dish_staged'] = True
+            self._add_transition(node_id, new_state, 'place(dish)')
+            
+        # Robot can pick up soup
+        if state['soup_ready'] and state['soup_hand'] == 'none' and state['soup_staged']:
+            new_state = state.copy()
+            new_state['soup_hand'] = 'agent'
+            self._add_transition(node_id, new_state, 'pickup(soup)')
+            
+        # Robot can serve soup
+        if state['soup_hand'] == 'agent':
+            new_state = state.copy()
+            new_state['soup_hand'] = 'none'
+            new_state['soup_served'] = True
+            self._add_transition(node_id, new_state, 'place(soup)')
+            
+    def _generate_human_transitions(self, node_id: str, state: Dict):
+        """Generate human transitions for chopped onion soup"""
+        # Human can grab chopped onion from staging
+        if state['onion_staged'] and state['onion_hand'] == 'none' and state['onion_chopped']:
+            new_state = state.copy()
+            new_state['onion_hand'] = 'partner'
+            new_state['onion_staged'] = False
+            self._add_transition(node_id, new_state, 'human_grab_onion')
+            
+        # Human can place chopped onion in pot
+        if state['onion_hand'] == 'partner' and state['onion_chopped']:
+            new_state = state.copy()
+            new_state['onion_hand'] = 'none'
+            new_state['onion_in_pot'] = True
+            self._add_transition(node_id, new_state, 'human_place_onion_in_pot')
+            
+        # Human can turn stove on
+        if state['onion_in_pot'] and not state['soup_cooking'] and not state['soup_ready']:
+            new_state = state.copy()
+            new_state['soup_cooking'] = True
+            self._add_transition(node_id, new_state, 'human_turn_stove_on')
+            
+        # Human can pour soup
+        if state['soup_ready'] and not state['soup_staged']:
+            new_state = state.copy()
+            new_state['soup_staged'] = True
+            self._add_transition(node_id, new_state, 'human_pour_soup')
+            
+        # Human can grab dish from staging
+        if state['dish_staged'] and state['dish_hand'] == 'none':
+            new_state = state.copy()
+            new_state['dish_hand'] = 'partner'
+            new_state['dish_staged'] = False
+            self._add_transition(node_id, new_state, 'human_grab_dish')
+            
+    def _add_transition(self, from_node_id: str, to_state: Dict, action: str):
+        """Add a transition to the state graph"""
+        to_node_id = self._get_state_id(to_state)
+        if to_node_id in self.state_graph.nodes:
+            edge = StateEdge(
+                from_node=from_node_id,
+                to_node=to_node_id,
+                action=action,
+                weight=1.0
+            )
+            self.state_graph.add_edge(edge)
+
+
+# Factory function to get the appropriate state graph generator
+def get_state_graph_generator(soup_type: str) -> BaseStateGraphGenerator:
+    """Get the appropriate state graph generator based on soup type"""
+    soup_type_lower = soup_type.lower()
+    
+    # Check for specific scenarios first (most specific to least specific)
+    
+    # "Serving Chopped Onion and Chopped Tomato Soup" - both ingredients chopped
+    if ("chopped" in soup_type_lower and "onion" in soup_type_lower and 
+        "chopped" in soup_type_lower and "tomato" in soup_type_lower):
+        return StateGraphGenerator()  # Use original for complex mixed chopped
+    
+    # "Serving Onion and Chopped Tomato Soup" - onion plain, tomato chopped
+    if ("onion" in soup_type_lower and "chopped" in soup_type_lower and 
+        "tomato" in soup_type_lower and "chopped onion" not in soup_type_lower):
+        return StateGraphGenerator()  # Use original for mixed plain+chopped
+    
+    # "Serving Chopped Onion and Tomato Soup" - onion chopped, tomato plain
+    if ("chopped onion" in soup_type_lower and "tomato" in soup_type_lower and 
+        "chopped tomato" not in soup_type_lower):
+        return StateGraphGenerator()  # Use original for mixed chopped+plain
+    
+    # Single ingredient soups
+    if "chopped" in soup_type_lower and "onion" in soup_type_lower and "tomato" not in soup_type_lower:
+        return ChoppedOnionSoupStateGraphGenerator()
+    elif "chopped" in soup_type_lower and "tomato" in soup_type_lower and "onion" not in soup_type_lower:
+        return ChoppedTomatoSoupStateGraphGenerator()
+    elif "onion" in soup_type_lower and "chopped" not in soup_type_lower and "tomato" not in soup_type_lower:
+        return PlainOnionSoupStateGraphGenerator()
+    elif "tomato" in soup_type_lower and "chopped" not in soup_type_lower and "onion" not in soup_type_lower:
+        return PlainTomatoSoupStateGraphGenerator()
+    
+    # Default to the original generator for mixed soups or complex cases
+    print(f"⚠️ No specific generator found for '{soup_type}', using default StateGraphGenerator")
+    return StateGraphGenerator() 

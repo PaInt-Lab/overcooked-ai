@@ -1122,6 +1122,7 @@ class CoordinatedActionPredictorAgent(Agent):
             3. **Choose complementary robot action**: Select the best robot action that coordinates well with the predicted human action
             4. **Use state graph planning**: The new state graph planning provides the optimal next action toward the goal
             5. **Handle uncertainty**: When human behavior is ambiguous, default to following the plan or choosing goal-progressing actions
+            6. Robot action are always secondary actions. Try to keep human actions as primary actions, but they can be secondary too.
 
             Return only these two lines:
             predicted_human_action: <human_action_name>

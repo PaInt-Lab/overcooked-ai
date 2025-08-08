@@ -10,7 +10,7 @@ from llm.ollama.ollama_client import query_ollama
 import os
 from openai import OpenAI
 from llm.memory.vector_memory import VectorMemory
-from state_graph import StateGraphGenerator, StateGraph
+from state_graph import StateGraphGenerator, StateGraph, get_state_graph_generator
 from coordination_system import CoordinationManager
 from plan_session import PLAN_STORE
 
@@ -248,50 +248,57 @@ class CoordinatedActionPredictorAgent(Agent):
         # State graph and coordination system
         self.state_graph = None
         self.coordination_manager = None
-        self._initialize_state_graph()
+        # Defer state graph initialization until plan is set
 
     def _initialize_state_graph(self):
         """Initialize the state graph and coordination system"""
         print("Initializing state graph...")
         
-        # Try to load from cache first
-        cache_file = os.path.join(os.path.dirname(__file__), '..', 'cached_state_graph.pkl')
+        # Get task title to determine which state graph to use
+        task_title = getattr(self, 'plan', None)
+        if task_title and hasattr(task_title, 'task_title'):
+            task_title = task_title.task_title
+        else:
+            task_title = "Unknown Task"
+        
+        print(f"🎯 Task title: {task_title}")
+        
+        # Try to load from task-specific cache first
+        cache_file = os.path.join(os.path.dirname(__file__), '..', f'cached_state_graph_{task_title.lower().replace(" ", "_")}.pkl')
         if os.path.exists(cache_file):
-            print("📂 Loading state graph from cache...")
+            print(f"📂 Loading task-specific state graph from cache...")
             try:
                 with open(cache_file, 'rb') as f:
                     self.state_graph = pickle.load(f)
-                print(f"✅ State graph loaded from cache with {len(self.state_graph.nodes)} nodes")
+                print(f"✅ Task-specific state graph loaded from cache with {len(self.state_graph.nodes)} nodes")
             except (EOFError, pickle.UnpicklingError, Exception) as e:
-                print(f"⚠️ Cache file corrupted or empty, regenerating state graph... (Error: {e})")
+                print(f"⚠️ Task-specific cache file corrupted, regenerating state graph... (Error: {e})")
                 # Remove the corrupted cache file
                 try:
                     os.remove(cache_file)
                 except:
                     pass
                 # Fall through to generate new state graph
-                generator = StateGraphGenerator()
-                self.state_graph = generator.generate_state_graph()
-                print(f"✅ State graph generated with {len(self.state_graph.nodes)} nodes")
-                
-                # Save to cache for next time
-                print("💾 Saving state graph to cache...")
-                with open(cache_file, 'wb') as f:
-                    pickle.dump(self.state_graph, f)
-                print("✅ State graph cached for future use")
+                self._generate_task_specific_state_graph(task_title)
         else:
-            print("🔄 Cache not found, generating state graph...")
-            generator = StateGraphGenerator()
-            self.state_graph = generator.generate_state_graph()
-            print(f"✅ State graph generated with {len(self.state_graph.nodes)} nodes")
-            
-            # Save to cache for next time
-            print("💾 Saving state graph to cache...")
-            with open(cache_file, 'wb') as f:
-                pickle.dump(self.state_graph, f)
-            print("✅ State graph cached for future use")
+            print(f"🔄 Task-specific cache not found, generating state graph for '{task_title}'...")
+            self._generate_task_specific_state_graph(task_title)
         
         self.coordination_manager = CoordinationManager(self.state_graph)
+        
+    def _generate_task_specific_state_graph(self, task_title: str):
+        """Generate state graph for specific task"""
+        # Get the appropriate state graph generator
+        generator = get_state_graph_generator(task_title)
+        self.state_graph = generator.generate_state_graph()
+        print(f"✅ Task-specific state graph generated with {len(self.state_graph.nodes)} nodes")
+        
+        # Save to task-specific cache
+        cache_file = os.path.join(os.path.dirname(__file__), '..', f'cached_state_graph_{task_title.lower().replace(" ", "_")}.pkl')
+        print(f"💾 Saving task-specific state graph to cache...")
+        with open(cache_file, 'wb') as f:
+            pickle.dump(self.state_graph, f)
+        print("✅ Task-specific state graph cached for future use")
 
     def set_agent_index(self, agent_index: int):
         super().set_agent_index(agent_index)
@@ -300,6 +307,8 @@ class CoordinatedActionPredictorAgent(Agent):
     def set_plan(self, session_id: str):
         """Attach the full PlanSession to this agent."""
         self.plan = PLAN_STORE[session_id]
+        # Initialize state graph now that we have the plan with task title
+        self._initialize_state_graph()
 
     TERRAIN_MAPPING = {
         "X": "Wall",
@@ -615,65 +624,25 @@ class CoordinatedActionPredictorAgent(Agent):
         current_node_id = self.coordination_manager.action_selector._get_node_id_for_state(current_state)
         goal_node_id = self.coordination_manager.action_selector._get_node_id_for_state(goal_state)
         
-        print(f"🔍 State Graph Debug:")
-        print(f"   Current state: {current_state}")
-        print(f"   Goal state: {goal_state}")
-        print(f"   Current node ID: {current_node_id}")
-        print(f"   Goal node ID: {goal_node_id}")
-        
-        # Debug: Check if nodes exist in graph
-        if current_node_id:
-            current_node = self.state_graph.get_node(current_node_id)
-            print(f"   Current node exists: {current_node is not None}")
-            if current_node:
-                print(f"   Current node state: {current_node.state_summary}")
-        
-        if goal_node_id:
-            goal_node = self.state_graph.get_node(goal_node_id)
-            print(f"   Goal node exists: {goal_node is not None}")
-            if goal_node:
-                print(f"   Goal node state: {goal_node.state_summary}")
-        
-        # Debug: Check graph connectivity
-        if current_node_id and current_node_id in self.state_graph.edges:
-            edge_count = len(self.state_graph.edges[current_node_id])
-            print(f"   Edges from current node: {edge_count}")
-            if edge_count > 0:
-                print(f"   Sample edges: {[edge.action for edge in self.state_graph.edges[current_node_id][:3]]}")
-        
-        if goal_node_id and goal_node_id in self.state_graph.reverse_edges:
-            incoming_count = len(self.state_graph.reverse_edges[goal_node_id])
-            print(f"   Edges to goal node: {incoming_count}")
-            if incoming_count > 0:
-                print(f"   Sample incoming edges: {[edge.action for edge in self.state_graph.reverse_edges[goal_node_id][:3]]}")
-        
         if not current_node_id or not goal_node_id:
-            print(f"   ❌ No plan possible - missing node IDs")
             return self._get_fallback_action(current_state)  # Use fallback when no nodes found
 
         # Find path from current state to goal
         try:
             path = self.state_graph.find_path_to_goal(current_node_id, goal_node_id)
-            print(f"   Path found: {path}")
             
             if len(path) < 2:
-                print(f"   ❌ Path too short or no path found")
                 return self._get_fallback_action(current_state)  # Use fallback when no path found
             
             # Get the next action from the path
             next_node_id = path[1]  # First node is current, second is next
             for edge in self.state_graph.get_edges_from(current_node_id):
                 if edge.to_node == next_node_id:
-                    print(f"   ✅ Next planned action: {edge.action}")
                     return edge.action
             
-            print(f"   ❌ No edge found to next node")
             return self._get_fallback_action(current_state)  # Use fallback when no edge found
             
         except Exception as e:
-            print(f"   ❌ Exception during pathfinding: {e}")
-            import traceback
-            traceback.print_exc()
             return self._get_fallback_action(current_state)  # Use fallback on any exception
 
     def _get_fallback_action(self, current_state: dict) -> str:
@@ -1093,6 +1062,8 @@ class CoordinatedActionPredictorAgent(Agent):
             old_plan_text = "\n".join(plan_lines)
         else:
             old_plan_text = "No plan session available"
+
+        print(f"plan_text: {old_plan_text}")
 
         # Create LLM prompt with current state, plan, and possible actions
         prompt = f"""

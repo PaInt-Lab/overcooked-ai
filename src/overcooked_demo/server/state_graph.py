@@ -1379,13 +1379,6 @@ class ChoppedTomatoSoupStateGraphGenerator(BaseStateGraphGenerator):
             new_state['tomato_at_chopping'] = False
             self._add_transition(node_id, new_state, 'pickup(chopped_tomato)')
             
-        # Robot can pick up chopped tomato from staging (if it was placed there)
-        if state['tomato_staged'] and state['tomato_hand'] == 'none' and state['tomato_chopped']:
-            new_state = state.copy()
-            new_state['tomato_hand'] = 'agent'
-            new_state['tomato_staged'] = False
-            self._add_transition(node_id, new_state, 'pickup(chopped_tomato)')
-            
         # Robot can place chopped tomato at staging
         if state['tomato_hand'] == 'agent' and state['tomato_chopped']:
             new_state = state.copy()
@@ -1607,13 +1600,6 @@ class ChoppedOnionSoupStateGraphGenerator(BaseStateGraphGenerator):
             new_state = state.copy()
             new_state['onion_hand'] = 'agent'
             new_state['onion_at_chopping'] = False
-            self._add_transition(node_id, new_state, 'pickup(chopped_onion)')
-            
-        # Robot can pick up chopped onion from staging (if it was placed there)
-        if state['onion_staged'] and state['onion_hand'] == 'none' and state['onion_chopped']:
-            new_state = state.copy()
-            new_state['onion_hand'] = 'agent'
-            new_state['onion_staged'] = False
             self._add_transition(node_id, new_state, 'pickup(chopped_onion)')
             
         # Robot can place chopped onion at staging

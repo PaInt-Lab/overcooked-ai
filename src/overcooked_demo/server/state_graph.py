@@ -66,7 +66,7 @@ class StateGraph:
                 print(f"   Available nodes: {list(self.nodes.keys())[:5]}...")
                 return []
             
-            print(f"🔍 Starting pathfinding from {start_node_id} to {goal_node_id}")
+            # print(f"🔍 Starting pathfinding from {start_node_id} to {goal_node_id}")
             
             # Priority queue for A*: (f_score, node_id, path)
             open_set = [(0, start_node_id, [start_node_id])]
@@ -83,7 +83,7 @@ class StateGraph:
                 f_score, current_id, path = heapq.heappop(open_set)
                 
                 if current_id == goal_node_id:
-                    print(f"✅ Path found in {iterations} iterations: {path}")
+                    # print(f"✅ Path found in {iterations} iterations: {path}")
                     return path
                 
                 if current_id in closed_set:
@@ -93,7 +93,8 @@ class StateGraph:
                 
                 edges = self.get_edges_from(current_id)
                 if iterations == 1:  # Debug first iteration
-                    print(f"   First node edges: {[edge.action for edge in edges]}")
+                    # print(f"   First node edges: {[edge.action for edge in edges]}")
+                    pass
                 
                 for edge in edges:
                     neighbor_id = edge.to_node
@@ -108,21 +109,24 @@ class StateGraph:
             
             # Progress reporting
             if iterations % 1000 == 0:
-                print(f"   Pathfinding progress: {iterations} iterations, open set size: {len(open_set)}")
+                # print(f"   Pathfinding progress: {iterations} iterations, open set size: {len(open_set)}")
+                pass
             
             if iterations >= max_iterations:
-                print(f"⚠️ Pathfinding timed out after {iterations} iterations")
-                print(f"   Open set size: {len(open_set)}, Closed set size: {len(closed_set)}")
+                # print(f"⚠️ Pathfinding timed out after {iterations} iterations")
+                # print(f"   Open set size: {len(open_set)}, Closed set size: {len(closed_set)}")
+                pass
             else:
-                print(f"❌ No path found after {iterations} iterations")
-                print(f"   Open set size: {len(open_set)}, Closed set size: {len(closed_set)}")
+                # print(f"❌ No path found after {iterations} iterations")
+                # print(f"   Open set size: {len(open_set)}, Closed set size: {len(closed_set)}")
+                pass
             
             return []  # No path found
             
         except Exception as e:
-            print(f"❌ Exception during pathfinding: {e}")
-            import traceback
-            traceback.print_exc()
+            # print(f"❌ Exception during pathfinding: {e}")
+            # import traceback
+            # traceback.print_exc()
             return []
     
     def _heuristic(self, node_id: str, goal_id: str) -> float:
@@ -474,7 +478,7 @@ class StateGraphGenerator:
             new_state = state.copy()
             new_state['soup_hand'] = 'agent'
             new_state['soup_staged'] = False
-            self._add_transition(node_id, new_state, 'pickup(soup_staged)')
+            self._add_transition(node_id, new_state, 'pickup(soup)')
         
         # Robot place actions
         # Place onion at chopping station (auto-chops)
@@ -794,18 +798,20 @@ class StateGraphGenerator:
             )
             self.graph.add_edge(edge)
         else:
-            # Debug: Log missing transitions
+            # Debug: Log missing transitions (commented out to reduce noise)
             if not to_node_id:
-                print(f"⚠️ Missing target state for transition: {action}")
-                print(f"   From: {from_node_id}")
-                print(f"   To state: {to_state}")
-                print(f"   To state key: {to_state_key}")
-                print(f"   Available states: {len(self.state_to_node_id)}")
+                # print(f"⚠️ Missing target state for transition: {action}")
+                # print(f"   From: {from_node_id}")
+                # print(f"   To state: {to_state}")
+                # print(f"   To state key: {to_state_key}")
+                # print(f"   Available states: {len(self.state_to_node_id)}")
                 # Check if this state should be valid
                 if self._is_valid_state(to_state):
-                    print(f"   State is valid but not in mapping!")
+                    # print(f"   State is valid but not in mapping!")
+                    pass
                 else:
-                    print(f"   State is invalid according to rules")
+                    # print(f"   State is invalid according to rules")
+                    pass
     
     def get_node_id_for_state(self, state: Dict) -> Optional[str]:
         """Get the node ID for a given state"""

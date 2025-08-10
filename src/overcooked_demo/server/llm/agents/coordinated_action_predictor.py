@@ -1041,8 +1041,6 @@ class CoordinatedActionPredictorAgent(Agent):
         else:
             old_plan_text = "No plan session available"
 
-        print(f"plan_text: {old_plan_text}")
-
         # Create LLM prompt with current state, plan, and possible actions
         prompt = f"""
             {OVERCOOKED_GAME_MECHANICS}

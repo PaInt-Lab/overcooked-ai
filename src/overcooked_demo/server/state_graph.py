@@ -32,6 +32,7 @@ class StateGraph:
         self.nodes: Dict[str, StateNode] = {}
         self.edges: Dict[str, List[StateEdge]] = {}  # node_id -> list of edges
         self.reverse_edges: Dict[str, List[StateEdge]] = {}  # for backward navigation
+        self.state_to_node_id: Dict[str, str] = {}  # state JSON -> node_id mapping for fast lookup
         
     def add_node(self, node: StateNode):
         """Add a node to the graph"""
@@ -40,6 +41,10 @@ class StateGraph:
             self.edges[node.node_id] = []
         if node.node_id not in self.reverse_edges:
             self.reverse_edges[node.node_id] = []
+        
+        # Add to state mapping for fast lookup
+        state_key = json.dumps(node.state_summary, sort_keys=True)
+        self.state_to_node_id[state_key] = node.node_id
     
     def add_edge(self, edge: StateEdge):
         """Add an edge to the graph"""
@@ -881,10 +886,17 @@ class PlainOnionSoupStateGraphGenerator(BaseStateGraphGenerator):
         """Generate all valid states for plain onion soup"""
         states = []
         
-        # State variables for plain onion soup
+        # State variables for plain onion soup (includes all required variables)
         onion_hand_options = ['none', 'agent', 'partner']
         onion_staged_options = [True, False]
+        onion_at_chopping_options = [True, False]
+        onion_chopped_options = [True, False]
         onion_in_pot_options = [True, False]
+        tomato_hand_options = ['none', 'agent', 'partner']
+        tomato_staged_options = [True, False]
+        tomato_at_chopping_options = [True, False]
+        tomato_chopped_options = [True, False]
+        tomato_in_pot_options = [True, False]
         soup_cooking_options = [True, False]
         soup_ready_options = [True, False]
         soup_hand_options = ['none', 'agent', 'partner']
@@ -897,31 +909,45 @@ class PlainOnionSoupStateGraphGenerator(BaseStateGraphGenerator):
         # Generate all combinations
         for onion_hand in onion_hand_options:
             for onion_staged in onion_staged_options:
-                for onion_in_pot in onion_in_pot_options:
-                    for soup_cooking in soup_cooking_options:
-                        for soup_ready in soup_ready_options:
-                            for soup_hand in soup_hand_options:
-                                for soup_staged in soup_staged_options:
-                                    for soup_in_pot_not_cooking in soup_in_pot_not_cooking_options:
-                                        for dish_hand in dish_hand_options:
-                                            for dish_staged in dish_staged_options:
-                                                for soup_served in soup_served_options:
-                                                    state = {
-                                                        'onion_hand': onion_hand,
-                                                        'onion_staged': onion_staged,
-                                                        'onion_in_pot': onion_in_pot,
-                                                        'soup_cooking': soup_cooking,
-                                                        'soup_ready': soup_ready,
-                                                        'soup_hand': soup_hand,
-                                                        'soup_staged': soup_staged,
-                                                        'soup_in_pot_not_cooking': soup_in_pot_not_cooking,
-                                                        'dish_hand': dish_hand,
-                                                        'dish_staged': dish_staged,
-                                                        'soup_served': soup_served
-                                                    }
-                                                    
-                                                    if self._is_valid_state(state):
-                                                        states.append(state)
+                for onion_at_chopping in onion_at_chopping_options:
+                    for onion_chopped in onion_chopped_options:
+                        for onion_in_pot in onion_in_pot_options:
+                            for tomato_hand in tomato_hand_options:
+                                for tomato_staged in tomato_staged_options:
+                                    for tomato_at_chopping in tomato_at_chopping_options:
+                                        for tomato_chopped in tomato_chopped_options:
+                                            for tomato_in_pot in tomato_in_pot_options:
+                                                for soup_cooking in soup_cooking_options:
+                                                    for soup_ready in soup_ready_options:
+                                                        for soup_hand in soup_hand_options:
+                                                            for soup_staged in soup_staged_options:
+                                                                for soup_in_pot_not_cooking in soup_in_pot_not_cooking_options:
+                                                                    for dish_hand in dish_hand_options:
+                                                                        for dish_staged in dish_staged_options:
+                                                                            for soup_served in soup_served_options:
+                                                                                state = {
+                                                                                    'onion_hand': onion_hand,
+                                                                                    'onion_staged': onion_staged,
+                                                                                    'onion_at_chopping': onion_at_chopping,
+                                                                                    'onion_chopped': onion_chopped,
+                                                                                    'onion_in_pot': onion_in_pot,
+                                                                                    'tomato_hand': tomato_hand,
+                                                                                    'tomato_staged': tomato_staged,
+                                                                                    'tomato_at_chopping': tomato_at_chopping,
+                                                                                    'tomato_chopped': tomato_chopped,
+                                                                                    'tomato_in_pot': tomato_in_pot,
+                                                                                    'soup_cooking': soup_cooking,
+                                                                                    'soup_ready': soup_ready,
+                                                                                    'soup_hand': soup_hand,
+                                                                                    'soup_staged': soup_staged,
+                                                                                    'soup_in_pot_not_cooking': soup_in_pot_not_cooking,
+                                                                                    'dish_hand': dish_hand,
+                                                                                    'dish_staged': dish_staged,
+                                                                                    'soup_served': soup_served
+                                                                                }
+                                                                                
+                                                                                if self._is_valid_state(state):
+                                                                                    states.append(state)
         
         return states
         
@@ -936,6 +962,32 @@ class PlainOnionSoupStateGraphGenerator(BaseStateGraphGenerator):
             
         if state['onion_in_pot'] and state['onion_hand'] != 'none':
             return False  # Can't hold onion if it's in pot
+            
+        # For plain onion soup, tomato variables should be false/none since no tomato is needed
+        if state['tomato_hand'] != 'none':
+            return False  # No tomato in plain onion soup
+        if state['tomato_staged'] or state['tomato_at_chopping'] or state['tomato_chopped'] or state['tomato_in_pot']:
+            return False  # No tomato processing in plain onion soup
+            
+        # For plain onion soup, onion chopping variables should be false since no chopping needed
+        if state['onion_at_chopping'] or state['onion_chopped']:
+            return False  # No onion chopping in plain onion soup
+            
+        # Logical constraints
+        if state['onion_in_pot'] and state['onion_staged']:
+            return False  # Can't be in pot and staged at same time
+            
+        if state['soup_cooking'] and state['soup_ready']:
+            return False  # Can't be cooking and ready at same time
+            
+        if state['soup_ready'] and not state['onion_in_pot']:
+            return False  # Need onion in pot for soup to be ready
+            
+        if state['soup_ready'] and state['soup_in_pot_not_cooking']:
+            return False  # If soup is ready, it's not "not cooking" - it's already done
+            
+        if state['soup_in_pot_not_cooking'] and state['soup_cooking']:
+            return False  # Can't be in pot not cooking AND cooking
                 
         return True
         
@@ -1015,6 +1067,13 @@ class PlainOnionSoupStateGraphGenerator(BaseStateGraphGenerator):
             new_state = state.copy()
             new_state['soup_cooking'] = True
             self._add_transition(node_id, new_state, 'human_turn_stove_on')
+            
+        # Cooking completes automatically (environmental transition)
+        if state['soup_cooking'] and not state['soup_ready']:
+            new_state = state.copy()
+            new_state['soup_cooking'] = False
+            new_state['soup_ready'] = True
+            self._add_transition(node_id, new_state, 'cooking_complete')
             
         # Human can pour soup
         if state['soup_ready'] and not state['soup_staged']:

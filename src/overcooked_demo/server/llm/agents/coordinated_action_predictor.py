@@ -16,7 +16,7 @@ from plan_session import PLAN_STORE
 
 # Model mappings for different recipes
 OVERCOOKED_MODELS = {
-    "onion_raw": "ft:gpt-4o-mini-2024-07-18:personal:ap-onion-soup:BysMfU2m",
+    "onion_raw": "ft:gpt-4o-mini-2024-07-18:personal:ap-onion:C2PPw6JD",
     "onion_chopped": "ft:gpt-4o-mini-2024-07-18:personal:ap-chopped-onion-soup:BysMfU2m", 
     "tomato_raw": "ft:gpt-4o-mini-2024-07-18:personal:ap-tomato-soup:BysMfU2m",
     "tomato_chopped": "ft:gpt-4o-mini-2024-07-18:personal:ap-chopped-tomato-soup:BysMfU2m",
@@ -319,23 +319,23 @@ class CoordinatedActionPredictorAgent(Agent):
         else:
             task_title = "Unknown Task"
         
-        print(f"🎯 Task title: {task_title}")
+        print(f"Task title: {task_title}")
         
         # Select the appropriate model based on recipe
         recipe_key = parse_recipe_components(task_title)
         self.selected_model = OVERCOOKED_MODELS.get(recipe_key, DEFAULT_OVERCOOKED_MODEL)
-        print(f"🤖 Selected model: {self.selected_model} for recipe: {recipe_key}")
+        print(f"Selected model: {self.selected_model} for recipe: {recipe_key}")
         
         # Try to load from task-specific cache first
         cache_file = os.path.join(os.path.dirname(__file__), '..', f'cached_state_graph_{task_title.lower().replace(" ", "_")}.pkl')
         if os.path.exists(cache_file):
-            print(f"📂 Loading task-specific state graph from cache...")
+            print(f"Loading task-specific state graph from cache...")
             try:
                 with open(cache_file, 'rb') as f:
                     self.state_graph = pickle.load(f)
-                print(f"✅ Task-specific state graph loaded from cache with {len(self.state_graph.nodes)} nodes")
+                print(f"Task-specific state graph loaded from cache with {len(self.state_graph.nodes)} nodes")
             except (EOFError, pickle.UnpicklingError, Exception) as e:
-                print(f"⚠️ Task-specific cache file corrupted, regenerating state graph... (Error: {e})")
+                print(f"Task-specific cache file corrupted, regenerating state graph... (Error: {e})")
                 # Remove the corrupted cache file
                 try:
                     os.remove(cache_file)
@@ -344,7 +344,7 @@ class CoordinatedActionPredictorAgent(Agent):
                 # Fall through to generate new state graph
                 self._generate_task_specific_state_graph(task_title)
         else:
-            print(f"🔄 Task-specific cache not found, generating state graph for '{task_title}'...")
+            print(f"Task-specific cache not found, generating state graph for '{task_title}'...")
             self._generate_task_specific_state_graph(task_title)
         
         self.coordination_manager = CoordinationManager(self.state_graph)
@@ -354,14 +354,14 @@ class CoordinatedActionPredictorAgent(Agent):
         # Get the appropriate state graph generator
         generator = get_state_graph_generator(task_title)
         self.state_graph = generator.generate_state_graph()
-        print(f"✅ Task-specific state graph generated with {len(self.state_graph.nodes)} nodes")
+        print(f"Task-specific state graph generated with {len(self.state_graph.nodes)} nodes")
         
         # Save to task-specific cache
         cache_file = os.path.join(os.path.dirname(__file__), '..', f'cached_state_graph_{task_title.lower().replace(" ", "_")}.pkl')
-        print(f"💾 Saving task-specific state graph to cache...")
+        print(f"Saving task-specific state graph to cache...")
         with open(cache_file, 'wb') as f:
             pickle.dump(self.state_graph, f)
-        print("✅ Task-specific state graph cached for future use")
+        print("Task-specific state graph cached for future use")
 
     def set_agent_index(self, agent_index: int):
         super().set_agent_index(agent_index)

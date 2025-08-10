@@ -14,6 +14,64 @@ from state_graph import StateGraphGenerator, StateGraph, get_state_graph_generat
 from coordination_system import CoordinationManager
 from plan_session import PLAN_STORE
 
+# Model mappings for different recipes
+OVERCOOKED_MODELS = {
+    "onion_raw": "ft:gpt-4o-mini-2024-07-18:personal:ap-onion-soup:BysMfU2m",
+    "onion_chopped": "ft:gpt-4o-mini-2024-07-18:personal:ap-chopped-onion-soup:BysMfU2m", 
+    "tomato_raw": "ft:gpt-4o-mini-2024-07-18:personal:ap-tomato-soup:BysMfU2m",
+    "tomato_chopped": "ft:gpt-4o-mini-2024-07-18:personal:ap-chopped-tomato-soup:BysMfU2m",
+    "onion_raw_tomato_raw": "ft:gpt-4o-mini-2024-07-18:personal:ap-onion-tomato-soup:BysMfU2m",
+    "onion_chopped_tomato_raw": "ft:gpt-4o-mini-2024-07-18:personal:ap-chopped-onion-tomato-soup:BysMfU2m",
+    "onion_raw_tomato_chopped": "ft:gpt-4o-mini-2024-07-18:personal:ap-onion-chopped-tomato-soup:BysMfU2m",
+    "onion_chopped_tomato_chopped": "ft:gpt-4o-mini-2024-07-18:personal:ap-chopped-onion-chopped-tomato-soup:BysMfU2m"
+}
+
+# Default model fallback
+DEFAULT_OVERCOOKED_MODEL = "gpt-4o-mini"
+
+# Current single model (keeping for backward compatibility)
+OVERCOOKED_MODEL = "ft:gpt-4o-mini-2024-07-18:personal:ap-onion-tomato-chopped:BysMfU2m"
+# OVERCOOKED_MODEL = "gpt-4o-mini"
+# OVERCOOKED_MODEL = "nothing"
+
+def parse_recipe_components(task_title: str) -> str:
+    """
+    Parse task title to determine which model to use.
+    Returns a key that maps to OVERCOOKED_MODELS.
+    
+    The word 'chopped' must come before the ingredient name to modify it.
+    """
+    task_title = task_title.lower()
+    
+    # Check for single ingredient recipes
+    if "onion" in task_title and "tomato" not in task_title:
+        if "chopped" in task_title and task_title.find("chopped") < task_title.find("onion"):
+            return "onion_chopped"
+        else:
+            return "onion_raw"
+    
+    elif "tomato" in task_title and "onion" not in task_title:
+        if "chopped" in task_title and task_title.find("chopped") < task_title.find("tomato"):
+            return "tomato_chopped"
+        else:
+            return "tomato_raw"
+    
+    # Check for dual ingredient recipes
+    elif "onion" in task_title and "tomato" in task_title:
+        # Check if "chopped" comes before "onion" (before "and")
+        onion_state = "chopped" if ("chopped" in task_title and 
+                                   task_title.find("chopped") < task_title.find("onion") and
+                                   task_title.find("chopped") < task_title.find("and")) else "raw"
+        
+        # Check if "chopped" comes before "tomato" (after "and")
+        tomato_state = "chopped" if ("chopped" in task_title and 
+                                    task_title.find("chopped") > task_title.find("and")) else "raw"
+        
+        return f"onion_{onion_state}_tomato_{tomato_state}"
+    
+    # Fallback for unknown recipes
+    return "default"
+
 OVERCOOKED_GAME_MECHANICS = """
 ## OVERCOOKED GAME MECHANICS (MDP Knowledge)
 
@@ -134,12 +192,12 @@ predicted_human_action: <human_action_name>
 best_robot_action: <robot_action_name>
 """
 
-OVERCOOKED_MODEL = "ft:gpt-4o-mini-2024-07-18:personal:ap-onion-tomato-chopped:BysMfU2m"
-# OVERCOOKED_MODEL = "gpt-4o-mini"
-# OVERCOOKED_MODEL = "nothing"
-
-def query_openai(prompt: str, model: str = OVERCOOKED_MODEL, temperature: float = 0.0) -> str:
+def query_openai(prompt: str, model: str = None, temperature: float = 0.0) -> str:
     """Query the OpenAI API with the given prompt and return the response text."""
+    # Use the selected model if none specified
+    if model is None:
+        model = getattr(self, 'selected_model', OVERCOOKED_MODEL)
+    
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
         raise RuntimeError("OPENAI_API_KEY environment variable not set.")
@@ -262,6 +320,11 @@ class CoordinatedActionPredictorAgent(Agent):
             task_title = "Unknown Task"
         
         print(f"🎯 Task title: {task_title}")
+        
+        # Select the appropriate model based on recipe
+        recipe_key = parse_recipe_components(task_title)
+        self.selected_model = OVERCOOKED_MODELS.get(recipe_key, DEFAULT_OVERCOOKED_MODEL)
+        print(f"🤖 Selected model: {self.selected_model} for recipe: {recipe_key}")
         
         # Try to load from task-specific cache first
         cache_file = os.path.join(os.path.dirname(__file__), '..', f'cached_state_graph_{task_title.lower().replace(" ", "_")}.pkl')
@@ -1016,7 +1079,7 @@ class CoordinatedActionPredictorAgent(Agent):
             """
 
         # Call LLM to get both human and robot predictions
-        response = query_openai(prompt, OVERCOOKED_MODEL)
+        response = query_openai(prompt, self.selected_model)
         print(f"LLM Response: {response}")
         
         # Parse the response to get both human and robot actions

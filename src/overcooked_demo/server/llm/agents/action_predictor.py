@@ -10,179 +10,10 @@ from plan_session import PLAN_STORE
 import os
 from openai import OpenAI
 from llm.memory.vector_memory import VectorMemory
+from game_mechanics import get_mechanics_for_task
 
-OVERCOOKED_GAME_MECHANICS = """
-## OVERCOOKED GAME MECHANICS (MDP Knowledge)
-
-### State Variables:
-- onion_hand in {none, agent, partner} - Who is holding the onion
-- onion_staged in {true, false} - Is onion staged/placed somewhere accessible
-- onion_at_chopping in {true, false} - Is onion at chopping station
-- onion_chopped in {true, false} - Is the onion chopped (flag set when placed at chopping station)
-- tomato_hand in {none, agent, partner} - Who is holding the tomato
-- tomato_staged in {true, false} - Is tomato staged/placed somewhere accessible
-- tomato_at_chopping in {true, false} - Is tomato at chopping station
-- tomato_chopped in {true, false} - Is the tomato chopped (flag set when placed at chopping station)
-- onion_in_pot in {true, false} - Is onion placed in cooking pot (raw or chopped)
-- tomato_in_pot in {true, false} - Is tomato placed in cooking pot (raw or chopped)
-- soup_cooking in {true, false} - Is soup actively cooking (ticker >= 1)
-- soup_ready in {true, false} - Is soup ready to serve
-- soup_hand in {none, agent, partner} - Who is holding the soup
-- soup_staged in {true, false} - Is soup staged/placed somewhere accessible
-- soup_in_pot_not_cooking in {true, false} - Is soup in pot but not cooking (ticker = -1)
-- dish_hand in {none, agent, partner} - Who is holding the dish
-- dish_staged in {true, false} - Is dish staged/placed somewhere accessible
-- soup_served in {true, false} - Is soup delivered to serving station
-
-Note: Cooking states are mutually exclusive: soup_cooking, soup_ready, and soup_in_pot_not_cooking cannot all be true simultaneously.
-
-### Valid Action Sequences:
-1. FetchOnion → [StageOnion OR PlaceOnionAtChopping] → FetchTomato → [StageTomato OR PlaceTomatoAtChopping] → [Human: TurnStoveOn] → WaitForSoupToCook → soup_ready=true
-2. FetchDish → StageDish → FetchSoup → StageSoup → ServeSoup → soup_served=true
-
-### Transition Rules:
-- FetchOnion: onion_hand=none → onion_hand=agent (from dispenser)
-- StageOnion: onion_hand=agent → onion_hand=none, onion_staged=true (to staging)
-- PlaceOnionAtChopping: onion_hand=agent → onion_hand=none, onion_at_chopping=true, onion_chopped=true (auto-chops)
-- FetchTomato: tomato_hand=none → tomato_hand=agent (from dispenser)
-- StageTomato: tomato_hand=agent → tomato_hand=none, tomato_staged=true (to staging)
-- PlaceTomatoAtChopping: tomato_hand=agent → tomato_hand=none, tomato_at_chopping=true, tomato_chopped=true (auto-chops)
-- PlaceInPot: onion_hand=partner OR tomato_hand=partner → onion_in_pot=true OR tomato_in_pot=true
-- Cooking & TurnStoveOn: soup_in_pot_not_cooking=true → soup_cooking=true (human action)
-- Ready: soup_cooking=true → soup_ready=true (automatic)
-- FetchSoup: soup_ready=true, soup_hand=none → soup_hand=agent
-- StageSoup: soup_hand=agent → soup_hand=none, soup_staged=true
-- FetchDish: dish_hand=none → dish_hand=agent
-- StageDish: dish_hand=agent → dish_hand=none, dish_staged=true
-- ServeSoup: soup_staged=true → soup_hand=agent → soup_served=true → onion_chopped=false, tomato_chopped=false (reset flags)
-
-### Preconditions:
-- Can only place onion in pot if holding onion (raw or chopped)
-- Can only place tomato in pot if holding tomato (raw or chopped)
-- Can only fetch soup if soup_ready=true
-- Can only serve soup if soup_staged=true
-- Both ingredients must be in pot before cooking can begin
-- Chopping happens automatically when ingredients are placed at chopping stations
-- Chopped flags are reset when soup is served
-
-### Secondary Actions:
-- pickup(onion): Pick up onion from dispenser
-- pickup(tomato): Pick up tomato from dispenser
-- pickup(chopped_onion): Pick up chopped onion from chopping station
-- pickup(chopped_tomato): Pick up chopped tomato from chopping station
-- pickup(dish): Pick up dish from dispenser
-- pickup(soup): Pick up soup from staging
-- place(onion, chopping_station): Place onion at chopping station (auto-chops)
-- place(onion, staging_station): Place onion at staging station
-- place(tomato, chopping_station): Place tomato at chopping station (auto-chops)
-- place(tomato, staging_station): Place tomato at staging station
-- place(chopped_onion): Place chopped onion at staging station
-- place(chopped_tomato): Place chopped tomato at staging station
-- place(dish): Place dish at staging station
-- place(soup): Place soup at serving station
-- NOOP: No secondary action needed
-
-## TASK EXECUTION
-
-Each call you receive has this structure:
-
-STATE SUMMARY:
-<one or two sentences describing what the robot and human hold, what's on staging counters, pots, etc., in plain English>
-
-PLAN:
-
-1. secondary: [<labels>], primary: [<labels>]
-2. secondary: [<labels>], primary: [<labels>]
-   ...
-   N) secondary: [<labels>], primary: [<labels>]
-
-Your job:
-
-1. **Analyze current state** against the MDP knowledge above to understand game mechanics
-2. **Identify which plan-step (1...N)** is currently active based on state and progress
-3. **From that step's primary list**, choose exactly one of the canonical primary events (reuse the text exactly as given)
-4. **From the same step's secondary list**, choose exactly one of:
-   • pickup(onion)  
-   • pickup(tomato)
-   • pickup(dish)
-   • pickup(soup)
-   • place(onion, chopping_station)
-   • place(onion, staging_station)
-   • place(tomato, chopping_station)
-   • place(tomato, staging_station)
-   • place(dish)
-   • place(soup)
-   • NOOP
-
-**EXACT DECISION RULES for secondary actions:**
-
-**Choose pickup(onion) when:**
-- onion_hand="none" AND onion_staged=false AND onion_at_chopping=false AND onion_in_pot=false AND soup_staged=false AND soup_hand=none
-- (Need to fetch onion for processing)
-
-**Choose place(onion, chopping_station) when:**
-- onion_hand="agent" AND onion_chopped=false
-- (Agent is holding onion and plan calls for chopping)
-
-**Choose place(onion, staging_station) when:**
-- onion_hand="agent" AND onion_staged=false
-- (Agent is holding onion and plan does not call for chopping)
-
-**Choose pickup(tomato) when:**
-- tomato_hand="none" AND tomato_staged=false AND tomato_at_chopping=false AND tomato_in_pot=false AND soup_staged=false AND soup_hand=none
-- (Need to fetch tomato for processing)
-
-**Choose place(tomato, chopping_station) when:**
-- tomato_hand="agent" AND tomato_chopped=false
-- (Agent is holding tomato and plan calls for chopping)
-
-**Choose place(tomato, staging_station) when:**
-- tomato_hand="agent" AND tomato_staged=false
-- (Agent is holding tomato and plan does not call for chopping)
-
-**Choose pickup(chopped_onion) when:**
-- onion_chopped=true AND onion_at_chopping=true AND onion_hand="none"
-- (Chopped onion is ready at chopping station)
-
-**Choose place(chopped_onion) when:**
-- onion_chopped=true AND onion_hand="agent" AND onion_staged=false
-- (Agent is holding chopped onion and needs to stage it)
-
-**Choose pickup(chopped_tomato) when:**
-- tomato_chopped=true AND tomato_at_chopping=true AND tomato_hand="none"
-- (Chopped tomato is ready at chopping station)
-
-**Choose place(chopped_tomato) when:**
-- tomato_chopped=true AND tomato_hand="agent" AND tomato_staged=false
-- (Agent is holding chopped tomato and needs to stage it)
-
-**Choose pickup(dish) when:**
-- dish_staged=false AND soup_cooking=true
-- (Need dish ready when soup is cooking)
-
-**Choose place(dish) when:**
-- dish_hand="agent" AND dish_staged=false
-- (Agent is holding dish and needs to stage it)
-
-**Choose pickup(soup) when:**
-- soup_hand="none" AND soup_staged=true
-- (Soup is staged and ready for serving)
-
-**Choose place(soup) when:**
-- soup_hand="agent" AND soup_served=false
-- (Agent is holding soup and needs to serve it)
-
-**Choose NOOP when:**
-- All required items are already staged or in progress
-- Waiting for cooking to complete (soup_cooking=true) AND dish_staged=true
-- Waiting for partner to complete their action
-- No immediate action needed based on current plan step
-
-Return **only** these two lines (no extra commentary):
-
-primary: <exact primary event text>  
-secondary: <one of pickup(onion|tomato|dish|soup) or place(onion|tomato|dish|soup) or NOOP>
-"""
+# The old OVERCOOKED_GAME_MECHANICS has been replaced with dynamic task-specific mechanics
+# Generated by the game_mechanics module
 
 
 OVERCOOKED_MODEL = "ft:gpt-4o-mini-2024-07-18:personal:ap-onion-tomato-chopped:BysMfU2m"
@@ -1022,8 +853,13 @@ class ActionPredictorAgent(Agent):
         #     context_section = f"SIMILAR PAST EXPERIENCES:\n{game_context}\n\n"
 
 
+        # Select the appropriate model and mechanics based on task title
+        task_title = getattr(self.plan, 'task_title', 'Unknown Task')
+        model_name = get_model_for_task(task_title)
+        game_mechanics = get_mechanics_for_task(task_title).get_mechanics_prompt()
+
         prompt = (
-        f"{OVERCOOKED_GAME_MECHANICS}\n\n"
+        f"{game_mechanics}\n\n"
         # f"{context_section}"
         f"STATE SUMMARY:\n{self.last_summary}\n\n"
         f"PLAN:\n{plan_text}\n\n"
@@ -1033,10 +869,6 @@ class ActionPredictorAgent(Agent):
         "secondary: pickup(onion) or pickup(tomato) or pickup(dish) or pickup(soup) or place(onion, chopping_station) or place(onion, staging_station) or place(tomato, chopping_station) or place(tomato, staging_station) or place(dish) or place(soup) or NOOP\n"
         "Choose the appropriate primary event and secondary action based on the current state and plan."
     )
-
-        # Select the appropriate model based on task title
-        task_title = getattr(self.plan, 'task_title', 'Unknown Task')
-        model_name = get_model_for_task(task_title)
 
         response = query_openai(prompt, model=model_name)
 

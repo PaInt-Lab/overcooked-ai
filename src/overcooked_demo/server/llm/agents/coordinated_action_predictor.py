@@ -13,6 +13,7 @@ from llm.memory.vector_memory import VectorMemory
 from state_graph import StateGraphGenerator, StateGraph, get_state_graph_generator
 from coordination_system import CoordinationManager
 from plan_session import PLAN_STORE
+from game_mechanics import get_mechanics_for_task
 
 # Model mappings for different recipes
 OVERCOOKED_MODELS = {
@@ -72,131 +73,14 @@ def parse_recipe_components(task_title: str) -> str:
     # Fallback for unknown recipes
     return "default"
 
-OVERCOOKED_GAME_MECHANICS = """
-## OVERCOOKED GAME MECHANICS (MDP Knowledge)
-
-### State Variables:
-- onion_hand in {none, agent, partner} - Who is holding the onion
-- onion_staged in {true, false} - Is onion staged/placed somewhere accessible
-- onion_at_chopping in {true, false} - Is onion at chopping station
-- onion_chopped in {true, false} - Is the onion chopped (flag set when placed at chopping station)
-- tomato_hand in {none, agent, partner} - Who is holding the tomato
-- tomato_staged in {true, false} - Is tomato staged/placed somewhere accessible
-- tomato_at_chopping in {true, false} - Is tomato at chopping station
-- tomato_chopped in {true, false} - Is the tomato chopped (flag set when placed at chopping station)
-- onion_in_pot in {true, false} - Is onion placed in cooking pot (raw or chopped)
-- tomato_in_pot in {true, false} - Is tomato placed in cooking pot (raw or chopped)
-- soup_cooking in {true, false} - Is soup actively cooking (ticker >= 1)
-- soup_ready in {true, false} - Is soup ready to serve
-- soup_hand in {none, agent, partner} - Who is holding the soup
-- soup_staged in {true, false} - Is soup staged/placed somewhere accessible
-- soup_in_pot_not_cooking in {true, false} - Is soup in pot but not cooking (ticker = -1)
-- dish_hand in {none, agent, partner} - Who is holding the dish
-- dish_staged in {true, false} - Is dish staged/placed somewhere accessible
-- soup_served in {true, false} - Is soup delivered to serving station
-
-### Goal-Directed Navigation:
-You are navigating through a state space toward the goal of serving soup. Your job is to:
-
-1. **Analyze current state** to understand where you are in the state space
-2. **Predict human behavior** to understand what the human is likely to do
-3. **Choose the best action** that advances toward the goal while coordinating with the human
-4. **Balance goal progress and coordination** - don't sacrifice one for the other
-
-### Coordination Strategy:
-- **Positive Coordination**: Actions that work well with human behavior
-- **Negative Coordination**: Actions that conflict with human behavior
-- **Goal Progress**: Actions that advance toward serving soup
-- **Adaptive Strategy**: Choose actions based on current coordination context
-
-### Available Robot Actions:
-- pickup(onion): Pick up onion from dispenser
-- pickup(tomato): Pick up tomato from dispenser
-- pickup(chopped_onion): Pick up chopped onion from chopping station
-- pickup(chopped_tomato): Pick up chopped tomato from chopping station
-- pickup(dish): Pick up dish from dispenser
-- pickup(soup): Pick up soup from staging
-- place(onion, chopping_station): Place onion at chopping station (auto-chops)
-- place(onion, staging_station): Place onion at staging station
-- place(tomato, chopping_station): Place tomato at chopping station (auto-chops)
-- place(tomato, staging_station): Place tomato at staging station
-- place(chopped_onion): Place chopped onion at staging station
-- place(chopped_tomato): Place chopped tomato at staging station
-- place(dish): Place dish at staging station
-- place(soup): Place soup at serving station
-- NOOP: No action needed
-
-### Available Human Actions:
-- human_pickup_onion: Human picks up onion from dispenser
-- human_pickup_tomato: Human picks up tomato from dispenser
-- human_pickup_chopped_onion: Human picks up chopped onion from chopping station
-- human_pickup_chopped_tomato: Human picks up chopped tomato from chopping station
-- human_pickup_dish: Human picks up dish from dispenser
-- human_pickup_soup: Human picks up soup from staging
-- human_grab_onion: Human grabs onion from staging
-- human_grab_tomato: Human grabs tomato from staging
-- human_grab_dish: Human grabs dish from staging
-- human_grab_soup: Human grabs soup from staging
-- human_place_onion_chopping: Human places onion at chopping station
-- human_place_onion_staging: Human places onion at staging station
-- human_place_tomato_chopping: Human places tomato at chopping station
-- human_place_tomato_staging: Human places tomato at staging station
-- human_place_chopped_onion: Human places chopped onion at staging
-- human_place_chopped_tomato: Human places chopped tomato at staging
-- human_place_dish: Human places dish at staging
-- human_place_soup: Human places soup at serving station
-- human_place_onion_in_pot: Human places onion in cooking pot
-- human_place_tomato_in_pot: Human places tomato in cooking pot
-- human_pour_soup: Human pours soup from pot
-- human_turn_stove_on: Human turns stove on to start cooking
-
-### IMPORTANT: Robot Restrictions
-- The robot CANNOT place ingredients in the pot/stove
-- The robot CANNOT turn on the stove
-- The robot CANNOT interact with the stove in any way
-- Only the human player handles cooking and stove interactions
-- The robot focuses on preparation tasks: chopping and staging ingredients
-
-### Handling Uncertainty in Human Behavior:
-When the same game state can have multiple valid actions (e.g., human might grab onion OR wait for robot to grab onion), use this priority system:
-
-1. **Follow the Plan**: If there's a clear plan indicating who should do what, prioritize that
-2. **Choose Complementary Action**: If human is likely to do X, robot should do Y
-3. **Default to Goal Progress**: When uncertain, choose actions that advance toward soup completion
-
-**Example**: If plan says "robot gets onions first" but human might grab onion:
-- Predict human will wait (following plan)
-- Robot should grab onion (following plan)
-- If human actually grabs onion, adapt in next turn
-
-## TASK EXECUTION
-
-Each call you receive has this structure:
-
-STATE SUMMARY:
-<current state description>
-
-POSSIBLE ROBOT ACTIONS:
-<list of available robot actions>
-
-Your job:
-
-1. **Analyze the current state** to understand the game situation
-2. **Predict what the human is most likely to do** based on the current state
-3. **Choose the best robot action** that coordinates well with the predicted human action
-4. **Return both predictions** in the specified format
-
-Return **only** these two lines (no extra commentary):
-
-predicted_human_action: <human_action_name>
-best_robot_action: <robot_action_name>
-"""
+# The old OVERCOOKED_GAME_MECHANICS has been replaced with dynamic task-specific mechanics
+# Generated by the game_mechanics module
 
 def query_openai(prompt: str, model: str = None, temperature: float = 0.0) -> str:
     """Query the OpenAI API with the given prompt and return the response text."""
-    # Use the selected model if none specified
+    # Use the default model if none specified
     if model is None:
-        model = getattr(self, 'selected_model', OVERCOOKED_MODEL)
+        model = DEFAULT_OVERCOOKED_MODEL
     
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
@@ -325,6 +209,10 @@ class CoordinatedActionPredictorAgent(Agent):
         recipe_key = parse_recipe_components(task_title)
         self.selected_model = OVERCOOKED_MODELS.get(recipe_key, DEFAULT_OVERCOOKED_MODEL)
         print(f"Selected model: {self.selected_model} for recipe: {recipe_key}")
+        
+        # Store task information for mechanics selection
+        self.task_title = task_title
+        self.recipe_key = recipe_key
         
         # Try to load from task-specific cache first
         cache_file = os.path.join(os.path.dirname(__file__), '..', f'cached_state_graph_{task_title.lower().replace(" ", "_")}.pkl')
@@ -1041,9 +929,12 @@ class CoordinatedActionPredictorAgent(Agent):
         else:
             old_plan_text = "No plan session available"
 
+        # Get task-specific game mechanics
+        game_mechanics = get_mechanics_for_task(self.task_title).get_mechanics_prompt()
+        
         # Create LLM prompt with current state, plan, and possible actions
         prompt = f"""
-            {OVERCOOKED_GAME_MECHANICS}
+            {game_mechanics}
 
             CURRENT STATE:
             {self.last_summary}

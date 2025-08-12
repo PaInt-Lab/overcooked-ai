@@ -770,24 +770,24 @@ class CoordinatedActionPredictorAgent(Agent):
         """
         Parse the LLM response to extract both human and robot action predictions.
         Expected format:
-          predicted_human_action: <human_action_name>
-          best_robot_action: <robot_action_name>
+          Primary: <primary_action_name>
+          Secondary: <secondary_action_name>
         """
         # Default values
         predicted_human_action = "human_NOOP"
         best_robot_action = "NOOP"
         
-        # Parse human action prediction
-        human_match = re.search(r'predicted_human_action:\s*(.+?)(?:\n|best_robot_action:|$)', 
-                               response, re.IGNORECASE)
-        if human_match:
-            predicted_human_action = human_match.group(1).strip()
+        # Parse primary action prediction
+        primary_match = re.search(r'Primary:\s*(.+?)(?:\n|Secondary:|$)', 
+                                 response, re.IGNORECASE)
+        if primary_match:
+            predicted_human_action = primary_match.group(1).strip()
         
-        # Parse robot action prediction
-        robot_match = re.search(r'best_robot_action:\s*(.+?)(?:\n|$)', 
-                               response, re.IGNORECASE)
-        if robot_match:
-            best_robot_action = robot_match.group(1).strip()
+        # Parse secondary action prediction
+        secondary_match = re.search(r'Secondary:\s*(.+?)(?:\n|$)', 
+                                   response, re.IGNORECASE)
+        if secondary_match:
+            best_robot_action = secondary_match.group(1).strip()
         
         # Validate that the robot action is in our possible actions
         if best_robot_action not in possible_actions:
@@ -963,8 +963,8 @@ class CoordinatedActionPredictorAgent(Agent):
             6. Robot action are always secondary actions. Try to keep human actions as primary actions, but they can be secondary too.
 
             Return only these two lines:
-            predicted_human_action: <human_action_name>
-            best_robot_action: <robot_action_name>
+            Primary: <human_action_name>
+            Secondary: <robot_action_name>
             """
 
         # Call LLM to get both human and robot predictions

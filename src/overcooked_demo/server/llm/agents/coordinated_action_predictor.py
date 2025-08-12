@@ -24,7 +24,7 @@ OVERCOOKED_MODELS = {
     "onion_raw_tomato_raw": "ft:gpt-4o-mini-2024-07-18:personal:ap-onion-tomato-soup:BysMfU2m",
     "onion_chopped_tomato_raw": "ft:gpt-4o-mini-2024-07-18:personal:ap-chopped-onion-tomato-soup:BysMfU2m",
     "onion_raw_tomato_chopped": "ft:gpt-4o-mini-2024-07-18:personal:ap-onion-chopped-tomato-soup:BysMfU2m",
-    "onion_chopped_tomato_chopped": "ft:gpt-4o-mini-2024-07-18:personal:ap-chopped-onion-chopped-tomato-soup:BysMfU2m"
+    "onion_chopped_tomato_chopped": "ft:gpt-4o-mini-2024-07-18:personal:ap-chopped-onion-chopped-tomato:C3YYuvHe"
 }
 
 # Default model fallback

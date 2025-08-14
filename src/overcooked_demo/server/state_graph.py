@@ -67,11 +67,11 @@ class StateGraph:
         """Find shortest path from start to goal using A*"""
         try:
             if start_node_id not in self.nodes or goal_node_id not in self.nodes:
-                print(f"❌ Pathfinding failed: start_node_id={start_node_id}, goal_node_id={goal_node_id}")
+                print(f"Pathfinding failed: start_node_id={start_node_id}, goal_node_id={goal_node_id}")
                 print(f"   Available nodes: {list(self.nodes.keys())[:5]}...")
                 return []
             
-            # print(f"🔍 Starting pathfinding from {start_node_id} to {goal_node_id}")
+            # print(f"Starting pathfinding from {start_node_id} to {goal_node_id}")
             
             # Priority queue for A*: (f_score, node_id, path)
             open_set = [(0, start_node_id, [start_node_id])]
@@ -88,7 +88,7 @@ class StateGraph:
                 f_score, current_id, path = heapq.heappop(open_set)
                 
                 if current_id == goal_node_id:
-                    # print(f"✅ Path found in {iterations} iterations: {path}")
+                    # print(f"Path found in {iterations} iterations: {path}")
                     return path
                 
                 if current_id in closed_set:
@@ -118,18 +118,18 @@ class StateGraph:
                 pass
             
             if iterations >= max_iterations:
-                # print(f"⚠️ Pathfinding timed out after {iterations} iterations")
+                # print(f"Pathfinding timed out after {iterations} iterations")
                 # print(f"   Open set size: {len(open_set)}, Closed set size: {len(closed_set)}")
                 pass
             else:
-                # print(f"❌ No path found after {iterations} iterations")
+                # print(f"No path found after {iterations} iterations")
                 # print(f"   Open set size: {len(open_set)}, Closed set size: {len(closed_set)}")
                 pass
             
             return []  # No path found
             
         except Exception as e:
-            # print(f"❌ Exception during pathfinding: {e}")
+            # print(f"Exception during pathfinding: {e}")
             # import traceback
             # traceback.print_exc()
             return []
@@ -197,7 +197,7 @@ class StateGraphGenerator:
         
     def generate_state_graph(self):
         """Generate all possible states and transitions"""
-        print(f"🔧 Generating state graph...")
+        print(f"Generating state graph...")
         
         # Generate all possible state combinations
         self._generate_all_states()
@@ -224,7 +224,7 @@ class StateGraphGenerator:
     
     def test_connectivity(self):
         """Test if the graph is well-connected"""
-        print(f"🔍 Testing graph connectivity...")
+        print(f"Testing graph connectivity...")
         
         # Find initial and goal states
         initial_states = []
@@ -255,10 +255,10 @@ class StateGraphGenerator:
             
             path = self.graph.find_path_to_goal(start_node.node_id, goal_node.node_id)
             if path:
-                print(f"   ✅ Path found with {len(path)} steps")
+                print(f"   Path found with {len(path)} steps")
                 return True
             else:
-                print(f"   ❌ No path found")
+                print(f"   No path found")
                 return False
         
         return False
@@ -805,7 +805,7 @@ class StateGraphGenerator:
         else:
             # Debug: Log missing transitions (commented out to reduce noise)
             if not to_node_id:
-                # print(f"⚠️ Missing target state for transition: {action}")
+                # print(f"Missing target state for transition: {action}")
                 # print(f"   From: {from_node_id}")
                 # print(f"   To state: {to_state}")
                 # print(f"   To state key: {to_state_key}")
@@ -860,11 +860,11 @@ class PlainOnionSoupStateGraphGenerator(BaseStateGraphGenerator):
         
     def generate_state_graph(self):
         """Generate state graph for plain onion soup"""
-        print(f"🔄 Generating state graph for {self.soup_type}...")
+        print(f"Generating state graph for {self.soup_type}...")
         
         # Generate all valid states
         all_states = self._generate_all_states()
-        print(f"📊 Generated {len(all_states)} valid states")
+        print(f"Generated {len(all_states)} valid states")
         
         # Add nodes to graph
         for state in all_states:
@@ -878,7 +878,7 @@ class PlainOnionSoupStateGraphGenerator(BaseStateGraphGenerator):
         
         # Generate transitions
         self._generate_all_transitions()
-        print(f"🔗 Generated transitions between states")
+        print(f"Generated transitions between states")
         
         return self.state_graph
         
@@ -1109,11 +1109,11 @@ class PlainTomatoSoupStateGraphGenerator(BaseStateGraphGenerator):
         
     def generate_state_graph(self):
         """Generate state graph for plain tomato soup"""
-        print(f"🔄 Generating state graph for {self.soup_type}...")
+        print(f"Generating state graph for {self.soup_type}...")
         
         # Generate all valid states
         all_states = self._generate_all_states()
-        print(f"📊 Generated {len(all_states)} valid states")
+        print(f"Generated {len(all_states)} valid states")
         
         # Add nodes to graph
         for state in all_states:
@@ -1127,7 +1127,7 @@ class PlainTomatoSoupStateGraphGenerator(BaseStateGraphGenerator):
         
         # Generate transitions
         self._generate_all_transitions()
-        print(f"🔗 Generated transitions between states")
+        print(f"Generated transitions between states")
         
         return self.state_graph
         
@@ -1358,11 +1358,11 @@ class ChoppedTomatoSoupStateGraphGenerator(BaseStateGraphGenerator):
         
     def generate_state_graph(self):
         """Generate state graph for chopped tomato soup"""
-        print(f"🔄 Generating state graph for {self.soup_type}...")
+        print(f"Generating state graph for {self.soup_type}...")
         
         # Generate all valid states
         all_states = self._generate_all_states()
-        print(f"📊 Generated {len(all_states)} valid states")
+        print(f"Generated {len(all_states)} valid states")
         
         # Add nodes to graph
         for state in all_states:
@@ -1376,7 +1376,7 @@ class ChoppedTomatoSoupStateGraphGenerator(BaseStateGraphGenerator):
         
         # Generate transitions
         self._generate_all_transitions()
-        print(f"🔗 Generated transitions between states")
+        print(f"Generated transitions between states")
         
         return self.state_graph
         
@@ -1581,11 +1581,11 @@ class ChoppedOnionSoupStateGraphGenerator(BaseStateGraphGenerator):
         
     def generate_state_graph(self):
         """Generate state graph for chopped onion soup"""
-        print(f"🔄 Generating state graph for {self.soup_type}...")
+        print(f"Generating state graph for {self.soup_type}...")
         
         # Generate all valid states
         all_states = self._generate_all_states()
-        print(f"📊 Generated {len(all_states)} valid states")
+        print(f"Generated {len(all_states)} valid states")
         
         # Add nodes to graph
         for state in all_states:
@@ -1599,7 +1599,7 @@ class ChoppedOnionSoupStateGraphGenerator(BaseStateGraphGenerator):
         
         # Generate transitions
         self._generate_all_transitions()
-        print(f"🔗 Generated transitions between states")
+        print(f"Generated transitions between states")
         
         return self.state_graph
         
@@ -1829,5 +1829,5 @@ def get_state_graph_generator(soup_type: str) -> BaseStateGraphGenerator:
         return PlainTomatoSoupStateGraphGenerator()
     
     # Default to the original generator for mixed soups or complex cases
-    print(f"⚠️ No specific generator found for '{soup_type}', using default StateGraphGenerator")
+    print(f"No specific generator found for '{soup_type}', using default StateGraphGenerator")
     return StateGraphGenerator() 

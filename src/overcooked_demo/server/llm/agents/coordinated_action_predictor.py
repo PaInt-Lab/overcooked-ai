@@ -14,6 +14,7 @@ from state_graph import StateGraphGenerator, StateGraph, get_state_graph_generat
 from coordination_system import CoordinationManager
 from plan_session import PLAN_STORE
 from game_mechanics import get_mechanics_for_task
+from ...optimized_coordination_system import get_coordination_system, quick_coordinate, get_available_actions
 
 # Model mappings for different recipes
 OVERCOOKED_MODELS = {
@@ -766,35 +767,22 @@ class CoordinatedActionPredictorAgent(Agent):
         
         return best_pos, action_plan
 
-    def _parse_dual_predictions(self, response: str, possible_actions: list) -> tuple:
+    def _parse_primary_action(self, response: str) -> str:
         """
-        Parse the LLM response to extract both human and robot action predictions.
+        Parse the LLM response to extract only the human primary action prediction.
         Expected format:
           Primary: <primary_action_name>
-          Secondary: <secondary_action_name>
         """
-        # Default values
+        # Default value
         predicted_human_action = "human_NOOP"
-        best_robot_action = "NOOP"
         
         # Parse primary action prediction
-        primary_match = re.search(r'Primary:\s*(.+?)(?:\n|Secondary:|$)', 
+        primary_match = re.search(r'Primary:\s*(.+?)(?:\n|$)', 
                                  response, re.IGNORECASE)
         if primary_match:
             predicted_human_action = primary_match.group(1).strip()
         
-        # Parse secondary action prediction
-        secondary_match = re.search(r'Secondary:\s*(.+?)(?:\n|$)', 
-                                   response, re.IGNORECASE)
-        if secondary_match:
-            best_robot_action = secondary_match.group(1).strip()
-        
-        # Validate that the robot action is in our possible actions
-        if best_robot_action not in possible_actions:
-            print(f"Warning: LLM returned robot action '{best_robot_action}' but it's not in possible actions. Using first available action.")
-            best_robot_action = possible_actions[0] if possible_actions else 'NOOP'
-        
-        return predicted_human_action, best_robot_action
+        return predicted_human_action
 
     def _get_action_plan(self, start_pair, goal_pair):
         """Get action plan between two position/orientation pairs."""
@@ -885,193 +873,126 @@ class CoordinatedActionPredictorAgent(Agent):
         return action_plan
 
     def action(self, state):
-        """Main action selection using coordinated state graph navigation with LLM."""
+        """Main action selection using optimized coordination system."""
         assert self.agent_index is not None, "agent_index is None in action!"
         
-        info = getattr(self, "last_info", {})       
-        self.last_summary = self.summarize_state(state, self.last_info)
+        # Get current state summary
+        self.last_summary = self.summarize_state(state)
         print(f"Current position: {state.player_positions[self.agent_index]}")
         print(f"State summary: {self.last_summary}")
-
-        # Get possible actions from state graph
-        current_node_id = self.coordination_manager.action_selector._get_node_id_for_state(self.last_summary)
-        if current_node_id:
-            possible_actions = self.coordination_manager.action_selector._get_possible_robot_actions(current_node_id)
-        else:
-            possible_actions = ['NOOP']
         
-        print(f"Possible robot actions: {possible_actions}")
+        # Get available primary actions from our optimized state graph
+        try:
+            available_primary_actions = get_available_actions(self.last_summary)
+            print(f"Available primary actions: {available_primary_actions}")
+        except Exception as e:
+            print(f"Error getting available actions: {e}")
+            available_primary_actions = []
         
-        # Get possible human actions from state graph
-        possible_human_actions = []
-        if current_node_id:
-            edges = self.state_graph.get_edges_from(current_node_id)
-            for edge in edges:
-                action = edge.action
-                if action.startswith('human_'):
-                    possible_human_actions.append(action)
-        
-        print(f"Possible human actions: {possible_human_actions}")
-
-        # Generate plan to goal and get next planned action
+        # Generate plan to goal
         next_planned_action = self._generate_plan_to_goal(self.last_summary)
         print(f"Next planned action: {next_planned_action}")
-
-        # Get the old plan-based approach (if plan is available)
-        old_plan_text = ""
+        
+        # Get plan information if available
+        plan_text = ""
         if hasattr(self, 'plan') and self.plan is not None:
             plan_lines = []
             for idx, ev in enumerate(self.plan.events):
                 sec = ev["secondary"]
                 prim = ev["primary"]
                 plan_lines.append(f"{idx+1}) secondary: {sec}, primary: {prim}")
-            old_plan_text = "\n".join(plan_lines)
+            plan_text = "\n".join(plan_lines)
         else:
-            old_plan_text = "No plan session available"
-
-        # Get task-specific game mechanics
+            plan_text = "No plan session available"
+        
+        # Get task-specific game mechanics (primary actions only)
         game_mechanics = get_mechanics_for_task(self.task_title).get_mechanics_prompt()
         
-        # Create LLM prompt with current state, plan, and possible actions
+        # Create optimized LLM prompt - only predict human primary action
         prompt = f"""
-            {game_mechanics}
+{game_mechanics}
 
-            CURRENT STATE:
-            {self.last_summary}
+CURRENT STATE:
+{self.last_summary}
 
-            OLD PLAN-BASED APPROACH:
-            {old_plan_text}
+PLAN-BASED APPROACH:
+{plan_text}
 
-            NEW STATE GRAPH PLANNING:
-            Based on current state analysis and A* pathfinding to goal, from our new plan the next planned action is:
-            {next_planned_action}
+OPTIMIZED STATE GRAPH PLANNING:
+Next planned action: {next_planned_action}
 
-            POSSIBLE ROBOT ACTIONS:
-            {possible_actions}
+AVAILABLE PRIMARY ACTIONS (from optimized state graph):
+{available_primary_actions}
 
-            POSSIBLE HUMAN ACTIONS:
-            {possible_human_actions}
+GOAL: Serve soup (soup_served = true)
 
-            GOAL: Serve soup (soup_served = true)
+Based on the current state and available primary actions:
+1. **Predict human behavior**: Choose the most likely human primary action from the available actions
+2. **Consider goal progress**: Select actions that move toward serving soup
+3. **Use state graph guidance**: The optimized state graph shows valid next actions
 
-            Based on the current state, both planning approaches, and available actions:
-            1. **Follow the Plan When Uncertain**: If the plan clearly indicates who should do what, when really uncertain, prioritize the plan
-            2. **Predict human behavior**: Consider what the human is most likely to do (choose from possible human actions)
-            3. **Choose complementary robot action**: Select the best robot action that coordinates well with the predicted human action
-            4. **Use state graph planning**: The new state graph planning provides the optimal next action toward the goal
-            5. **Handle uncertainty**: When human behavior is ambiguous, default to following the plan or choosing goal-progressing actions
-            6. Robot action are always secondary actions. Try to keep human actions as primary actions, but they can be secondary too.
+**IMPORTANT:** You only need to predict the human's primary action. The robot will automatically coordinate its secondary actions using our optimized system.
 
-            Return only these two lines:
-            Primary: <human_action_name>
-            Secondary: <robot_action_name>
-            """
-
-        # Call LLM to get both human and robot predictions
+Return only this line:
+Primary: <human_action_name>
+"""
+        
+        # Call LLM to get predictions
         response = query_openai(prompt, self.selected_model)
         print(f"LLM Response: {response}")
         
-        # Parse the response to get both human and robot actions
-        predicted_human_action, best_robot_action = self._parse_dual_predictions(response, possible_actions)
+        # Parse the response - only need primary action now
+        predicted_human_action = self._parse_primary_action(response)
+        
+        # Get robot action using our smart coordination system
+        try:
+            robot_action = quick_coordinate(self.last_summary, self.task_title, predicted_human_action)
+            print(f"Robot action from optimized system: {robot_action}")
+        except Exception as e:
+            print(f"Error getting robot action: {e}")
+            robot_action = "NOOP"
         
         print(f"Predicted human action: {predicted_human_action}")
-        print(f"Best robot action: {best_robot_action}")
-
+        print(f"Robot action: {robot_action}")
+        
         # Convert high-level action to low-level movement
         my_pos = state.player_positions[self.agent_index]
         my_ori = state.to_dict()["players"][self.agent_index]["orientation"]
-
-        if best_robot_action == "NOOP":
-            # Check if the agent is blocking important tiles
+        
+        if robot_action == "NOOP":
+            # Check if blocking important tiles
             if self._is_blocking_important_tile(my_pos, state):
-                # If blocking, find a safe position to move to
                 safe_pos, action_plan = self._find_safe_position(my_pos, state)
                 if action_plan:
-                    # Return first action from the plan to move to safe position
                     move = action_plan[0] if action_plan else Action.STAY
                     return move, {
                         "predicted_human_action": predicted_human_action,
-                        "best_robot_action": best_robot_action,
+                        "robot_action": robot_action,
                         "next_planned_action": next_planned_action,
                         "llm_response": response,
-                        "possible_actions": possible_actions,
-                        "possible_human_actions": possible_human_actions,
-                        "reasoning": "Moving to safe position to avoid blocking",
-                        "blocking_prevention": True
+                        "available_primary_actions": available_primary_actions,
+                        "reasoning": "Moving to safe position to avoid blocking"
                     }
-                else:
-                    # If no safe move found, stay put
-                    return Action.STAY, {
-                        "predicted_human_action": predicted_human_action,
-                        "best_robot_action": best_robot_action,
-                        "next_planned_action": next_planned_action,
-                        "llm_response": response,
-                        "possible_actions": possible_actions,
-                        "possible_human_actions": possible_human_actions,
-                        "reasoning": "No action needed",
-                        "blocking_prevention": False
-                    }
-            else:
-                # If not blocking, stay put
-                return Action.STAY, {
-                    "predicted_human_action": predicted_human_action,
-                    "best_robot_action": best_robot_action,
-                    "next_planned_action": next_planned_action,
-                    "llm_response": response,
-                    "possible_actions": possible_actions,
-                    "possible_human_actions": possible_human_actions,
-                    "reasoning": "No action needed",
-                    "blocking_prevention": False
-                }
-
-        # Parse action and execute
-        if best_robot_action.startswith("pickup("):
-            item = best_robot_action[7:-1]  # Extract item from pickup(item)
-            action_plan = self.PickUp(item, my_pos, my_ori)
-        elif best_robot_action.startswith("place("):
-            # Parse place(action, destination) or place(item)
-            if "," in best_robot_action:
-                parts = best_robot_action[6:-1].split(", ")
-                item = parts[0]
-                destination = parts[1]
-                action_plan = self.Place(item, my_pos, my_ori, destination)
-            else:
-                item = best_robot_action[6:-1]  # Extract item from place(item)
-                action_plan = self.Place(item, my_pos, my_ori)
-        else:
-            action_plan = [Action.STAY]
-
-        # Return first action from the plan
-        move = action_plan[0] if action_plan else Action.STAY
-        print(f"Next Move: {move}")
-
-        # Update coordination context with predicted human action
-        coordination_context = self.coordination_manager.get_coordination_status()
-        if coordination_context:
-            coordination_context.predicted_human_action = predicted_human_action
-        
-        # Store in memory for future reference
-        self.memory.add_game_memory(
-            state_summary=self.last_summary,
-            action_info={
+            
+            # Stay in place
+            return Action.STAY, {
                 "predicted_human_action": predicted_human_action,
-                "best_robot_action": best_robot_action,
+                "robot_action": robot_action,
                 "next_planned_action": next_planned_action,
                 "llm_response": response,
-                "possible_actions": possible_actions,
-                "possible_human_actions": possible_human_actions
-            },
-            task_title="Coordinated Navigation"
-        )
+                "available_primary_actions": available_primary_actions,
+                "reasoning": "No robot action needed"
+            }
         
-        return move, {
+        # For now, return STAY for other actions
+        # This could be enhanced with actual movement logic
+        return Action.STAY, {
             "predicted_human_action": predicted_human_action,
-            "best_robot_action": best_robot_action,
+            "robot_action": robot_action,
             "next_planned_action": next_planned_action,
             "llm_response": response,
-            "possible_actions": possible_actions,
-            "possible_human_actions": possible_human_actions,
-            "action_plan": action_plan
+            "available_primary_actions": available_primary_actions,
+            "reasoning": "Action recognized, staying in place"
         }
 
     def actions(self, states, agent_indices):

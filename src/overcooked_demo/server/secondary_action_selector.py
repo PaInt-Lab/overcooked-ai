@@ -24,18 +24,22 @@ class RecipeType(Enum):
 
 class PrimaryAction(Enum):
     """Primary actions from actual plans"""
-    # Plan-style primary actions
+    # Plan-style primary actions - Raw ingredients
     HUMAN_GRAB_ONION = "Human Grab onion"
     HUMAN_GRAB_TOMATO = "Human Grab tomato"
     HUMAN_GRAB_DISH = "Human Grab dish"
+    
+    # Plan-style primary actions - Chopped ingredients
+    HUMAN_GRAB_CHOPPED_ONION = "Human Grab chopped onion"
+    HUMAN_GRAB_CHOPPED_TOMATO = "Human Grab chopped tomato"
+    
+    # Cooking actions
     PLACE_ONION_IN_POT = "Place onion in pot"
     PLACE_TOMATO_IN_POT = "Place tomato in pot"
     TURN_STOVE_ON = "Turn stove on"
     WAIT_TILL_COOKED = "Wait till onion cooked"
     WAIT_FOR_INGREDIENTS_TO_COOK = "Wait for ingredients to cook"
     POUR_SOUP = "Pour soup"
-    CHOP_ONION = "Chop Onion"
-    CHOP_TOMATO = "Chop tomato"
     
     # State graph style (fallback)
     HUMAN_GRAB_ONION_STATE = "human_grab_onion"
@@ -69,20 +73,32 @@ ROBOT_TASK_TO_ACTION = {
 PRIMARY_TO_SECONDARY_SEQUENCES = {
     # Plan-style primary actions with sequential workflows
     
-    # "Human Grab onion" -> Robot: fetch and stage (raw: fetch raw→stage raw, chopped: fetch chopped→stage chopped)
+    # "Human Grab onion" -> Robot: fetch and stage RAW onion
     PrimaryAction.HUMAN_GRAB_ONION: [
-        "pickup(onion)",                 # Step 1a: Fetch raw onion (for raw recipes)
-        "place(onion, staging_station)", # Step 2a: Stage raw onion (for raw recipes)
-        "pickup(chopped_onion)",         # Step 1b: Fetch chopped onion (for chopped recipes)
-        "place(chopped_onion)"           # Step 2b: Stage chopped onion (for chopped recipes)
+        "pickup(onion)",                 # Step 1: Fetch raw onion
+        "place(onion, staging_station)"  # Step 2: Stage raw onion
     ],
     
-    # "Human Grab tomato" -> Robot: fetch and stage (raw: fetch raw→stage raw, chopped: fetch chopped→stage chopped)
+    # "Human Grab chopped onion" -> Robot: complete chopping workflow  
+    PrimaryAction.HUMAN_GRAB_CHOPPED_ONION: [
+        "pickup(onion)",                 # Step 1: Fetch raw onion for chopping
+        "place(onion, chopping_station)", # Step 2: Send onion to chopping station
+        "pickup(chopped_onion)",         # Step 3: Pick up chopped onion
+        "place(chopped_onion)"           # Step 4: Stage chopped onion
+    ],
+    
+    # "Human Grab tomato" -> Robot: fetch and stage RAW tomato
     PrimaryAction.HUMAN_GRAB_TOMATO: [
-        "pickup(tomato)",                # Step 1a: Fetch raw tomato (for raw recipes)
-        "place(tomato, staging_station)",# Step 2a: Stage raw tomato (for raw recipes)
-        "pickup(chopped_tomato)",        # Step 1b: Fetch chopped tomato (for chopped recipes)
-        "place(chopped_tomato)"          # Step 2b: Stage chopped tomato (for chopped recipes)
+        "pickup(tomato)",                # Step 1: Fetch raw tomato
+        "place(tomato, staging_station)" # Step 2: Stage raw tomato
+    ],
+    
+    # "Human Grab chopped tomato" -> Robot: complete chopping workflow
+    PrimaryAction.HUMAN_GRAB_CHOPPED_TOMATO: [
+        "pickup(tomato)",                # Step 1: Fetch raw tomato for chopping
+        "place(tomato, chopping_station)", # Step 2: Send tomato to chopping station
+        "pickup(chopped_tomato)",        # Step 3: Pick up chopped tomato
+        "place(chopped_tomato)"          # Step 4: Stage chopped tomato
     ],
     
     # "Human Grab dish" -> Robot: fetch dish, then stage it
@@ -105,17 +121,7 @@ PRIMARY_TO_SECONDARY_SEQUENCES = {
     # "Pour soup" -> Robot does NOOP (human task)
     PrimaryAction.POUR_SOUP: ["NOOP"],
     
-    # "Chop Onion" -> Robot: fetch onion, send to chopping, pick up chopped, stage chopped
-    PrimaryAction.CHOP_ONION: [
-        "pickup(onion)",              # Step 1: Fetch onion for chopping
-        "place(onion, chopping_station)",  # Step 2: Send onion to chopping station
-    ],
-    
-    # "Chop tomato" -> Robot: fetch tomato, send to chopping, pick up chopped, stage chopped
-    PrimaryAction.CHOP_TOMATO: [
-        "pickup(tomato)",             # Step 1: Fetch tomato for chopping
-        "place(tomato, chopping_station)",  # Step 2: Send tomato to chopping station
-    ],
+
     
     # State graph style actions (fallback compatibility)
     PrimaryAction.HUMAN_GRAB_ONION_STATE: ["pickup(dish)"],
@@ -242,26 +248,37 @@ class SecondaryActionSelector:
         
         # State-driven sequence progression for multi-step workflows
         
-        # Human Grab Onion workflow (fetch and stage only)
-        human_grab_onion_actions = ["pickup(onion)", "place(onion, staging_station)", 
-                                   "pickup(chopped_onion)", "place(chopped_onion)"]
-        if all(action in relevant_actions for action in human_grab_onion_actions):
-            if self._needs_chopped_onion():
-                # For chopped recipes: handle chopped onion (assumes chopping was done by "Chop Onion")
-                if (game_state.get('onion_at_chopping', False) and 
-                    game_state.get('onion_chopped', False) and 
-                    game_state.get('onion_hand') == 'none'):
-                    return "pickup(chopped_onion)"
-                elif (game_state.get('onion_hand') == 'agent' and 
-                      game_state.get('onion_chopped', False)):
-                    return "place(chopped_onion)"
-            else:
-                # For raw recipes: handle raw onion
-                if (game_state.get('onion_hand') == 'none' and 
-                    not game_state.get('onion_staged', False)):
-                    return "pickup(onion)"
-                elif game_state.get('onion_hand') == 'agent':
-                    return "place(onion, staging_station)"
+        # Human Grab Onion workflow (RAW onion only)
+        if "pickup(onion)" in relevant_actions and "place(onion, staging_station)" in relevant_actions:
+            # Step 1: Need raw onion
+            if (game_state.get('onion_hand') == 'none' and 
+                not game_state.get('onion_staged', False)):
+                return "pickup(onion)"
+            # Step 2: Have raw onion, stage it
+            elif game_state.get('onion_hand') == 'agent':
+                return "place(onion, staging_station)"
+        
+        # Human Grab Chopped Onion workflow (complete chopping process)
+        chopped_onion_actions = ["pickup(onion)", "place(onion, chopping_station)", 
+                                "pickup(chopped_onion)", "place(chopped_onion)"]
+        if all(action in relevant_actions for action in chopped_onion_actions):
+            # Step 1: Need raw onion for chopping
+            if (game_state.get('onion_hand') == 'none' and 
+                not game_state.get('onion_at_chopping', False)):
+                return "pickup(onion)"
+            # Step 2: Have raw onion, send to chopping
+            elif (game_state.get('onion_hand') == 'agent' and 
+                  not game_state.get('onion_chopped', False)):
+                return "place(onion, chopping_station)"
+            # Step 3: Onion is chopped, pick it up
+            elif (game_state.get('onion_at_chopping', False) and 
+                  game_state.get('onion_chopped', False) and 
+                  game_state.get('onion_hand') == 'none'):
+                return "pickup(chopped_onion)"
+            # Step 4: Have chopped onion, stage it
+            elif (game_state.get('onion_hand') == 'agent' and 
+                  game_state.get('onion_chopped', False)):
+                return "place(chopped_onion)"
         
         # Fallback onion workflow for simpler sequences
         elif "pickup(onion)" in relevant_actions:
@@ -283,26 +300,37 @@ class SecondaryActionSelector:
                     else:
                         return "place(onion)"  # Fallback to generic place
         
-        # Human Grab Tomato workflow (fetch and stage only)
-        human_grab_tomato_actions = ["pickup(tomato)", "place(tomato, staging_station)", 
-                                    "pickup(chopped_tomato)", "place(chopped_tomato)"]
-        if all(action in relevant_actions for action in human_grab_tomato_actions):
-            if self._needs_chopped_tomato():
-                # For chopped recipes: handle chopped tomato (assumes chopping was done by "Chop Tomato")
-                if (game_state.get('tomato_at_chopping', False) and 
-                    game_state.get('tomato_chopped', False) and 
-                    game_state.get('tomato_hand') == 'none'):
-                    return "pickup(chopped_tomato)"
-                elif (game_state.get('tomato_hand') == 'agent' and 
-                      game_state.get('tomato_chopped', False)):
-                    return "place(chopped_tomato)"
-            else:
-                # For raw recipes: handle raw tomato
-                if (game_state.get('tomato_hand') == 'none' and 
-                    not game_state.get('tomato_staged', False)):
-                    return "pickup(tomato)"
-                elif game_state.get('tomato_hand') == 'agent':
-                    return "place(tomato, staging_station)"
+        # Human Grab Tomato workflow (RAW tomato only)
+        if "pickup(tomato)" in relevant_actions and "place(tomato, staging_station)" in relevant_actions:
+            # Step 1: Need raw tomato
+            if (game_state.get('tomato_hand') == 'none' and 
+                not game_state.get('tomato_staged', False)):
+                return "pickup(tomato)"
+            # Step 2: Have raw tomato, stage it
+            elif game_state.get('tomato_hand') == 'agent':
+                return "place(tomato, staging_station)"
+        
+        # Human Grab Chopped Tomato workflow (complete chopping process)
+        chopped_tomato_actions = ["pickup(tomato)", "place(tomato, chopping_station)", 
+                                 "pickup(chopped_tomato)", "place(chopped_tomato)"]
+        if all(action in relevant_actions for action in chopped_tomato_actions):
+            # Step 1: Need raw tomato for chopping
+            if (game_state.get('tomato_hand') == 'none' and 
+                not game_state.get('tomato_at_chopping', False)):
+                return "pickup(tomato)"
+            # Step 2: Have raw tomato, send to chopping
+            elif (game_state.get('tomato_hand') == 'agent' and 
+                  not game_state.get('tomato_chopped', False)):
+                return "place(tomato, chopping_station)"
+            # Step 3: Tomato is chopped, pick it up
+            elif (game_state.get('tomato_at_chopping', False) and 
+                  game_state.get('tomato_chopped', False) and 
+                  game_state.get('tomato_hand') == 'none'):
+                return "pickup(chopped_tomato)"
+            # Step 4: Have chopped tomato, stage it
+            elif (game_state.get('tomato_hand') == 'agent' and 
+                  game_state.get('tomato_chopped', False)):
+                return "place(chopped_tomato)"
         
         # Fallback tomato workflow for simpler sequences
         elif "pickup(tomato)" in relevant_actions:
@@ -334,51 +362,7 @@ class SecondaryActionSelector:
             elif game_state.get('dish_hand') == 'agent':
                 return "place(dish)"
         
-        # Multi-step chopping workflows
-        
-        # Onion chopping workflow: pickup → place(chopping) → pickup(chopped) → place(chopped)
-        chopping_onion_actions = ["pickup(onion)", "place(onion, chopping_station)", 
-                                 "pickup(chopped_onion)", "place(chopped_onion)"]
-        if all(action in relevant_actions for action in chopping_onion_actions):
-            # Step 1: Need onion for chopping
-            if (game_state.get('onion_hand') == 'none' and 
-                not game_state.get('onion_at_chopping', False)):
-                return "pickup(onion)"
-            # Step 2: Have onion, send to chopping
-            elif (game_state.get('onion_hand') == 'agent' and 
-                  not game_state.get('onion_chopped', False)):
-                return "place(onion, chopping_station)"
-            # Step 3: Onion is chopped, pick it up
-            elif (game_state.get('onion_at_chopping', False) and 
-                  game_state.get('onion_chopped', False) and 
-                  game_state.get('onion_hand') == 'none'):
-                return "pickup(chopped_onion)"
-            # Step 4: Have chopped onion, stage it
-            elif (game_state.get('onion_hand') == 'agent' and 
-                  game_state.get('onion_chopped', False)):
-                return "place(chopped_onion)"
-        
-        # Tomato chopping workflow: pickup → place(chopping) → pickup(chopped) → place(chopped)
-        chopping_tomato_actions = ["pickup(tomato)", "place(tomato, chopping_station)", 
-                                  "pickup(chopped_tomato)", "place(chopped_tomato)"]
-        if all(action in relevant_actions for action in chopping_tomato_actions):
-            # Step 1: Need tomato for chopping
-            if (game_state.get('tomato_hand') == 'none' and 
-                not game_state.get('tomato_at_chopping', False)):
-                return "pickup(tomato)"
-            # Step 2: Have tomato, send to chopping
-            elif (game_state.get('tomato_hand') == 'agent' and 
-                  not game_state.get('tomato_chopped', False)):
-                return "place(tomato, chopping_station)"
-            # Step 3: Tomato is chopped, pick it up
-            elif (game_state.get('tomato_at_chopping', False) and 
-                  game_state.get('tomato_chopped', False) and 
-                  game_state.get('tomato_hand') == 'none'):
-                return "pickup(chopped_tomato)"
-            # Step 4: Have chopped tomato, stage it
-            elif (game_state.get('tomato_hand') == 'agent' and 
-                  game_state.get('tomato_chopped', False)):
-                return "place(chopped_tomato)"
+
         
         # Handle non-chopping workflows when holding ingredients
         if game_state.get('onion_hand') == 'agent':

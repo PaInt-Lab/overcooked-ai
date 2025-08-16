@@ -398,7 +398,8 @@ class SecondaryActionSelector:
                                       game_state.get('tomato_hand') == 'none' and 
                                       not game_state.get('tomato_staged', False) and
                                       "place(tomato)" not in relevant_actions)),  # Not part of sequence  
-            ("pickup(dish)", lambda: (game_state.get('dish_hand') == 'none' and
+            ("pickup(dish)", lambda: (self._needs_dish() and
+                                    game_state.get('dish_hand') == 'none' and
                                     "place(dish)" not in relevant_actions)),  # Not part of sequence
         ]
         
@@ -424,6 +425,10 @@ class SecondaryActionSelector:
     def _needs_chopped_tomato(self) -> bool:
         """Check if this recipe needs chopped tomato"""
         return "tomato_chopped" in self.recipe_type.value
+        
+    def _needs_dish(self) -> bool:
+        """Check if this recipe needs a dish (all recipes do)"""
+        return True  # All soup recipes need a dish
 
 
 def create_selector_for_task(task_title: str) -> SecondaryActionSelector:

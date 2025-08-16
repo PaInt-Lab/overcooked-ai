@@ -57,44 +57,4 @@ class OnionChoppedTomatoRawMechanics(BaseMechanics):
         ]
         return recipe_rules + base_rules
     
-    def get_secondary_actions(self) -> List[str]:
-        base_actions = self.get_base_secondary_actions()
-        recipe_actions = [
-            "pickup(onion): Pick up onion from dispenser",
-            "pickup(chopped_onion): Pick up chopped onion from chopping station",
-            "pickup(tomato): Pick up tomato from dispenser",
-            "place(onion, chopping_station): Place onion at chopping station (auto-chops)",
-            "place(chopped_onion): Place chopped onion at staging station",
-            "place(tomato, staging_station): Place tomato at staging station"
-        ]
-        return recipe_actions + base_actions
-    
-    def get_decision_rules(self) -> List[str]:
-        base_rules = self.get_base_decision_rules()
-        recipe_rules = [
-            "**Choose pickup(onion) when:**",
-            "- onion_hand=\"none\" AND onion_at_chopping=false AND onion_in_pot=false",
-            "- (Need to fetch onion for chopping)",
-            "",
-            "**Choose place(onion, chopping_station) when:**",
-            "- onion_hand=\"agent\" AND onion_chopped=false",
-            "- (Agent is holding onion and needs to chop it)",
-            "",
-            "**Choose pickup(chopped_onion) when:**",
-            "- onion_chopped=true AND onion_at_chopping=true AND onion_hand=\"none\"",
-            "- (Chopped onion is ready at chopping station)",
-            "",
-            "**Choose place(chopped_onion) when:**",
-            "- onion_chopped=true AND onion_hand=\"agent\" AND onion_staged=false",
-            "- (Agent is holding chopped onion and needs to stage it)",
-            "",
-            "**Choose pickup(tomato) when:**",
-            "- tomato_hand=\"none\" AND tomato_staged=false AND tomato_in_pot=false AND onion_in_pot=true",
-            "- (Need to fetch tomato after onion is in pot)",
-            "",
-            "**Choose place(tomato, staging_station) when:**",
-            "- tomato_hand=\"agent\" AND tomato_staged=false",
-            "- (Agent is holding tomato and needs to stage it for human to use)",
-            ""
-        ]
-        return recipe_rules + base_rules
+    # Secondary actions are now handled automatically by the optimized coordination system

@@ -46,24 +46,4 @@ class OnionRawMechanics(BaseMechanics):
         ]
         return recipe_rules + base_rules
     
-    def get_secondary_actions(self) -> List[str]:
-        base_actions = self.get_base_secondary_actions()
-        recipe_actions = [
-            "pickup(onion): Pick up onion from dispenser",
-            "place(onion, staging_station): Place onion at staging station"
-        ]
-        return recipe_actions + base_actions
-    
-    def get_decision_rules(self) -> List[str]:
-        base_rules = self.get_base_decision_rules()
-        recipe_rules = [
-            "**Choose pickup(onion) when:**",
-            "- onion_hand=\"none\" AND onion_staged=false AND onion_in_pot=false AND soup_staged=false AND soup_hand=\"none\"",
-            "- (Need to fetch onion for processing)",
-            "",
-            "**Choose place(onion, staging_station) when:**",
-            "- onion_hand=\"agent\" AND onion_staged=false",
-            "- (Agent is holding onion and needs to stage it for human to use)",
-            ""
-        ]
-        return recipe_rules + base_rules
+    # Secondary actions are now handled automatically by the optimized coordination system

@@ -92,57 +92,8 @@ class BaseMechanics(ABC):
         """
         pass
     
-    def get_base_secondary_actions(self) -> List[str]:
-        """Common secondary actions available to all recipes"""
-        return [
-            "pickup(dish): Pick up dish from dispenser",
-            "pickup(soup): Pick up soup from staging", 
-            "place(dish): Place dish at staging station",
-            "place(soup): Place soup at serving station",
-            "NOOP: No secondary action needed"
-        ]
-    
-    @abstractmethod
-    def get_secondary_actions(self) -> List[str]:
-        """
-        Get all secondary actions for this recipe type.
-        Should include base actions plus recipe-specific ones.
-        """
-        pass
-    
-    def get_base_decision_rules(self) -> List[str]:
-        """Common decision rules for secondary actions"""
-        return [
-            "**Choose pickup(dish) when:**",
-            "- dish_staged=false AND soup_cooking=true",
-            "- (Need dish ready when soup is cooking)",
-            "",
-            "**Choose place(dish) when:**", 
-            "- dish_hand=\"agent\" AND dish_staged=false",
-            "- (Agent is holding dish and needs to stage it)",
-            "",
-            "**Choose pickup(soup) when:**",
-            "- soup_hand=\"none\" AND soup_staged=true", 
-            "- (Soup is staged and ready for serving)",
-            "",
-            "**Choose place(soup) when:**",
-            "- soup_hand=\"agent\" AND soup_served=false",
-            "- (Agent is holding soup and needs to serve it)",
-            "",
-            "**Choose NOOP when:**",
-            "- All required items are already staged or in progress",
-            "- Waiting for cooking to complete (soup_cooking=true) AND dish_staged=true",
-            "- Waiting for partner to complete their action",
-            "- No immediate action needed based on current plan step"
-        ]
-    
-    @abstractmethod
-    def get_decision_rules(self) -> List[str]:
-        """
-        Get all decision rules for this recipe type.
-        Should include base rules plus recipe-specific ones.
-        """
-        pass
+    # Note: Secondary actions are now handled automatically by the optimized coordination system
+    # No need for individual mechanics to define secondary actions or decision rules
     
     def get_mechanics_prompt(self) -> str:
         """
@@ -182,18 +133,6 @@ class BaseMechanics(ABC):
         
         prompt_sections.extend([
             "",
-            "### Secondary Actions:"
-        ])
-        
-        # Add secondary actions
-        for action in self.get_secondary_actions():
-            if action.startswith("-"):
-                prompt_sections.append(action)
-            else:
-                prompt_sections.append(f"- {action}")
-        
-        prompt_sections.extend([
-            "",
             "## TASK EXECUTION",
             "",
             "Each call you receive has this structure:",
@@ -213,22 +152,12 @@ class BaseMechanics(ABC):
             "1. **Analyze current state** against the MDP knowledge above to understand game mechanics",
             "2. **Identify which plan-step (1...N)** is currently active based on state and progress",
             "3. **From that step's primary list**, choose exactly one of the canonical primary events (reuse the text exactly as given)",
-            "4. **From the same step's secondary list**, choose exactly one of the available secondary actions",
             "",
-            "**EXACT DECISION RULES for secondary actions:**",
-            ""
-        ])
-        
-        # Add decision rules
-        for rule in self.get_decision_rules():
-            prompt_sections.append(rule)
-        
-        prompt_sections.extend([
+            "**Note:** The robot will automatically coordinate its secondary actions based on your primary action prediction.",
             "",
-            "Return **only** these two lines (no extra commentary):",
+            "Return **only** this line (no extra commentary):",
             "",
-            "primary: <exact primary event text>",
-            "secondary: <one of the available secondary actions or NOOP>"
+            "primary: <exact primary event text>"
         ])
         
         return "\n".join(prompt_sections)

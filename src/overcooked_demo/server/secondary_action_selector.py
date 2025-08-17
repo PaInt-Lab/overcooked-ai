@@ -362,8 +362,6 @@ class SecondaryActionSelector:
             elif game_state.get('dish_hand') == 'agent':
                 return "place(dish)"
         
-
-        
         # Handle non-chopping workflows when holding ingredients
         if game_state.get('onion_hand') == 'agent':
             if "place(onion)" in relevant_actions:

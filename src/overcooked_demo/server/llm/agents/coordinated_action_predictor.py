@@ -910,33 +910,34 @@ class CoordinatedActionPredictorAgent(Agent):
         
         # Create optimized LLM prompt - only predict human primary action
         prompt = f"""
-{game_mechanics}
 
-CURRENT STATE:
-{self.last_summary}
+        {game_mechanics}
 
-PLAN-BASED APPROACH:
-{plan_text}
+        CURRENT STATE:
+        {self.last_summary}
 
-OPTIMIZED STATE GRAPH PLANNING:
-Next planned action: {next_planned_action}
+        USER PLAN PREFERED SEQUENCE:
+        {plan_text}
 
-AVAILABLE PRIMARY ACTIONS (from optimized state graph):
-{available_primary_actions}
+        MOST EFFICIENT NEXT ACTION FOR GOAL COMPLETION:
+        Next planned action: {next_planned_action}
 
-GOAL: Serve soup (soup_served = true)
+        AVAILABLE PRIMARY ACTIONS (from optimized state graph):
+        {available_primary_actions}
 
-Based on the current state and available primary actions:
-1. **Predict human behavior**: Choose the most likely human primary action from the available actions
-2. **Consider goal progress**: Select actions that move toward serving soup
-3. **Use state graph guidance**: The optimized state graph shows valid next actions
+        GOAL: Serve soup (soup_served = true)
 
-**IMPORTANT:** You only need to predict the human's primary action. The robot will automatically coordinate its secondary actions using our optimized system.
+        Based on the current state and available primary actions:
+        1. **Predict human behavior**: Choose the most likely human primary action from the available actions
+        2. **Consider goal progress**: Select actions that move toward serving soup
+        3. **Use state graph guidance**: The optimized state graph shows valid next actions
 
-Return only this line:
-Primary: <human_action_name>
-"""
-        
+        **IMPORTANT:** You only need to predict the human's primary action. The robot will automatically coordinate its secondary actions using our optimized system.
+
+        Return only this line:
+        Primary: <human_action_name>
+        """
+                
         # Call LLM to get predictions
         response = query_openai(prompt, self.selected_model)
         print(f"LLM Response: {response}")

@@ -11,10 +11,9 @@ import os
 from openai import OpenAI
 from llm.memory.vector_memory import VectorMemory
 from state_graph import StateGraphGenerator, StateGraph, get_state_graph_generator
-from coordination_system import CoordinationManager
 from plan_session import PLAN_STORE
 from game_mechanics import get_mechanics_for_task
-from ...optimized_coordination_system import get_coordination_system, quick_coordinate, get_available_actions
+from optimized_coordination_system import get_coordination_system, quick_coordinate, get_available_actions
 
 # Model mappings for different recipes
 OVERCOOKED_MODELS = {
@@ -188,9 +187,8 @@ class CoordinatedActionPredictorAgent(Agent):
         self.onion_chopped = False
         self.tomato_chopped = False
         
-        # State graph and coordination system
+        # State graph - using optimized coordination system instead
         self.state_graph = None
-        self.coordination_manager = None
         # Defer state graph initialization until plan is set
 
     def _initialize_state_graph(self):
@@ -236,7 +234,7 @@ class CoordinatedActionPredictorAgent(Agent):
             print(f"Task-specific cache not found, generating state graph for '{task_title}'...")
             self._generate_task_specific_state_graph(task_title)
         
-        self.coordination_manager = CoordinationManager(self.state_graph)
+        # No need for old coordination manager - using optimized system
         
     def _generate_task_specific_state_graph(self, task_title: str):
         """Generate state graph for specific task"""
@@ -572,9 +570,9 @@ class CoordinatedActionPredictorAgent(Agent):
             'soup_served': True  # Goal state
         }
         
-        # Get current and goal node IDs
-        current_node_id = self.coordination_manager.action_selector._get_node_id_for_state(current_state)
-        goal_node_id = self.coordination_manager.action_selector._get_node_id_for_state(goal_state)
+        # Get current and goal node IDs using our own lookup method
+        current_node_id = self._get_node_id_for_state(current_state)
+        goal_node_id = self._get_node_id_for_state(goal_state)
         
         if not current_node_id or not goal_node_id:
             return self._get_fallback_action(current_state)  # Use fallback when no nodes found
@@ -655,6 +653,36 @@ class CoordinatedActionPredictorAgent(Agent):
         
         # Default: no action needed
         return 'NOOP'
+
+    def _get_node_id_for_state(self, state: dict) -> str:
+        """
+        Get node ID for a state using the state graph mapping.
+        This replaces the old coordination manager's node ID lookup.
+        """
+        if not self.state_graph:
+            return None
+            
+        # Use the state graph's mapping if available
+        if hasattr(self.state_graph, 'state_to_node_id'):
+            state_key = json.dumps(state, sort_keys=True)
+            node_id = self.state_graph.state_to_node_id.get(state_key)
+            if node_id:
+                return node_id
+        
+        # Try to find a matching node by comparing state summaries
+        state_key = json.dumps(state, sort_keys=True)
+        print(f"🔍 Looking for state: {state_key}")
+        print(f"   Available mappings: {len(self.state_graph.state_to_node_id) if hasattr(self.state_graph, 'state_to_node_id') else 0}")
+        
+        for node_id, node in self.state_graph.nodes.items():
+            node_state_key = json.dumps(node.state_summary, sort_keys=True)
+            if node_state_key == state_key:
+                print(f"   ✅ Found matching node: {node_id}")
+                return node_id
+        
+        print(f"   ❌ No exact match found")
+        # Fallback to simple hash-based ID if no exact match found
+        return f"state_{hash(state_key) % 1000000:06d}"
 
     def _is_blocking_important_tile(self, my_pos: tuple, state) -> bool:
         """

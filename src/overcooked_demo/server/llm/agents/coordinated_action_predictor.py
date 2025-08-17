@@ -59,14 +59,26 @@ def parse_recipe_components(task_title: str) -> str:
     
     # Check for dual ingredient recipes
     elif "onion" in task_title and "tomato" in task_title:
-        # Check if "chopped" comes before "onion" (before "and")
-        onion_state = "chopped" if ("chopped" in task_title and 
-                                   task_title.find("chopped") < task_title.find("onion") and
-                                   task_title.find("chopped") < task_title.find("and")) else "raw"
+        # For "Chopped Onion and Chopped Tomato", both are chopped
+        # Check if "chopped" appears before "onion" (first ingredient)
+        onion_chopped = ("chopped" in task_title and 
+                        task_title.find("chopped") < task_title.find("onion"))
         
-        # Check if "chopped" comes before "tomato" (after "and")
-        tomato_state = "chopped" if ("chopped" in task_title and 
-                                    task_title.find("chopped") > task_title.find("and")) else "raw"
+        # Check if "chopped" appears before "tomato" (second ingredient)
+        # Look for "chopped" after "and" or "&" but before "tomato"
+        and_pos = task_title.find("and")
+        ampersand_pos = task_title.find("&")
+        separator_pos = max(and_pos, ampersand_pos) if and_pos != -1 or ampersand_pos != -1 else -1
+        
+        tomato_chopped = False
+        if separator_pos != -1:
+            # Check if there's "chopped" between separator and "tomato"
+            tomato_section = task_title[separator_pos:]
+            tomato_chopped = ("chopped" in tomato_section and 
+                            tomato_section.find("chopped") < tomato_section.find("tomato"))
+        
+        onion_state = "chopped" if onion_chopped else "raw"
+        tomato_state = "chopped" if tomato_chopped else "raw"
         
         return f"onion_{onion_state}_tomato_{tomato_state}"
     
@@ -839,6 +851,90 @@ class CoordinatedActionPredictorAgent(Agent):
                 action_plan = _bfs_fallback(start_pos, goal_pos, terrain, goal_ori)
                 return action_plan
 
+    def _get_frontier_for_action(self, action: str, item: str, destination: str = None):
+        """Get the appropriate frontier for a given action and item."""
+        if action == "pickup":
+            # Pickup actions - always from specific locations
+            frontier_map = {
+                "onion": self.onion_frontier,  # From onion dispenser
+                "tomato": self.tomato_frontier,  # From tomato dispenser
+                "chopped_onion": self.onion_chopping_frontier,  # From chopping station
+                "chopped_tomato": self.tomato_chopping_frontier,  # From chopping station
+                "dish": self.dish_frontier,  # From dish dispenser
+                "soup": self.soup_staging_frontier,  # From soup staging
+            }
+            return frontier_map.get(item)
+            
+        elif action == "place":
+            # Place actions - simplified destination logic
+            if destination == "chopping_station":
+                # Place at chopping station (only for onions and tomatoes)
+                frontier_map = {
+                    "onion": self.onion_chopping_frontier,
+                    "tomato": self.tomato_chopping_frontier,
+                }
+                return frontier_map.get(item)
+            elif destination == "staging_station":
+                # Place at appropriate staging station (only for onions and tomatoes)
+                frontier_map = {
+                    "onion": self.onion_staging_frontier,
+                    "tomato": self.tomato_staging_frontier,
+                }
+                return frontier_map.get(item)
+            else:
+                # Default destinations for other items (no destination needed)
+                frontier_map = {
+                    "chopped_onion": self.onion_staging_frontier,  # Always to onion staging
+                    "chopped_tomato": self.tomato_staging_frontier,  # Always to tomato staging
+                    "dish": self.dish_staging_frontier,  # Always to dish staging
+                    "soup": self.delivery_frontier,  # Always to serving station
+                }
+                return frontier_map.get(item)
+            
+        else:
+            return None
+
+    def _find_nearest_goal(self, choices, my_pos: tuple, my_ori: tuple) -> tuple:
+        """Find the nearest goal from a list of choices."""
+        if not choices:
+            return (my_pos, tuple(my_ori))
+
+        def sort_key(mo):
+            (c, r), _ = mo
+            # primary: Manhattan distance
+            dist = abs(c - my_pos[0]) + abs(r - my_pos[1])
+            # secondary: prefer smaller col, then smaller row
+            return (dist, c, r)
+
+        goal_pos, goal_orient = min(choices, key=sort_key)
+        return (goal_pos, goal_orient)
+
+    def _get_target_for_action(self, planned_action, my_pos):
+        """Get the target position for a planned action."""
+        action_lower = planned_action.lower()
+        
+        if "pickup" in action_lower:
+            if "onion" in action_lower and self.onion_spawns:
+                return min(self.onion_spawns, key=lambda pos: abs(pos[0] - my_pos[0]) + abs(pos[1] - my_pos[1]))
+            elif "tomato" in action_lower and self.tomato_spawns:
+                return min(self.tomato_spawns, key=lambda pos: abs(pos[0] - my_pos[0]) + abs(pos[1] - my_pos[1]))
+            elif "dish" in action_lower and self.dish_spawns:
+                return min(self.dish_spawns, key=lambda pos: abs(pos[0] - my_pos[0]) + abs(pos[1] - my_pos[1]))
+        
+        return None
+
+    def _move_to_target(self, target, my_pos, my_ori):
+        """Move to a specific target position."""
+        if not target:
+            return []
+        
+        # Create a simple frontier with just the target
+        target_frontier = [(target, (0, 0))]  # No specific orientation needed
+        
+        goal = self._find_nearest_goal(target_frontier, my_pos, my_ori)
+        start_pair = (my_pos, tuple(my_ori))
+        return self._get_action_plan(start_pair, goal)
+
     def _move_to(self, action: str, item: str, start_pos: tuple, start_ori: tuple, destination: str = None):
         """Move to the appropriate location for the given action and item."""
         if action == "pickup":
@@ -905,7 +1001,7 @@ class CoordinatedActionPredictorAgent(Agent):
         assert self.agent_index is not None, "agent_index is None in action!"
         
         # Get current state summary
-        self.last_summary = self.summarize_state(state)
+        self.last_summary = self.summarize_state(state, {})
         print(f"Current position: {state.player_positions[self.agent_index]}")
         print(f"State summary: {self.last_summary}")
         
@@ -1013,15 +1109,64 @@ class CoordinatedActionPredictorAgent(Agent):
                 "reasoning": "No robot action needed"
             }
         
-        # For now, return STAY for other actions
-        # This could be enhanced with actual movement logic
+        # Execute the robot action using the clean movement system from action_predictor.py
+        try:
+            # The robot_action should already be in the right format from the coordination system
+            # Just execute it directly using our clean movement methods
+            if robot_action == "NOOP":
+                # Check if blocking important tiles
+                if self._is_blocking_important_tile(my_pos, state):
+                    safe_pos, action_plan = self._find_safe_position(my_pos, state)
+                    if action_plan:
+                        move = action_plan[0] if action_plan else Action.STAY
+                        return move, {
+                            "predicted_human_action": predicted_human_action,
+                            "robot_action": robot_action,
+                            "next_planned_action": next_planned_action,
+                            "llm_response": response,
+                            "available_primary_actions": available_primary_actions,
+                            "reasoning": "Moving to safe position to avoid blocking"
+                        }
+                
+                # Stay in place
+                return Action.STAY, {
+                    "predicted_human_action": predicted_human_action,
+                    "robot_action": robot_action,
+                    "next_planned_action": next_planned_action,
+                    "llm_response": response,
+                    "available_primary_actions": available_primary_actions,
+                    "reasoning": "No robot action needed"
+                }
+            
+            # For any other action, try to move toward the goal using the clean system
+            if next_planned_action and next_planned_action != "NOOP":
+                # Use the clean movement system to find a target
+                target = self._get_target_for_action(next_planned_action, my_pos)
+                if target:
+                    # Use the clean movement system to get the action plan
+                    action_plan = self._move_to_target(target, my_pos, my_ori)
+                    if action_plan:
+                        move = action_plan[0] if action_plan else Action.STAY
+                        return move, {
+                            "predicted_human_action": predicted_human_action,
+                            "robot_action": robot_action,
+                            "next_planned_action": next_planned_action,
+                            "llm_response": response,
+                            "available_primary_actions": available_primary_actions,
+                            "reasoning": f"Moving toward target at {target}"
+                        }
+        
+        except Exception as e:
+            print(f"Error executing robot action: {e}")
+        
+        # Fallback: stay in place
         return Action.STAY, {
             "predicted_human_action": predicted_human_action,
             "robot_action": robot_action,
             "next_planned_action": next_planned_action,
             "llm_response": response,
             "available_primary_actions": available_primary_actions,
-            "reasoning": "Action recognized, staying in place"
+            "reasoning": "Action execution failed, staying in place"
         }
 
     def actions(self, states, agent_indices):

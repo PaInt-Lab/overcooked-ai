@@ -148,9 +148,11 @@ class Game(ABC):
         """
         for i in range(len(self.players)):
             try:
-                while True:
-                    action = self.pending_actions[i].get(block=False)
-                    self.apply_action(i, action)
+                # Check if pending_actions[i] is actually a Queue (not EMPTY string)
+                if hasattr(self.pending_actions[i], 'get'):
+                    while True:
+                        action = self.pending_actions[i].get(block=False)
+                        self.apply_action(i, action)
             except Empty:
                 pass
 
@@ -586,10 +588,12 @@ class OvercookedGame(Game):
         for i in range(len(self.players)):
             if self.players[i] in self.human_players:
                 try:
-                    # Process all pending human actions immediately
-                    while True:
-                        action = self.pending_actions[i].get(block=False)
-                        self.apply_action(i, action)
+                    # Check if pending_actions[i] is actually a Queue (not EMPTY string)
+                    if hasattr(self.pending_actions[i], 'get'):
+                        # Process all pending human actions immediately
+                        while True:
+                            action = self.pending_actions[i].get(block=False)
+                            self.apply_action(i, action)
                 except Empty:
                     pass  # No more human actions to process
         
@@ -605,9 +609,11 @@ class OvercookedGame(Game):
         for i in range(len(self.players)):
             if self.players[i] not in self.human_players:
                 try:
-                    # Block on agent actions to ensure they get to do one action per state
-                    joint_action[i] = self.pending_actions[i].get(block=True, timeout=0.1)
-                    agent_actions_processed = True
+                    # Check if pending_actions[i] is actually a Queue (not EMPTY string)
+                    if hasattr(self.pending_actions[i], 'get'):
+                        # Block on agent actions to ensure they get to do one action per state
+                        joint_action[i] = self.pending_actions[i].get(block=True, timeout=0.1)
+                        agent_actions_processed = True
                 except Empty:
                     # Agent didn't respond in time, stay in place
                     pass

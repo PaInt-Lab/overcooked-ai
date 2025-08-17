@@ -7,12 +7,12 @@ to create a complete, high-performance coordination system.
 
 import json
 from typing import Dict, List, Optional, Tuple
-from .primary_actions_state_graph import (
+from primary_actions_state_graph import (
     PrimaryActionsStateGraph, 
     create_primary_actions_state_graph,
     get_possible_primary_actions
 )
-from .secondary_action_selector import select_secondary_action, get_relevant_secondary_actions
+from secondary_action_selector import select_secondary_action, get_relevant_secondary_actions
 
 
 class OptimizedCoordinationSystem:

@@ -52,74 +52,27 @@ class OptimizedCoordinationSystem:
     def coordinate_actions(self, 
                           game_state: Dict, 
                           recipe: str, 
-                          predicted_primary_action: str) -> Tuple[str, List[str]]:
+                          predicted_primary_action: str) -> str:
         """
         Main coordination method:
         1. Takes predicted primary action from LLM
-        2. Returns robot secondary action and available primary actions
+        2. Returns robot secondary action
         
         Returns:
             - robot_action: The secondary action the robot should perform
-            - available_primary_actions: List of possible primary actions for next step
         """
         if not self.primary_graph:
             raise RuntimeError("System not initialized. Call initialize() first.")
         
-        # Smart coordination logic
-        robot_action = self._smart_coordinate_actions(game_state, recipe, predicted_primary_action)
+        # Get robot action using the secondary action selector
+        robot_action = self._get_robot_action(game_state, recipe, predicted_primary_action)
         
-        # Get available primary actions for the next step
-        available_primary_actions = self.get_possible_primary_actions(game_state)
-        
-        return robot_action, available_primary_actions
+        return robot_action
     
-    def _smart_coordinate_actions(self, game_state: Dict, recipe: str, predicted_primary_action: str) -> str:
+    def _get_robot_action(self, game_state: Dict, recipe: str, predicted_primary_action: str) -> str:
         """
-        Smart coordination that considers the current game state and what's actually needed
+        Get robot action using the secondary action selector for consistent behavior.
         """
-        # Handle specific primary actions with smart logic
-        
-        if predicted_primary_action == 'human_grab_onion':
-            # If onion is already staged, robot does nothing
-            if game_state.get('onion_staged', False):
-                return "NOOP"
-            # If onion is not staged, robot needs to fetch and stage it
-            else:
-                return "pickup(onion)"
-        
-        elif predicted_primary_action == 'human_grab_chopped_onion':
-            # If chopped onion is available, robot does nothing
-            if game_state.get('onion_chopped', False):
-                return "NOOP"
-            # If not chopped, robot needs to handle the chopping workflow
-            else:
-                return "pickup(onion)"  # Start the chopping process
-        
-        elif predicted_primary_action == 'human_grab_tomato':
-            # If tomato is already staged, robot does nothing
-            if game_state.get('tomato_staged', False):
-                return "NOOP"
-            # If tomato is not staged, robot needs to fetch and stage it
-            else:
-                return "pickup(tomato)"
-        
-        elif predicted_primary_action == 'human_grab_chopped_tomato':
-            # If chopped tomato is available, robot does nothing
-            if game_state.get('tomato_chopped', False):
-                return "NOOP"
-            # If not chopped, robot needs to handle the chopping workflow
-            else:
-                return "pickup(tomato)"  # Start the chopping process
-        
-        elif predicted_primary_action == 'human_grab_dish':
-            # If dish is already staged, robot does nothing
-            if game_state.get('dish_staged', False):
-                return "NOOP"
-            # If dish is not staged, robot needs to fetch it
-            else:
-                return "pickup(dish)"
-        
-        # For other actions, use the secondary action selector
         return select_secondary_action(game_state, recipe, predicted_primary_action)
     
     def get_coordination_summary(self, 
@@ -129,7 +82,7 @@ class OptimizedCoordinationSystem:
         """
         Get a comprehensive summary of the coordination decision
         """
-        robot_action, available_primary_actions = self.coordinate_actions(
+        robot_action = self.coordinate_actions(
             game_state, recipe, predicted_primary_action
         )
         
@@ -140,7 +93,6 @@ class OptimizedCoordinationSystem:
             'predicted_primary_action': predicted_primary_action,
             'robot_secondary_action': robot_action,
             'relevant_secondary_actions': relevant_secondary_actions,
-            'available_primary_actions': available_primary_actions,
             'game_state': game_state,
             'recipe': recipe
         }
@@ -257,7 +209,7 @@ def quick_coordinate(game_state: Dict, recipe: str, primary_action: str) -> str:
     Returns just the robot action.
     """
     system = get_coordination_system()
-    robot_action, _ = system.coordinate_actions(game_state, recipe, primary_action)
+    robot_action = system.coordinate_actions(game_state, recipe, primary_action)
     return robot_action
 
 

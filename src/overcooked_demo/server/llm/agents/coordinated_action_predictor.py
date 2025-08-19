@@ -2,6 +2,7 @@ from collections import deque
 import json
 import pickle
 import re
+from typing import List
 from overcooked_ai_py.agents.agent import Agent
 from overcooked_ai_py.mdp.overcooked_mdp import OvercookedGridworld
 from overcooked_ai_py.planning.planners import MotionPlanner, NO_COUNTERS_PARAMS
@@ -11,11 +12,16 @@ import os
 from openai import OpenAI
 from llm.memory.vector_memory import VectorMemory
 from state_graph import StateGraphGenerator, StateGraph, get_state_graph_generator
+from unified_state_graph import get_unified_state_graph  # NEW: Unified state graph
 from plan_session import PLAN_STORE
 from game_mechanics import get_mechanics_for_task
-from optimized_coordination_system import get_coordination_system, quick_coordinate, get_available_actions
+from optimized_coordination_system import get_coordination_system, quick_coordinate
 
-# Model mappings for different recipes
+# NEW: Unified model for all recipes
+# TODO: Replace with your actual fine-tuned model ID from OpenAI
+UNIFIED_OVERCOOKED_MODEL = "ft:gpt-4.1-mini-2025-04-14:personal:ap-one-model:C6I6sz96"
+
+# Model mappings for different recipes (keeping for backward compatibility)
 OVERCOOKED_MODELS = {
     "onion_raw": "ft:gpt-4o-mini-2024-07-18:personal:ap-onion:C2PPw6JD",
     "onion_chopped": "ft:gpt-4o-mini-2024-07-18:personal:ap-chopped-onion-soup:BysMfU2m", 
@@ -28,10 +34,10 @@ OVERCOOKED_MODELS = {
 }
 
 # Default model fallback
-DEFAULT_OVERCOOKED_MODEL = "gpt-4o-mini"
+DEFAULT_OVERCOOKED_MODEL = UNIFIED_OVERCOOKED_MODEL  # NEW: Use unified model as default
 
 # Current single model (keeping for backward compatibility)
-OVERCOOKED_MODEL = "ft:gpt-4o-mini-2024-07-18:personal:ap-onion-tomato-chopped:BysMfU2m"
+OVERCOOKED_MODEL = UNIFIED_OVERCOOKED_MODEL  # NEW: Use unified model
 # OVERCOOKED_MODEL = "gpt-4o-mini"
 # OVERCOOKED_MODEL = "nothing"
 
@@ -208,10 +214,10 @@ class CoordinatedActionPredictorAgent(Agent):
         self.current_action_index = 0
 
     def _initialize_state_graph(self):
-        """Initialize the state graph and coordination system"""
-        print("Initializing state graph...")
+        """Initialize the unified state graph and coordination system"""
+        print("Initializing unified state graph...")
         
-        # Get task title to determine which state graph to use
+        # Get task title to determine which model to use
         task_title = getattr(self, 'plan', None)
         if task_title and hasattr(task_title, 'task_title'):
             task_title = task_title.task_title
@@ -220,51 +226,50 @@ class CoordinatedActionPredictorAgent(Agent):
         
         print(f"Task title: {task_title}")
         
-        # Select the appropriate model based on recipe
-        recipe_key = parse_recipe_components(task_title)
-        self.selected_model = OVERCOOKED_MODELS.get(recipe_key, DEFAULT_OVERCOOKED_MODEL)
-        print(f"Selected model: {self.selected_model} for recipe: {recipe_key}")
+        # NEW: Always use the unified model for all recipes
+        self.selected_model = UNIFIED_OVERCOOKED_MODEL
+        print(f"Selected unified model: {self.selected_model}")
         
         # Store task information for mechanics selection
         self.task_title = task_title
-        self.recipe_key = recipe_key
         
-        # Try to load from task-specific cache first
-        cache_file = os.path.join(os.path.dirname(__file__), '..', f'cached_state_graph_{task_title.lower().replace(" ", "_")}.pkl')
+        # NEW: Load the unified state graph (handles all recipes)
+        cache_file = os.path.join(os.path.dirname(__file__), '..', 'cached_unified_state_graph.pkl')
         if os.path.exists(cache_file):
-            print(f"Loading task-specific state graph from cache...")
+            print(f"Loading unified state graph from cache...")
             try:
                 with open(cache_file, 'rb') as f:
                     self.state_graph = pickle.load(f)
-                print(f"Task-specific state graph loaded from cache with {len(self.state_graph.nodes)} nodes")
+                print(f"Unified state graph loaded from cache with {len(self.state_graph.nodes)} nodes")
             except (EOFError, pickle.UnpicklingError, Exception) as e:
-                print(f"Task-specific cache file corrupted, regenerating state graph... (Error: {e})")
+                print(f"Unified cache file corrupted, regenerating state graph... (Error: {e})")
                 # Remove the corrupted cache file
                 try:
                     os.remove(cache_file)
                 except:
                     pass
-                # Fall through to generate new state graph
-                self._generate_task_specific_state_graph(task_title)
+                # Fall through to generate new unified state graph
+                self._generate_unified_state_graph()
         else:
-            print(f"Task-specific cache not found, generating state graph for '{task_title}'...")
-            self._generate_task_specific_state_graph(task_title)
+            print(f"Unified cache not found, generating unified state graph...")
+            self._generate_unified_state_graph()
         
         # No need for old coordination manager - using optimized system
         
-    def _generate_task_specific_state_graph(self, task_title: str):
-        """Generate state graph for specific task"""
-        # Get the appropriate state graph generator
-        generator = get_state_graph_generator(task_title)
-        self.state_graph = generator.generate_state_graph()
-        print(f"Task-specific state graph generated with {len(self.state_graph.nodes)} nodes")
+    def _generate_unified_state_graph(self):
+        """Generate unified state graph for all recipes"""
+        print("Generating unified state graph...")
         
-        # Save to task-specific cache
-        cache_file = os.path.join(os.path.dirname(__file__), '..', f'cached_state_graph_{task_title.lower().replace(" ", "_")}.pkl')
-        print(f"Saving task-specific state graph to cache...")
+        # Get the unified state graph (handles all recipe types)
+        self.state_graph = get_unified_state_graph()
+        print(f"Unified state graph generated with {len(self.state_graph.nodes)} nodes")
+        
+        # Save to unified cache
+        cache_file = os.path.join(os.path.dirname(__file__), '..', 'cached_unified_state_graph.pkl')
+        print(f"Saving unified state graph to cache...")
         with open(cache_file, 'wb') as f:
             pickle.dump(self.state_graph, f)
-        print("Task-specific state graph cached for future use")
+        print("Unified state graph cached for future use")
 
     def set_agent_index(self, agent_index: int):
         super().set_agent_index(agent_index)
@@ -1043,12 +1048,12 @@ class CoordinatedActionPredictorAgent(Agent):
         print(f"Current position: {state.player_positions[self.agent_index]}")
         print(f"State summary: {self.last_summary}")
         
-        # Get available primary actions from our optimized state graph
+        # NEW: Get available primary actions directly from our unified state graph
         try:
-            available_primary_actions = get_available_actions(self.last_summary)
-            print(f"Available primary actions: {available_primary_actions}")
+            available_primary_actions = self._get_available_primary_actions_from_unified_graph(self.last_summary)
+            print(f"Available primary actions from unified graph: {available_primary_actions}")
         except Exception as e:
-            print(f"Error getting available actions: {e}")
+            print(f"Error getting available actions from unified graph: {e}")
             available_primary_actions = []
         
         # Generate plan to goal
@@ -1067,13 +1072,19 @@ class CoordinatedActionPredictorAgent(Agent):
         else:
             plan_text = "No plan session available"
         
-        # Get task-specific game mechanics (primary actions only)
-        game_mechanics = get_mechanics_for_task(self.task_title).get_mechanics_prompt()
+        # NEW: Use unified state graph instead of task-specific mechanics
+        # The unified state graph handles all recipe types dynamically
         
         # Create optimized LLM prompt - only predict human primary action
         prompt = f"""
 
-        {game_mechanics}
+        UNIFIED SOUP RECIPE SYSTEM - ALL RECIPE TYPES SUPPORTED
+
+        This system can handle any soup recipe dynamically:
+        - Onion Soup (raw or chopped)
+        - Tomato Soup (raw or chopped) 
+        - Onion and Tomato Soup (any combination of raw/chopped)
+        - Chopped Onion and Chopped Tomato Soup
 
         CURRENT STATE:
         {self.last_summary}
@@ -1084,7 +1095,7 @@ class CoordinatedActionPredictorAgent(Agent):
         MOST EFFICIENT NEXT ACTION FOR GOAL COMPLETION:
         Next planned action: {next_planned_action}
 
-        AVAILABLE PRIMARY ACTIONS (from optimized state graph):
+        AVAILABLE PRIMARY ACTIONS (from unified state graph):
         {available_primary_actions}
 
         GOAL: Serve soup (soup_served = true)
@@ -1092,7 +1103,8 @@ class CoordinatedActionPredictorAgent(Agent):
         Based on the current state and available primary actions:
         1. **Predict human behavior**: Choose the most likely human primary action from the available actions
         2. **Consider goal progress**: Select actions that move toward serving soup
-        3. **Use state graph guidance**: The optimized state graph shows valid next actions
+        3. **Use unified state graph guidance**: The unified state graph shows valid next actions for any recipe type
+        4. **Adapt to recipe changes**: The system can switch between recipes based on what's actually happening
 
         **IMPORTANT:** You only need to predict the human's primary action. The robot will automatically coordinate its secondary actions using our optimized system.
 
@@ -1270,4 +1282,39 @@ class CoordinatedActionPredictorAgent(Agent):
             }
 
     def actions(self, states, agent_indices):
-        return [self.action(s) for s in states] 
+        return [self.action(s) for s in states]
+    
+    def _get_available_primary_actions_from_unified_graph(self, current_state: dict) -> List[str]:
+        """
+        NEW: Get available primary actions directly from our unified state graph.
+        This replaces the old get_available_actions() call that was incompatible.
+        """
+        if not self.state_graph:
+            print("Warning: No unified state graph available")
+            return []
+        
+        try:
+            # Find the current node in our unified state graph
+            current_node_id = self._get_node_id_for_state(current_state)
+            if not current_node_id:
+                print(f"Warning: Could not find node for current state")
+                return []
+            
+            # Get all edges from the current node
+            edges = self.state_graph.get_edges_from(current_node_id)
+            if not edges:
+                print(f"Warning: No transitions available from current state")
+                return []
+            
+            # Extract the primary actions from the edges
+            available_actions = []
+            for edge in edges:
+                if edge.action not in available_actions:
+                    available_actions.append(edge.action)
+            
+            print(f"Found {len(available_actions)} available primary actions from unified graph")
+            return available_actions
+            
+        except Exception as e:
+            print(f"Error getting available actions from unified graph: {e}")
+            return [] 

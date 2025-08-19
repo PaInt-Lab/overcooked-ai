@@ -601,6 +601,24 @@ def _smart_select_secondary_action(game_state: Dict, predicted_primary_action: s
             # Need to fetch dish
             return "pickup(dish)"
     
+    # Turn stove on - when this happens, prepare dish for soup serving
+    elif "Turn stove on" in predicted_primary_action:
+        if game_state.get('dish_hand') == 'agent':
+            # Robot has dish, should stage it for when soup is ready
+            return "place(dish, staging_station)"
+        else:
+            # Need to fetch dish for soup serving
+            return "pickup(dish)"
+    
+    # Wait till ingredients are cooked - prepare dish for soup serving
+    elif "Wait till ingredients are cooked" in predicted_primary_action or "Wait for ingredients to cook" in predicted_primary_action:
+        if game_state.get('dish_hand') == 'agent':
+            # Robot has dish, should stage it for when soup is ready
+            return "place(dish, staging_station)"
+        else:
+            # Need to fetch dish for soup serving
+            return "pickup(dish)"
+    
     # Default fallback
     return "NOOP"
 

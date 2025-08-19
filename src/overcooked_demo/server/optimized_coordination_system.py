@@ -28,14 +28,15 @@ class OptimizedCoordinationSystem:
         
     def initialize(self):
         """Initialize the coordination system"""
-        print("🚀 Initializing Optimized Coordination System...")
+        print("Initializing Optimized Coordination System...")
         
-        # Create the primary actions state graph
-        self.primary_graph = create_primary_actions_state_graph()
+        # TEMPORARILY DISABLED: State graph creation for testing
+        # self.primary_graph = create_primary_actions_state_graph()
+        self.primary_graph = None  # Disabled for testing
         
-        print(f"✅ Primary actions state graph loaded: {len(self.primary_graph.nodes)} nodes")
-        print(f"✅ Secondary action selector ready")
-        print("🎯 System ready for high-performance coordination!")
+        print(f"State graph disabled for testing")
+        print(f"Secondary action selector ready")
+        print("System ready for simplified coordination!")
         
         return self
     
@@ -208,9 +209,15 @@ def quick_coordinate(game_state: Dict, recipe: str, primary_action: str) -> str:
     Quick coordination function for simple use cases.
     Returns just the robot action.
     """
-    system = get_coordination_system()
-    robot_action = system.coordinate_actions(game_state, recipe, primary_action)
-    return robot_action
+    # NEW: Bypass the coordination system and use smart selector directly
+    # This avoids the "System not initialized" error when state graph is disabled
+    try:
+        from secondary_action_selector import select_secondary_action
+        robot_action = select_secondary_action(game_state, recipe, primary_action)
+        return robot_action
+    except Exception as e:
+        print(f"Error in quick_coordinate: {e}")
+        return "NOOP"
 
 
 def get_available_actions(game_state: Dict) -> List[str]:

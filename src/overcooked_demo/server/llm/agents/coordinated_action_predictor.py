@@ -17,8 +17,6 @@ from plan_session import PLAN_STORE
 from game_mechanics import get_mechanics_for_task
 from optimized_coordination_system import get_coordination_system, quick_coordinate
 
-# NEW: Unified model for all recipes
-# TODO: Replace with your actual fine-tuned model ID from OpenAI
 UNIFIED_OVERCOOKED_MODEL = "ft:gpt-4.1-mini-2025-04-14:personal:ap-one-model:C6I6sz96"
 
 # Model mappings for different recipes (keeping for backward compatibility)
@@ -212,6 +210,13 @@ class CoordinatedActionPredictorAgent(Agent):
         # Action execution state - like action_predictor.py
         self.current_action_plan = []
         self.current_action_index = 0
+        
+        # NEW: Set the model directly since state graph is disabled
+        self.selected_model = UNIFIED_OVERCOOKED_MODEL
+        print(f"Selected unified model: {self.selected_model}")
+        
+        # NEW: Set default task title since state graph is disabled
+        self.task_title = "Unknown Task"
 
     def _initialize_state_graph(self):
         """Initialize the unified state graph and coordination system"""
@@ -284,8 +289,15 @@ class CoordinatedActionPredictorAgent(Agent):
         print(f"📋 Full plan loaded with {len(self.plan.events)} total tasks")
         print(f"🎯 Filtered to {len(self.primary_tasks)} primary tasks for LLM")
         
+        # NEW: Set task title from plan since state graph is disabled
+        if hasattr(self.plan, 'task_title'):
+            self.task_title = self.plan.task_title
+            print(f"Task title set from plan: {self.task_title}")
+        
         # Initialize state graph now that we have the plan with task title
-        self._initialize_state_graph()
+        # TEMPORARILY COMMENTED OUT: State graph disabled for testing
+        # self._initialize_state_graph()
+        print("State graph initialization disabled for testing")
     
     def _extract_primary_tasks_from_plan(self) -> List[str]:
         """
@@ -306,7 +318,7 @@ class CoordinatedActionPredictorAgent(Agent):
                     if primary_action != 'NOOP':
                         primary_tasks.append(primary_action)
         
-        print(f"🔍 Extracted primary tasks from plan: {primary_tasks}")
+        # print(f"🔍 Extracted primary tasks from plan: {primary_tasks}")
         return primary_tasks
 
     TERRAIN_MAPPING = {
@@ -591,7 +603,7 @@ class CoordinatedActionPredictorAgent(Agent):
             "soup_staged": soup_staged,
             "soup_served": soup_served
         }
-
+    
     def _generate_plan_to_goal(self, current_state: dict) -> str:
         """
         Generate a plan from current state to goal state using A* pathfinding.
@@ -1077,16 +1089,33 @@ class CoordinatedActionPredictorAgent(Agent):
         print(f"State summary: {self.last_summary}")
         
         # NEW: Get available primary actions directly from our unified state graph
-        try:
-            available_primary_actions = self._get_available_primary_actions_from_unified_graph(self.last_summary)
-            print(f"Available primary actions from unified graph: {available_primary_actions}")
-        except Exception as e:
-            print(f"Error getting available actions from unified graph: {e}")
-            available_primary_actions = []
+        # try:
+        #     available_primary_actions = self._get_available_primary_actions_from_unified_graph(self.last_summary)
+        #     print(f"Available primary actions from unified graph: {available_primary_actions}")
+        # except Exception as e:
+        #     print(f"Error getting available actions from unified graph: {e}")
+        #     available_primary_actions = []
+        
+        # # FALLBACK: If no actions available from unified graph, provide basic actions
+        # if not available_primary_actions:
+        #     print("⚠️  WARNING: No actions from unified graph, using fallback actions")
+        #     available_primary_actions = [
+        #         'Human Grab Onion',
+        #         'Human Grab Chopped Onion', 
+        #         'Human Grab Tomato',
+        #         'Human Grab Chopped Tomato',
+        #         'Human Grab dish',
+        #         'Place onion in pot',
+        #         'Place tomato in pot',
+        #         'Turn stove on',
+        #         'Pour soup',
+        #         'Human Stage Soup',
+        #         'NOOP'
+        #     ]
         
         # Generate plan to goal
-        next_planned_action = self._generate_plan_to_goal(self.last_summary)
-        print(f"Next planned action: {next_planned_action}")
+        # next_planned_action = self._generate_plan_to_goal(self.last_summary)
+        # print(f"Next planned action: {next_planned_action}")
         
         # NEW: Use filtered primary tasks only for LLM context
         plan_text = ""
@@ -1102,6 +1131,40 @@ class CoordinatedActionPredictorAgent(Agent):
         # The unified state graph handles all recipe types dynamically
         
         # Create optimized LLM prompt - plan as context, state graph as constraints
+        # prompt = f"""
+        # CURRENT STATE:
+        # {self.last_summary}
+
+        # USER PLAN PRIMARY TASKS (Human Actions Only):
+        # {plan_text}
+
+        # MOST EFFICIENT NEXT ACTION FOR GOAL COMPLETION:
+        # Next planned action: {next_planned_action}
+
+        # AVAILABLE PRIMARY ACTIONS (from unified state graph):
+        # {available_primary_actions}
+
+        # **STRATEGY: Plan as Context, State Graph as Constraints**
+
+        # The user's plan shows their preferred sequence and style of play. Use it to understand:
+        # - What the user wants to accomplish next
+        # - Their preferred order of operations
+        # - Their playing style and preferences
+
+        # However, you MUST select from the available primary actions listed above. 
+
+        # **DECISION PROCESS:**
+        # 1. **Understand intent**: What does the user want to do next based on their plan?
+        # 2. **Find semantic match**: Which available action best matches their intent?
+        # 3. **Consider preferences**: If multiple actions match, prefer the one that follows their plan sequence
+        # 4. **Select executable action**: Choose from the available state graph actions
+
+        # **IMPORTANT:** You only need to predict the human's primary action. The robot will automatically coordinate its secondary actions using our optimized system.
+
+        # Return only this line:
+        # Primary: <human_action_name>
+        # """
+
         prompt = f"""
         CURRENT STATE:
         {self.last_summary}
@@ -1109,36 +1172,47 @@ class CoordinatedActionPredictorAgent(Agent):
         USER PLAN PRIMARY TASKS (Human Actions Only):
         {plan_text}
 
-        MOST EFFICIENT NEXT ACTION FOR GOAL COMPLETION:
-        Next planned action: {next_planned_action}
-
-        AVAILABLE PRIMARY ACTIONS (from unified state graph):
-        {available_primary_actions}
-
+        **RECIPE ANALYSIS & STATE AWARENESS:**
+        
+        **Current Recipe Status:**
+        - Analyze the plan to understand which ingredients are needed and in what sequence
+        - Check the current state to see what has already been completed
+        - Consider what logically comes next based on what's already in the pot/cooking
+        
+        **State Context:**
+        - If an onion is already in the pot, the next logical step is to get a tomato (not another onion)
+        - If a tomato is already in the pot, focus on cooking or serving steps
+        - If both ingredients are in the pot, focus on cooking completion and serving
+        - Consider the current cooking stage when deciding what to fetch next
+        
         **STRATEGY: Plan as Context, State Graph as Constraints**
 
         The user's plan shows their preferred sequence and style of play. Use it to understand:
         - What the user wants to accomplish next
-        - Their preferred order of operations
+        - Their preferred order of operations  
         - Their playing style and preferences
 
         However, you MUST select from the available primary actions listed above. 
 
         **DECISION PROCESS:**
-        1. **Understand intent**: What does the user want to do next based on their plan?
-        2. **Find semantic match**: Which available action best matches their intent?
-        3. **Consider preferences**: If multiple actions match, prefer the one that follows their plan sequence
-        4. **Select executable action**: Choose from the available state graph actions
+        1. **Analyze current state**: What ingredients are already in the pot/cooking?
+        2. **Understand intent**: What does the user logically need to do next based on their plan AND current state?
+        3. **Find semantic match**: Which available action best matches their intent?
+        4. **Consider preferences**: If multiple actions match, prefer the one that follows their plan sequence
+        5. **Select executable action**: Choose from the available primary actions
 
         **IMPORTANT:** You only need to predict the human's primary action. The robot will automatically coordinate its secondary actions using our optimized system.
 
         Return only this line:
         Primary: <human_action_name>
         """
+        
+        # Display essential information for testing
+        # print(f"PLAN: {plan_text}")
+        print(f"STATE: {self.last_summary}")
                 
         # Call LLM to get predictions
         response = query_openai(prompt, self.selected_model)
-        print(f"LLM Response: {response}")
         
         # Parse the response - only need primary action now
         predicted_human_action = self._parse_primary_action(response)
@@ -1146,13 +1220,13 @@ class CoordinatedActionPredictorAgent(Agent):
         # Get robot action using our smart coordination system
         try:
             robot_action = quick_coordinate(self.last_summary, self.task_title, predicted_human_action)
-            print(f"Robot action from optimized system: {robot_action}")
         except Exception as e:
             print(f"Error getting robot action: {e}")
             robot_action = "NOOP"
         
-        print(f"Predicted human action: {predicted_human_action}")
-        print(f"Robot action: {robot_action}")
+        # Clean, essential debugging output
+        print(f"PREDICTION: {predicted_human_action}")
+        print(f"ROBOT: {robot_action}")
         
         # Convert high-level action to low-level movement
         my_pos = state.player_positions[self.agent_index]
@@ -1167,9 +1241,9 @@ class CoordinatedActionPredictorAgent(Agent):
                     return move, {
                         "predicted_human_action": predicted_human_action,
                         "robot_action": robot_action,
-                        "next_planned_action": next_planned_action,
+                        # "next_planned_action": next_planned_action,
                         "llm_response": response,
-                        "available_primary_actions": available_primary_actions,
+                        # "available_primary_actions": available_primary_actions,
                         "reasoning": "Moving to safe position to avoid blocking"
                     }
             
@@ -1177,9 +1251,9 @@ class CoordinatedActionPredictorAgent(Agent):
             return Action.STAY, {
                 "predicted_human_action": predicted_human_action,
                 "robot_action": robot_action,
-                "next_planned_action": next_planned_action,
+                # "next_planned_action": next_planned_action,
                 "llm_response": response,
-                "available_primary_actions": available_primary_actions,
+                # "available_primary_actions": available_primary_actions,
                 "reasoning": "No robot action needed"
             }
         
@@ -1200,9 +1274,9 @@ class CoordinatedActionPredictorAgent(Agent):
                 return next_action, {
                     "predicted_human_action": predicted_human_action,
                     "robot_action": robot_action,
-                    "next_planned_action": next_planned_action,
+                    # "next_planned_action": next_planned_action,
                     "llm_response": response,
-                    "available_primary_actions": available_primary_actions,
+                    # "available_primary_actions": available_primary_actions,
                     "reasoning": f"Executing action {self.current_action_index}/{len(self.current_action_plan)} from plan"
                 }
             
@@ -1224,9 +1298,9 @@ class CoordinatedActionPredictorAgent(Agent):
                         return move, {
                             "predicted_human_action": predicted_human_action,
                             "robot_action": robot_action,
-                            "next_planned_action": next_planned_action,
+                            # "next_planned_action": next_planned_action,
                             "llm_response": response,
-                            "available_primary_actions": available_primary_actions,
+                            # "available_primary_actions": available_primary_actions,
                             "blocking_prevention": True,
                             "action_plan": action_plan
                         }
@@ -1235,9 +1309,9 @@ class CoordinatedActionPredictorAgent(Agent):
                         return Action.STAY, {
                             "predicted_human_action": predicted_human_action,
                             "robot_action": robot_action,
-                            "next_planned_action": next_planned_action,
+                            # "next_planned_action": next_planned_action,
                             "llm_response": response,
-                            "available_primary_actions": available_primary_actions,
+                            # "available_primary_actions": available_primary_actions,
                             "blocking_prevention": False,
                             "action_plan": []
                         }
@@ -1246,9 +1320,9 @@ class CoordinatedActionPredictorAgent(Agent):
                     return Action.STAY, {
                         "predicted_human_action": predicted_human_action,
                         "robot_action": robot_action,
-                        "next_planned_action": next_planned_action,
+                        # "next_planned_action": next_planned_action,
                         "llm_response": response,
-                        "available_primary_actions": available_primary_actions,
+                        # "available_primary_actions": available_primary_actions,
                         "blocking_prevention": False,
                         "action_plan": []
                     }
@@ -1277,9 +1351,9 @@ class CoordinatedActionPredictorAgent(Agent):
                 return move, {
                     "predicted_human_action": predicted_human_action,
                     "robot_action": robot_action,
-                    "next_planned_action": next_planned_action,
+                    # "next_planned_action": next_planned_action,
                     "llm_response": response,
-                    "available_primary_actions": available_primary_actions,
+                    # "available_primary_actions": available_primary_actions,
                     "function_call": f"{func_name}({item})",
                     "action_plan": action_plan
                 }
@@ -1287,9 +1361,9 @@ class CoordinatedActionPredictorAgent(Agent):
                 return Action.STAY, {
                     "predicted_human_action": predicted_human_action,
                     "robot_action": robot_action,
-                    "next_planned_action": next_planned_action,
+                    # "next_planned_action": next_planned_action,
                     "llm_response": response,
-                    "available_primary_actions": available_primary_actions,
+                    # "available_primary_actions": available_primary_actions,
                     "function_call": f"{func_name}({item})",
                     "action_plan": []
                 }
@@ -1299,9 +1373,9 @@ class CoordinatedActionPredictorAgent(Agent):
             return Action.STAY, {
                 "predicted_human_action": predicted_human_action,
                 "robot_action": robot_action,
-                "next_planned_action": next_planned_action,
+                # "next_planned_action": next_planned_action, 
                 "llm_response": response,
-                "available_primary_actions": available_primary_actions,
+                # "available_primary_actions": available_primary_actions,
                 "reasoning": "Action execution failed, staying in place"
             }
 
@@ -1318,14 +1392,23 @@ class CoordinatedActionPredictorAgent(Agent):
             return []
         
         try:
+            # DEBUG: Print current state for debugging
+            print(f"🔍 DEBUG: Current state: {current_state}")
+            print(f"🔍 DEBUG: State graph has {len(self.state_graph.nodes)} nodes")
+            print(f"🔍 DEBUG: State graph has {len(self.state_graph.state_to_node_id)} state mappings")
+            
             # Find the current node in our unified state graph
             current_node_id = self._get_node_id_for_state(current_state)
+            print(f"🔍 DEBUG: Found node ID: {current_node_id}")
+            
             if not current_node_id:
                 print(f"Warning: Could not find node for current state")
                 return []
             
             # Get all edges from the current node
             edges = self.state_graph.get_edges_from(current_node_id)
+            print(f"🔍 DEBUG: Found {len(edges) if edges else 0} edges from node {current_node_id}")
+            
             if not edges:
                 print(f"Warning: No transitions available from current state")
                 return []
@@ -1341,4 +1424,6 @@ class CoordinatedActionPredictorAgent(Agent):
             
         except Exception as e:
             print(f"Error getting available actions from unified graph: {e}")
+            import traceback
+            traceback.print_exc()
             return [] 

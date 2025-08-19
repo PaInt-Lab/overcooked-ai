@@ -353,28 +353,6 @@ class UnifiedStateGraphGenerator:
             new_state['soup_staged'] = True
             self._add_transition(node_id, new_state, 'Human Stage Soup')
         
-        # ADD MISSING TRANSITIONS: Ingredients becoming available from dispensers
-        
-        # Onion becomes available at staging (from dispenser)
-        if (not state['onion_staged'] and not state['onion_hand'] == 'partner' and 
-            not state['onion_at_chopping'] and not state['onion_in_pot']):
-            new_state = state.copy()
-            new_state['onion_staged'] = True
-            self._add_transition(node_id, new_state, 'Onion Available')
-        
-        # Tomato becomes available at staging (from dispenser)
-        if (not state['tomato_staged'] and not state['tomato_hand'] == 'partner' and 
-            not state['tomato_at_chopping'] and not state['tomato_in_pot']):
-            new_state = state.copy()
-            new_state['tomato_staged'] = True
-            self._add_transition(node_id, new_state, 'Tomato Available')
-        
-        # Dish becomes available at staging (from dispenser)
-        if (not state['dish_staged'] and not state['dish_hand'] == 'partner'):
-            new_state = state.copy()
-            new_state['dish_staged'] = True
-            self._add_transition(node_id, new_state, 'Dish Available')
-        
         # ADD MISSING CHOPPING TRANSITIONS
         
         # Place onion at chopping station (auto-chops)
@@ -404,12 +382,8 @@ class UnifiedStateGraphGenerator:
             new_state['soup_cooking'] = True
             self._add_transition(node_id, new_state, 'cooking_start')
         
-        # Soup becomes ready when cooking completes
-        if state['soup_cooking']:
-            new_state = state.copy()
-            new_state['soup_cooking'] = False
-            new_state['soup_ready'] = True
-            self._add_transition(node_id, new_state, 'soup_ready')
+        # Soup becomes ready when cooking completes (automatic, no transition needed)
+        # This happens automatically in the game, not as a human action
     
     def _add_transition(self, from_node_id: str, to_state: Dict, action: str):
         """Add a transition between states"""

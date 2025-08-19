@@ -202,6 +202,10 @@ class CoordinatedActionPredictorAgent(Agent):
         # State graph - using optimized coordination system instead
         self.state_graph = None
         # Defer state graph initialization until plan is set
+        
+        # Action execution state - like action_predictor.py
+        self.current_action_plan = []
+        self.current_action_index = 0
 
     def _initialize_state_graph(self):
         """Initialize the state graph and coordination system"""
@@ -935,6 +939,40 @@ class CoordinatedActionPredictorAgent(Agent):
         start_pair = (my_pos, tuple(my_ori))
         return self._get_action_plan(start_pair, goal)
 
+    def _parse_robot_action(self, robot_action):
+        """
+        Parse the robot action to get function name and item (like _parse_function_call in action_predictor.py).
+        Expected format: pickup(onion) or place(onion, chopping_station) or NOOP
+        """
+        # Check for explicit NOOP
+        if robot_action == "NOOP":
+            return "NOOP", None
+
+        # Parse pickup actions
+        pickup_match = re.search(r'pickup\(([^)]+)\)', robot_action)
+        if pickup_match:
+            item = pickup_match.group(1).strip()
+            if item in ["onion", "tomato", "chopped_onion", "chopped_tomato", "dish", "soup"]:
+                return "pickup", item
+
+        # Parse place actions with destination
+        place_match = re.search(r'place\(([^,]+),\s*([^)]+)\)', robot_action)
+        if place_match:
+            item = place_match.group(1).strip()
+            destination = place_match.group(2).strip()
+            if item in ["onion", "tomato"] and destination in ["chopping_station", "staging_station"]:
+                return "place", (item, destination)
+
+        # Parse place actions without destination (for items with fixed destinations)
+        place_simple_match = re.search(r'place\(([^)]+)\)', robot_action)
+        if place_simple_match:
+            item = place_simple_match.group(1).strip()
+            if item in ["chopped_onion", "chopped_tomato", "dish", "soup"]:
+                return "place", (item, "default")
+
+        # final fallback
+        return "pickup", "onion"
+
     def _move_to(self, action: str, item: str, start_pos: tuple, start_ori: tuple, destination: str = None):
         """Move to the appropriate location for the given action and item."""
         if action == "pickup":
@@ -1109,15 +1147,43 @@ class CoordinatedActionPredictorAgent(Agent):
                 "reasoning": "No robot action needed"
             }
         
-        # Execute the robot action using the clean movement system from action_predictor.py
+        # Execute the robot action using the EXACT same logic as action_predictor.py
         try:
-            # The robot_action should already be in the right format from the coordination system
-            # Just execute it directly using our clean movement methods
-            if robot_action == "NOOP":
-                # Check if blocking important tiles
+            # If we have a current action plan, continue executing it
+            if self.current_action_plan and self.current_action_index < len(self.current_action_plan):
+                # Get the next action from the current plan
+                next_action = self.current_action_plan[self.current_action_index]
+                self.current_action_index += 1
+                
+                # If we've completed the plan, reset it
+                if self.current_action_index >= len(self.current_action_plan):
+                    self.current_action_plan = []
+                    self.current_action_index = 0
+                
+                print(f"Executing action {self.current_action_index}/{len(self.current_action_plan)} from plan: {next_action}")
+                return next_action, {
+                    "predicted_human_action": predicted_human_action,
+                    "robot_action": robot_action,
+                    "next_planned_action": next_planned_action,
+                    "llm_response": response,
+                    "available_primary_actions": available_primary_actions,
+                    "reasoning": f"Executing action {self.current_action_index}/{len(self.current_action_plan)} from plan"
+                }
+            
+            # If no current plan, create a new one based on the robot action
+            # Parse the robot action to get function name and item (like action_predictor.py does)
+            func_name, item = self._parse_robot_action(robot_action)
+            print(f"Parsed robot action: {func_name}({item})")
+            
+            if func_name == "NOOP":
+                # Check if the agent is blocking important tiles
                 if self._is_blocking_important_tile(my_pos, state):
+                    # If blocking, find a safe position to move to
                     safe_pos, action_plan = self._find_safe_position(my_pos, state)
                     if action_plan:
+                        # Store the action plan and return first action
+                        self.current_action_plan = action_plan
+                        self.current_action_index = 1  # Start from second action next time
                         move = action_plan[0] if action_plan else Action.STAY
                         return move, {
                             "predicted_human_action": predicted_human_action,
@@ -1125,49 +1191,83 @@ class CoordinatedActionPredictorAgent(Agent):
                             "next_planned_action": next_planned_action,
                             "llm_response": response,
                             "available_primary_actions": available_primary_actions,
-                            "reasoning": "Moving to safe position to avoid blocking"
+                            "blocking_prevention": True,
+                            "action_plan": action_plan
                         }
+                    else:
+                        # If no safe move found, stay put
+                        return Action.STAY, {
+                            "predicted_human_action": predicted_human_action,
+                            "robot_action": robot_action,
+                            "next_planned_action": next_planned_action,
+                            "llm_response": response,
+                            "available_primary_actions": available_primary_actions,
+                            "blocking_prevention": False,
+                            "action_plan": []
+                        }
+                else:
+                    # If not blocking, stay put
+                    return Action.STAY, {
+                        "predicted_human_action": predicted_human_action,
+                        "robot_action": robot_action,
+                        "next_planned_action": next_planned_action,
+                        "llm_response": response,
+                        "available_primary_actions": available_primary_actions,
+                        "blocking_prevention": False,
+                        "action_plan": []
+                    }
+
+            # Execute the compound action (EXACTLY like action_predictor.py)
+            if func_name == "pickup":
+                action_plan = self.PickUp(item, my_pos, my_ori)
+            elif func_name == "place":
+                if isinstance(item, tuple):
+                    item_to_place, destination = item
+                    action_plan = self.Place(item_to_place, my_pos, my_ori, destination)
+                else:
+                    action_plan = self.Place(item, my_pos, my_ori, "default")
+            else:
+                # Fallback to simple movement
+                action_plan = [Action.STAY]
+
+            # Store the action plan and return first action (EXACTLY like action_predictor.py)
+            if action_plan:
+                self.current_action_plan = action_plan
+                self.current_action_index = 1  # Start from second action next time
+                move = action_plan[0] if action_plan else Action.STAY
+                print(f"Next Move: {move}")
+                print(f"Full Action Plan: {action_plan}")
                 
-                # Stay in place
+                return move, {
+                    "predicted_human_action": predicted_human_action,
+                    "robot_action": robot_action,
+                    "next_planned_action": next_planned_action,
+                    "llm_response": response,
+                    "available_primary_actions": available_primary_actions,
+                    "function_call": f"{func_name}({item})",
+                    "action_plan": action_plan
+                }
+            else:
                 return Action.STAY, {
                     "predicted_human_action": predicted_human_action,
                     "robot_action": robot_action,
                     "next_planned_action": next_planned_action,
                     "llm_response": response,
                     "available_primary_actions": available_primary_actions,
-                    "reasoning": "No robot action needed"
+                    "function_call": f"{func_name}({item})",
+                    "action_plan": []
                 }
-            
-            # For any other action, try to move toward the goal using the clean system
-            if next_planned_action and next_planned_action != "NOOP":
-                # Use the clean movement system to find a target
-                target = self._get_target_for_action(next_planned_action, my_pos)
-                if target:
-                    # Use the clean movement system to get the action plan
-                    action_plan = self._move_to_target(target, my_pos, my_ori)
-                    if action_plan:
-                        move = action_plan[0] if action_plan else Action.STAY
-                        return move, {
-                            "predicted_human_action": predicted_human_action,
-                            "robot_action": robot_action,
-                            "next_planned_action": next_planned_action,
-                            "llm_response": response,
-                            "available_primary_actions": available_primary_actions,
-                            "reasoning": f"Moving toward target at {target}"
-                        }
         
         except Exception as e:
             print(f"Error executing robot action: {e}")
-        
-        # Fallback: stay in place
-        return Action.STAY, {
-            "predicted_human_action": predicted_human_action,
-            "robot_action": robot_action,
-            "next_planned_action": next_planned_action,
-            "llm_response": response,
-            "available_primary_actions": available_primary_actions,
-            "reasoning": "Action execution failed, staying in place"
-        }
+            return Action.STAY, {
+                "predicted_human_action": predicted_human_action,
+                "robot_action": robot_action,
+                "next_planned_action": next_planned_action,
+                "llm_response": response,
+                "available_primary_actions": available_primary_actions,
+                "reasoning": "Action execution failed, staying in place"
+            }
 
     def actions(self, states, agent_indices):
         return [self.action(s) for s in states] 

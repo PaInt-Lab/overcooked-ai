@@ -1065,7 +1065,8 @@ class CoordinatedActionPredictorAgent(Agent):
     def PickUp(self, item, start_pos, start_ori):
         """Returns an action plan to pick up the specified item."""
         action_plan = self._move_to("pickup", item, start_pos, start_ori)
-        if action_plan:
+        # Only add INTERACT if it's not already in the plan
+        if action_plan and Action.INTERACT not in action_plan:
             action_plan.append(Action.INTERACT)
         return action_plan
 
@@ -1076,7 +1077,8 @@ class CoordinatedActionPredictorAgent(Agent):
         else:
             action_plan = self._move_to("place", item, start_pos, start_ori, destination)
         
-        if action_plan:
+        # Only add INTERACT if it's not already in the plan
+        if action_plan and Action.INTERACT not in action_plan:
             action_plan.append(Action.INTERACT)
         return action_plan
 

@@ -1115,8 +1115,6 @@ class CoordinatedActionPredictorAgent(Agent):
         AVAILABLE PRIMARY ACTIONS (from unified state graph):
         {available_primary_actions}
 
-        GOAL: Serve soup (soup_served = true)
-
         **STRATEGY: Plan as Context, State Graph as Constraints**
 
         The user's plan shows their preferred sequence and style of play. Use it to understand:
@@ -1124,10 +1122,7 @@ class CoordinatedActionPredictorAgent(Agent):
         - Their preferred order of operations
         - Their playing style and preferences
 
-        However, you MUST select from the available actions above. The LLM can understand semantic similarity:
-        - "Human grab onion" ≈ "Human Grab Onion" (available action)
-        - "Place onion in pot" ≈ "Place onion in pot" (exact match)
-        - "Put tomato in cooking pot" ≈ "Place tomato in pot" (semantic match)
+        However, you MUST select from the available primary actions listed above. 
 
         **DECISION PROCESS:**
         1. **Understand intent**: What does the user want to do next based on their plan?

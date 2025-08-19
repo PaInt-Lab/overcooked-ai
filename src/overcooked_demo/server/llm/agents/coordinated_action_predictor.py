@@ -1086,6 +1086,8 @@ class CoordinatedActionPredictorAgent(Agent):
         """Main action selection using optimized coordination system."""
         assert self.agent_index is not None, "agent_index is None in action!"
         
+
+        
         # Get current state summary
         self.last_summary = self.summarize_state(state, {})
         print(f"Current position: {state.player_positions[self.agent_index]}")
@@ -1440,3 +1442,5 @@ class CoordinatedActionPredictorAgent(Agent):
             import traceback
             traceback.print_exc()
             return [] 
+
+ 

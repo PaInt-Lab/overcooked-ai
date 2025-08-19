@@ -1005,7 +1005,7 @@ class CoordinatedActionPredictorAgent(Agent):
         if place_match:
             item = place_match.group(1).strip()
             destination = place_match.group(2).strip()
-            if item in ["onion", "tomato"] and destination in ["chopping_station", "staging_station"]:
+            if item in ["onion", "tomato", "dish"] and destination in ["chopping_station", "staging_station"]:
                 return "place", (item, destination)
 
         # Parse place actions without destination (for items with fixed destinations)
@@ -1041,6 +1041,7 @@ class CoordinatedActionPredictorAgent(Agent):
                 frontier_map = {
                     "onion": self.onion_staging_frontier,
                     "tomato": self.tomato_staging_frontier,
+                    "dish": self.dish_staging_frontier,
                 }
                 choices = frontier_map.get(item)
             else:
@@ -1185,6 +1186,17 @@ class CoordinatedActionPredictorAgent(Agent):
         - If both ingredients are in the pot, focus on cooking completion and serving
         - Consider the current cooking stage when deciding what to fetch next
         
+        **CHOPPING AWARENESS:**
+        - Before predicting ingredient actions, check if the ingredient needs chopping according to the plan
+        - If chopping is needed, check the current state to see if it's already chopped
+        - Only predict "Human Grab Chopped [Ingredient]" if the ingredient is actually chopped
+        - If chopping is needed but not done, predict "Human Grab [Ingredient]" (to chop it) instead
+        - Examples:
+          * Plan needs chopped onion + onion not chopped → predict "Human Grab Onion" ✅
+          * Plan needs chopped onion + onion already chopped → predict "Human Grab Chopped Onion" ✅
+          * Plan needs chopped tomato + tomato not chopped → predict "Human Grab Tomato" ✅
+          * Plan needs chopped tomato + tomato already chopped → predict "Human Grab Chopped Tomato" ✅
+        
         **STRATEGY: Plan as Context, State Graph as Constraints**
 
         The user's plan shows their preferred sequence and style of play. Use it to understand:
@@ -1208,7 +1220,6 @@ class CoordinatedActionPredictorAgent(Agent):
         """
         
         # Display essential information for testing
-        # print(f"PLAN: {plan_text}")
         print(f"STATE: {self.last_summary}")
                 
         # Call LLM to get predictions

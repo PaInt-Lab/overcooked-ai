@@ -388,7 +388,14 @@ class UnifiedStateGraphGenerator:
     def _add_transition(self, from_node_id: str, to_state: Dict, action: str):
         """Add a transition between states"""
         to_state_key = json.dumps(to_state, sort_keys=True)
-        to_node_id = self.state_to_node_id.get(to_state_key)
+        
+        # Find the target node by comparing state summaries
+        to_node_id = None
+        for node_id, node in self.graph.nodes.items():
+            node_state_key = json.dumps(node.state_summary, sort_keys=True)
+            if node_state_key == to_state_key:
+                to_node_id = node_id
+                break
         
         if to_node_id and to_node_id != from_node_id:
             edge = StateEdge(
@@ -398,6 +405,9 @@ class UnifiedStateGraphGenerator:
                 weight=1.0
             )
             self.graph.add_edge(edge)
+            print(f"   Added transition: {from_node_id} --[{action}--> {to_node_id}")
+        else:
+            print(f"   Skipped transition: {from_node_id} --[{action}--> (target not found)")
 
 
 # Factory function to get the unified state graph

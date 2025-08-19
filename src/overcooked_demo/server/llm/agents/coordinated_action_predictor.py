@@ -276,10 +276,38 @@ class CoordinatedActionPredictorAgent(Agent):
         self.agent_index = agent_index
 
     def set_plan(self, session_id: str):
-        """Attach the full PlanSession to this agent."""
+        """Attach the full PlanSession to this agent and filter for primary tasks only."""
         self.plan = PLAN_STORE[session_id]
+        
+        # NEW: Filter plan to extract only primary tasks for LLM context
+        self.primary_tasks = self._extract_primary_tasks_from_plan()
+        print(f"📋 Full plan loaded with {len(self.plan.events)} total tasks")
+        print(f"🎯 Filtered to {len(self.primary_tasks)} primary tasks for LLM")
+        
         # Initialize state graph now that we have the plan with task title
         self._initialize_state_graph()
+    
+    def _extract_primary_tasks_from_plan(self) -> List[str]:
+        """
+        NEW: Extract only primary tasks from the full plan.
+        This filters out secondary tasks so the LLM only sees human actions.
+        The plan structure has arrays of primary actions per step.
+        """
+        if not self.plan or not hasattr(self.plan, 'events'):
+            return []
+        
+        # NEW: Handle the actual plan structure with arrays of primary actions
+        primary_tasks = []
+        for event in self.plan.events:
+            # Extract primary actions from the 'primary' field (which is an array)
+            if 'primary' in event and isinstance(event['primary'], list):
+                for primary_action in event['primary']:
+                    # Skip NOOP actions as they're not meaningful for LLM context
+                    if primary_action != 'NOOP':
+                        primary_tasks.append(primary_action)
+        
+        print(f"🔍 Extracted primary tasks from plan: {primary_tasks}")
+        return primary_tasks
 
     TERRAIN_MAPPING = {
         "X": "Wall",
@@ -1060,36 +1088,25 @@ class CoordinatedActionPredictorAgent(Agent):
         next_planned_action = self._generate_plan_to_goal(self.last_summary)
         print(f"Next planned action: {next_planned_action}")
         
-        # Get plan information if available
+        # NEW: Use filtered primary tasks only for LLM context
         plan_text = ""
-        if hasattr(self, 'plan') and self.plan is not None:
+        if hasattr(self, 'primary_tasks') and self.primary_tasks:
             plan_lines = []
-            for idx, ev in enumerate(self.plan.events):
-                sec = ev["secondary"]
-                prim = ev["primary"]
-                plan_lines.append(f"{idx+1}) secondary: {sec}, primary: {prim}")
+            for idx, primary_task in enumerate(self.primary_tasks):
+                plan_lines.append(f"{idx+1}) {primary_task}")
             plan_text = "\n".join(plan_lines)
         else:
-            plan_text = "No plan session available"
+            plan_text = "No primary tasks available"
         
         # NEW: Use unified state graph instead of task-specific mechanics
         # The unified state graph handles all recipe types dynamically
         
-        # Create optimized LLM prompt - only predict human primary action
+        # Create optimized LLM prompt - plan as context, state graph as constraints
         prompt = f"""
-
-        UNIFIED SOUP RECIPE SYSTEM - ALL RECIPE TYPES SUPPORTED
-
-        This system can handle any soup recipe dynamically:
-        - Onion Soup (raw or chopped)
-        - Tomato Soup (raw or chopped) 
-        - Onion and Tomato Soup (any combination of raw/chopped)
-        - Chopped Onion and Chopped Tomato Soup
-
         CURRENT STATE:
         {self.last_summary}
 
-        USER PLAN PREFERED SEQUENCE:
+        USER PLAN PRIMARY TASKS (Human Actions Only):
         {plan_text}
 
         MOST EFFICIENT NEXT ACTION FOR GOAL COMPLETION:
@@ -1100,11 +1117,23 @@ class CoordinatedActionPredictorAgent(Agent):
 
         GOAL: Serve soup (soup_served = true)
 
-        Based on the current state and available primary actions:
-        1. **Predict human behavior**: Choose the most likely human primary action from the available actions
-        2. **Consider goal progress**: Select actions that move toward serving soup
-        3. **Use unified state graph guidance**: The unified state graph shows valid next actions for any recipe type
-        4. **Adapt to recipe changes**: The system can switch between recipes based on what's actually happening
+        **STRATEGY: Plan as Context, State Graph as Constraints**
+
+        The user's plan shows their preferred sequence and style of play. Use it to understand:
+        - What the user wants to accomplish next
+        - Their preferred order of operations
+        - Their playing style and preferences
+
+        However, you MUST select from the available actions above. The LLM can understand semantic similarity:
+        - "Human grab onion" ≈ "Human Grab Onion" (available action)
+        - "Place onion in pot" ≈ "Place onion in pot" (exact match)
+        - "Put tomato in cooking pot" ≈ "Place tomato in pot" (semantic match)
+
+        **DECISION PROCESS:**
+        1. **Understand intent**: What does the user want to do next based on their plan?
+        2. **Find semantic match**: Which available action best matches their intent?
+        3. **Consider preferences**: If multiple actions match, prefer the one that follows their plan sequence
+        4. **Select executable action**: Choose from the available state graph actions
 
         **IMPORTANT:** You only need to predict the human's primary action. The robot will automatically coordinate its secondary actions using our optimized system.
 

@@ -55,7 +55,7 @@
               <select class="form-control" id="playerZero" name="playerZero">
                 <option value="human">Human Keyboard Input</option>
                 {% for agent_name in agent_names %}
-                <option value="{{agent_name}}">{{agent_name}}</option>
+                <option value="{{agent_name}}" {% if agent_name == "overcooked_llm" %}selected{% endif %}>{{agent_name}}</option>
                 {% endfor %}
               </select>
             </div>
@@ -72,7 +72,7 @@
               <label for="layout">Layout</label>
               <select class="form-control" id="layout" name="layout">
                 {% for layout in layouts %}
-                <option value="{{layout}}">{{layout}}</option>
+                <option value="{{layout}}" {% if layout == "counter_circuit" %}selected{% endif %}>{{layout}}</option>
                 {% endfor %}
               </select>
             </div>
@@ -81,7 +81,7 @@
               <input
                 type="number"
                 id="gameTime"
-                value="30"
+                value="700"
                 min="1"
                 max="1800"
                 name="gameTime"
@@ -151,6 +151,7 @@
             id="taskTitle"
             class="form-control"
             placeholder="e.g. Serving Onion Soup"
+            value="Serving Chopped Onion and Chopped Tomato Soup"
           />
         </div>
         <!-- Predefine Subtasks -->
@@ -960,12 +961,10 @@
             // Chopped Onion and Tomato subtasks
             const choppedSubtasks = [
               "Robot Fetch onion",
-              "Human Grab Chopped Onion",
               "Stage onion",
               "Human Grab Chopped Onion",
               "Place onion in pot",
               "Robot Fetch tomato",
-              "Human Grab Chopped Tomato",
               "Stage tomato",
               "Human Grab Chopped Tomato",
               "Place tomato in pot",
@@ -1003,7 +1002,6 @@
             // Chopped Onion Soup subtasks
             const choppedOnionSubtasks = [
               "Robot Fetch onion",
-              "Human Grab Chopped Onion",
               "Stage onion",
               "Human Grab Chopped Onion",
               "Place onion in pot",
@@ -1040,7 +1038,6 @@
             // Chopped Tomato Soup subtasks
             const choppedTomatoSubtasks = [
               "Robot Fetch tomato",
-              "Human Grab Chopped Tomato",
               "Stage tomato",
               "Human Grab Chopped Tomato",
               "Place tomato in pot",
@@ -1077,7 +1074,6 @@
             // Chopped Onion and Tomato Soup subtasks
             const choppedOnionTomatoSubtasks = [
               "Robot Fetch onion",
-              "Human Grab Chopped Onion",
               "Stage onion",
               "Human Grab Chopped Onion",
               "Place onion in pot",
@@ -1123,7 +1119,6 @@
               "Human Grab Onion",
               "Place onion in pot",
               "Robot Fetch tomato",
-              "Human Grab Chopped Tomato",
               "Stage tomato",
               "Human Grab Chopped Tomato",
               "Place tomato in pot",

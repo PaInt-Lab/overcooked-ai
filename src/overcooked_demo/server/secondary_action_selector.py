@@ -399,6 +399,7 @@ class SecondaryActionSelector:
                                       "place(tomato)" not in relevant_actions)),  # Not part of sequence  
             ("pickup(dish)", lambda: (self._needs_dish() and
                                     game_state.get('dish_hand') == 'none' and
+                                    not game_state.get('dish_staged', False) and
                                     "place(dish)" not in relevant_actions)),  # Not part of sequence
         ]
         
@@ -595,7 +596,10 @@ def _smart_select_secondary_action(game_state: Dict, predicted_primary_action: s
     
     # Human wants to grab dish
     elif "Human Grab dish" in predicted_primary_action:
-        if game_state.get('dish_hand') == 'agent':
+        # Check if there's already a staged dish - if so, do NOOP
+        if game_state.get('dish_staged', False):
+            return "NOOP"
+        elif game_state.get('dish_hand') == 'agent':
             # Robot has dish, should stage it
             return "place(dish, staging_station)"
         else:

@@ -1255,7 +1255,7 @@ class CoordinatedActionPredictorAgent(Agent):
         **WHEN YOU CHOOSE AN ACTION, GO THROUGH THE LIST OF PREDICTION RULES AND MAKE SURE YOU DO NOT VIOLATE ANY OF THE CONDITIONS FOR THAT ACTION**
         
         AVAILABLE PRIMARY ACTIONS TO SELECT FROM (from unified state graph):
-        {available_primary_actions}
+        {available_primary_actions} or NOOP
 
         Return only this line:
         Primary: <human_action_name>
@@ -1420,23 +1420,52 @@ class CoordinatedActionPredictorAgent(Agent):
     def _filter_actions_by_plan(self, actions: List[str], primary_tasks: List[str]) -> List[str]:
         """
         Filter available actions based on plan context to show only relevant actions to LLM.
-        Only allow actions that are explicitly mentioned in the primary_tasks list.
+        Checks if the plan requires chopped or non-chopped ingredients and filters actions accordingly.
         This eliminates Human Grab Chopped Onion and Human Grab Onion depending on the plan (chopped or not).
-        We can improve this function in the future, but it will do the job for now.
         """
         if not primary_tasks or not actions:
             return actions
         
         print(f"🔍 Plan contains these primary tasks: {primary_tasks}")
         
-        # Filter actions based on what's in the primary_tasks
+        # Check what the plan requires for GRAB actions specifically
+        plan_requires_chopped_onion = any("grab chopped onion" in task.lower() for task in primary_tasks)
+        plan_requires_chopped_tomato = any("grab chopped tomato" in task.lower() for task in primary_tasks)
+        plan_requires_regular_onion = any("grab onion" in task.lower() and "chopped" not in task.lower() for task in primary_tasks)
+        plan_requires_regular_tomato = any("grab tomato" in task.lower() and "chopped" not in task.lower() for task in primary_tasks)
+        
+        print(f"🔍 Plan analysis (GRAB actions only):")
+        print(f"   - Requires grab chopped onion: {plan_requires_chopped_onion}")
+        print(f"   - Requires grab regular onion: {plan_requires_regular_onion}")
+        print(f"   - Requires grab chopped tomato: {plan_requires_chopped_tomato}")
+        print(f"   - Requires grab regular tomato: {plan_requires_regular_tomato}")
+        
+        # Filter actions based on plan requirements
         filtered_actions = []
         for action in actions:
-            if action in primary_tasks:
-                filtered_actions.append(action)
-                print(f"🔍 Allowed '{action}' - found in primary tasks")
+            should_include = True
+            
+            # Handle onion actions
+            if "Human Grab Chopped Onion" in action:
+                should_include = plan_requires_chopped_onion
+            elif "Human Grab Onion" in action:
+                should_include = plan_requires_regular_onion
+            
+            # Handle tomato actions  
+            elif "Human Grab Chopped Tomato" in action:
+                should_include = plan_requires_chopped_tomato
+            elif "Human Grab Tomato" in action:
+                should_include = plan_requires_regular_tomato
+            
+            # Include all other actions (they don't have chopped/non-chopped variants)
             else:
-                print(f"🔍 Filtered out '{action}' - not in primary tasks")
+                should_include = True
+            
+            if should_include:
+                filtered_actions.append(action)
+                print(f"🔍 Allowed '{action}' - matches plan requirements")
+            else:
+                print(f"🔍 Filtered out '{action}' - doesn't match plan requirements")
         
         print(f"🔍 Action filtering: {len(actions)} → {len(filtered_actions)} actions")
         print(f"🔍 Filtered actions: {filtered_actions}")

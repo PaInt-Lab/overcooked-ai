@@ -366,7 +366,7 @@ class UnifiedStateGraphGenerator:
             self._add_transition(node_id, state, 'Pour soup')
         
         # Human Stage Soup (when human has soup)
-        if not state['soup_hand'] == 'none':
+        if not state['soup_staged'] and state['soup_hand'] == 'partner':
             # Create edge to same node - action is available here
             self._add_transition(node_id, state, 'Human Stage Soup')
         

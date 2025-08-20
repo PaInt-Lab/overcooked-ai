@@ -1171,6 +1171,244 @@ class CoordinatedActionPredictorAgent(Agent):
         # Primary: <human_action_name>
         # """
 
+        # prompt = f"""
+        # CURRENT STATE:
+        # {self.last_summary}
+
+        # USER PLAN PRIMARY TASKS (Human Actions Only):
+        # {plan_text}
+
+        # **PREDICTION RULES - FOLLOW THESE EXACTLY:**
+
+        # If there is a soup in the pot, or around, then the robot should focus on serving the soup. Don't focus on ingredients or cooking.
+        # **1. Human Grab Onion** ONLY when:
+        #    - Plan requires onion AND
+        #    - Onion not in pot AND
+        #    - Onion not in partner hand AND
+        #    - Onion not already chopped (if plan needs chopped)
+
+        # **2. Human Grab Chopped Onion** ONLY when:
+        #    - Plan requires chopped onion AND
+        #    - Onion not in pot AND
+        #    - Onion not in partner hand AND
+        #    - Onion is already chopped
+
+        # **3. Human Grab Tomato** ONLY when:
+        #    - Plan requires tomato AND
+        #    - Tomato not in pot AND
+        #    - Tomato not in partner hand AND
+        #    - Tomato not already chopped (if plan needs chopped)
+
+        # **4. Human Grab Chopped Tomato** ONLY when:
+        #    - Plan requires chopped tomato AND
+        #    - Tomato not in pot AND
+        #    - Tomato not in partner hand AND
+        #    - Tomato is already chopped
+
+        # **5. Place Onion in Pot** ONLY when:
+        #    - Human has onion in hand AND
+        #    - Onion not in pot AND
+        #    - Plan requires onion in pot
+
+        # **6. Place Tomato in Pot** ONLY when:
+        #    - Human has tomato in hand AND
+        #    - Tomato not in pot AND
+        #    - Plan requires tomato in pot
+
+        # **7. Turn Stove On** ONLY when:
+        #    - All required ingredients from plan are in pot AND
+        #    - Soup is not cooking AND 
+        #    - Soup is not ready
+        #    - If soup is cooking, then the action is not Turn Stove On
+
+        # **8. Wait Till Ingredients Cooked** ONLY when:
+        #    - Soup is cooking AND
+        #    - Soup is not ready
+
+        # **9. Human Grab Dish** ONLY when:
+        #    - Soup is ready AND
+        #    - Dish not in partner hand
+
+        # **10. Pour Soup** ONLY when:
+        #    - Soup is ready AND 
+        #    - Dish is in parter hand AND
+        #    - Soup is not in agent hand
+
+        # **11. Human Stage Soup** ONLY when:
+        #    - Soup is in partner hand
+
+        # **CRITICAL STATE CHECKS:**
+        # - If both onion and tomato are in pot → focus on cooking/serving, NOT ingredient gathering
+        # - If required onions are in the pot and soup is cooking, then the action is to Wait Till Ingredients Cooked
+        # - If soup is cooking → focus on waiting or dish preparation, NOT ingredient gathering
+        # - If soup is ready → focus on serving, NOT cooking steps
+
+        # **DECISION PROCESS:**
+        # 1. **Check current state**: What's already in pot/cooking/ready?
+        # 2. **Apply rules above**: Use the exact conditions for each action
+        # 3. **Select action**: Choose the action that matches current state and plan requirements
+        # 4. **Use the plan the user has provided to guide your decision**
+
+        # Return only this line:
+        # Primary: <human_action_name>
+        # """
+
+        # prompt = f"""
+        # CURRENT STATE:
+        # {self.last_summary}
+
+        # USER PLAN PRIMARY TASKS (Human Actions Only):
+        # {plan_text}
+
+        # **CRITICAL RULE - AGENTS CANNOT PLACE INGREDIENTS IN POTS:**
+        # - Only humans can place ingredients in pots and interact with the stove
+        # - If an agent has an ingredient in hand, we cannot predict it to place it in the pot
+
+        # **PREDICTION RULES - FOLLOW THESE EXACTLY:**
+
+        # **1. Human Grab Onion** ONLY when:
+        #    - Plan requires onion AND
+        #    - onion_in_pot = False AND
+        #    - onion_hand != 'partner' AND
+        #    - onion_chopped = False (if plan needs chopped)
+
+        # **2. Human Grab Chopped Onion** ONLY when:
+        #    - Plan requires chopped onion AND
+        #    - onion_in_pot = False AND
+        #    - onion_hand != 'partner' AND
+        #    - onion_chopped = True
+
+        # **3. Human Grab Tomato** ONLY when:
+        #    - Plan requires tomato AND
+        #    - tomato_in_pot = False AND
+        #    - tomato_hand != 'partner' AND
+        #    - tomato_chopped = False (if plan needs chopped)
+
+        # **4. Human Grab Chopped Tomato** ONLY when:
+        #    - Plan requires chopped tomato AND
+        #    - tomato_in_pot = False AND
+        #    - tomato_hand != 'partner' AND
+        #    - tomato_chopped = True
+
+        # **5. Place Onion in Pot** ONLY when:
+        #    - onion_staged = True AND
+        #    - onion_hand != 'agent' AND
+        #    - onion_in_pot = False AND
+        #    - Plan requires onion in pot
+
+        # **6. Place Tomato in Pot** ONLY when:
+        #    - tomato_staged = True AND
+        #    - tomato_hand != 'agent' AND
+        #    - tomato_in_pot = False AND
+        #    - Plan requires tomato in pot
+
+        # **7. Turn Stove On** ONLY when:
+        #    - soup_cooking = False AND 
+        #    - All required ingredients from plan are in pot AND
+        #    - soup_ready = False
+        #    - If soup is cooking, then the action is to Wait Till Ingredients Cooked
+
+        # **8. Wait Till Ingredients Cooked** ONLY when:
+        #    - soup_cooking = True AND
+        #    - soup_ready = False
+
+        # **9. Human Grab Dish** ONLY when:
+        #    - soup_ready = True AND
+        #    - dish_hand != 'partner'
+
+        # **10. Pour Soup** ONLY when:
+        #    - soup_ready = True AND 
+        #    - dish_hand == 'partner' AND
+        #    - soup_hand != 'partner'
+
+        # **11. Human Stage Soup** ONLY when:
+        #    - soup_hand == 'partner'
+
+        # **DECISION PROCESS:**
+        # 1. **Check current state**: What's already in pot/cooking/ready?
+        # 2. **Apply rules above**: Use the exact conditions for each action
+        # 3. **Select action**: Choose the action that matches current state and plan requirements
+        # 4. **Use the plan the user has provided to guide your decision**
+
+        # **CRITICAL RULE - BEFORE PREDICTING ACTIONS, CHECK THE LIST OF PREDICTION RULES ABOVE AND MAKE SURE YOU DO NOT VIOLATE ANY OF THEM**
+        # **WHEN YOU CHOSE AN ACTION, GO THROUGH THE LIST OF PREDICTION RULES AND MAKE SURE YOU DO NOT VIOLATE ANY OF THE CONDITIONS FOR THAT ACTION**
+        
+        # Return only this line:
+        # Primary: <human_action_name>
+        # """
+
+        # prompt = f"""
+        # CURRENT STATE:
+        # {self.last_summary}
+
+        # USER PLAN PRIMARY TASKS (Human Actions Only):
+        # {plan_text}
+
+        # **CRITICAL RULE - AGENTS CANNOT PLACE INGREDIENTS IN POTS:**
+        # - Only humans can place ingredients in pots and interact with the stove
+        # - If an agent has an ingredient in hand, we cannot predict it to place it in the pot
+
+        # **PREDICTION RULES - FOLLOW THESE EXACTLY:**
+
+        # **1. Human Grab Onion** ONLY when:
+        #    - The plan requires a non-chopped onion AND
+        #    - There is no onion in the pot AND
+        #    - There is no onion staged at the staging station
+
+        # **2. Human Grab Chopped Onion** ONLY when:
+        #    - The plan requires a chopped onion AND
+        #    - There is no onion in the pot AND
+        #    - There is no onion staged at the chopping station or staging station
+
+        # **3. Human Grab Tomato** ONLY when:
+        #    - The plan requires a tomato AND
+        #    - There is no tomato in the pot AND
+        #    - There is no tomato staged at the staging station
+
+        # **4. Human Grab Chopped Tomato** ONLY when:
+        #    - The plan requires a chopped tomato AND
+        #    - There is no tomato in the pot AND
+        #    - There is no tomato staged at the chopping station or staging station
+
+        # **5. Place Onion in Pot** ONLY when:
+        #    - ONLY when the onion is staged at the staging station AND
+        #    - There is no onion in the pot AND
+
+        # **6. Place Tomato in Pot** ONLY when:
+        #    - ONLY when the tomato is staged at the staging station AND
+        #    - There is no tomato in the pot AND
+
+        # **7. Turn Stove On** ONLY when:
+        #    - ONLY When the soup is NOT cooking AND 
+        #    - All required ingredients from the plan are in the pot
+
+        # **8. Wait Till Ingredients Cooked** ONLY when:
+        #    - The soup is cooking 
+
+        # **9. Human Grab Dish** ONLY when:
+        #    - The soup is ready AND
+        #    - Human is not holding a dish
+
+        # **10. Pour Soup** ONLY when:
+        #    - The soup is ready AND 
+        #    - Human is holding a dish AND
+
+        # **11. Human Stage Soup** ONLY when:
+        #    - Human is holding soup
+
+        # **DECISION PROCESS:**
+        # 1. **Check current state**: What's already in pot/cooking/ready?
+        # 2. **Apply rules above**: Use the exact conditions for each action
+        # 3. **Select action**: Choose the action that matches current state and plan requirements
+        # 4. **Use the plan the user has provided to guide your decision**
+
+        # **CRITICAL RULE - BEFORE PREDICTING ACTIONS, CHECK THE LIST OF PREDICTION RULES ABOVE AND MAKE SURE YOU DO NOT VIOLATE ANY OF THEM**
+        # **WHEN YOU CHOSE AN ACTION, GO THROUGH THE LIST OF PREDICTION RULES AND MAKE SURE YOU DO NOT VIOLATE ANY OF THE CONDITIONS FOR THAT ACTION**
+        
+        # Return only this line:
+        # Primary: <human_action_name>
+        # """
+        
         prompt = f"""
         CURRENT STATE:
         {self.last_summary}
@@ -1178,77 +1416,80 @@ class CoordinatedActionPredictorAgent(Agent):
         USER PLAN PRIMARY TASKS (Human Actions Only):
         {plan_text}
 
-        **PREDICTION RULES - FOLLOW THESE EXACTLY:**
+        **CRITICAL RULE - AGENTS CANNOT PLACE INGREDIENTS IN POTS:**
+        - Only humans can place ingredients in pots and interact with the stove
+        - If an agent has an ingredient in hand, we cannot predict it to place it in the pot
 
-        If there is a soup in the pot, or around, then the robot should focus on serving the soup. Don't focus on ingredients or cooking.
-        **1. Human Grab Onion** ONLY when:
-           - Plan requires onion AND
-           - Onion not in pot AND
-           - Onion not in partner hand AND
-           - Onion not already chopped (if plan needs chopped)
+        **PREDICTION RULES - ORDERED BY PRIORITY (HIGHEST TO LOWEST):**
 
-        **2. Human Grab Chopped Onion** ONLY when:
-           - Plan requires chopped onion AND
-           - Onion not in pot AND
-           - Onion not in partner hand AND
-           - Onion is already chopped
-
-        **3. Human Grab Tomato** ONLY when:
-           - Plan requires tomato AND
-           - Tomato not in pot AND
-           - Tomato not in partner hand AND
-           - Tomato not already chopped (if plan needs chopped)
-
-        **4. Human Grab Chopped Tomato** ONLY when:
-           - Plan requires chopped tomato AND
-           - Tomato not in pot AND
-           - Tomato not in partner hand AND
-           - Tomato is already chopped
-
-        **5. Place Onion in Pot** ONLY when:
-           - Human has onion in hand AND
-           - Onion not in pot AND
-           - Plan requires onion in pot
-
-        **6. Place Tomato in Pot** ONLY when:
-           - Human has tomato in hand AND
-           - Tomato not in pot AND
-           - Plan requires tomato in pot
-
-        **7. Turn Stove On** ONLY when:
-           - All required ingredients from plan are in pot AND
-           - Soup is not cooking AND 
-           - Soup is not ready
-           - If soup is cooking, then the action is not Turn Stove On
-
-        **8. Wait Till Ingredients Cooked** ONLY when:
-           - Soup is cooking AND
-           - Soup is not ready
-
-        **9. Human Grab Dish** ONLY when:
-           - Soup is ready AND
-           - Dish not in partner hand
+        **HIGHEST PRIORITY:**
+        **11. Human Stage Soup** ONLY when:
+            - Someone is holding soup
 
         **10. Pour Soup** ONLY when:
-           - Soup is ready AND 
-           - Dish is in parter hand AND
-           - Soup is not in agent hand
+           - The soup is ready AND 
+           - Human is holding a dish AND
 
-        **11. Human Stage Soup** ONLY when:
-           - Soup is in partner hand
+        **9. Human Grab Dish** ONLY when:
+           - The soup is ready AND
+           - Human is not holding a dish
 
-        **CRITICAL STATE CHECKS:**
-        - If both onion and tomato are in pot → focus on cooking/serving, NOT ingredient gathering
-        - If required onions are in the pot and soup is cooking, then the action is to Wait Till Ingredients Cooked
-        - If soup is cooking → focus on waiting or dish preparation, NOT ingredient gathering
-        - If soup is ready → focus on serving, NOT cooking steps
+        **8. Wait Till Ingredients Cooked** ONLY when:
+           - The soup is cooking 
+
+        **7. Turn Stove On** ONLY when:
+           - ONLY When the soup is NOT cooking AND 
+           - All required ingredients from the plan are in the pot
+
+        **MEDIUM PRIORITY:**
+        **MAKE SURE TO CHECK PLAN TO SEE IF INGREDIENTS NEED TO BE CHOPPED OR NOT**
+
+        **1. Human Grab Onion** ONLY when:
+           - The plan requires a NON-CHOPPED onion AND
+           - There is no onion in the pot AND
+           - There is no onion staged at the staging station
+
+        **2. Human Grab Chopped Onion** ONLY when:
+           - The plan requires a chopped onion AND
+           - There is no onion in the pot AND
+           - There is no onion staged at the chopping station or staging station
+
+        **3. Human Grab Tomato** ONLY when:
+           - The plan requires a NON-CHOPPED tomato AND
+           - There is no tomato in the pot AND
+           - There is no tomato staged at the staging station
+
+        **4. Human Grab Chopped Tomato** ONLY when:
+           - The plan requires a chopped tomato AND
+           - There is no tomato in the pot AND
+           - There is no tomato staged at the chopping station or staging station
+
+        **LOWEST PRIORITY:**
+        **5. Place Onion in Pot** ONLY when:
+           - ONLY when the onion is staged at the staging station AND
+           - There is no onion in the pot AND
+
+        **6. Place Tomato in Pot** ONLY when:
+           - ONLY when the tomato is staged at the staging station AND
+           - There is no tomato in the pot AND
+
+        **PRIORITY ORDER - CHECK IN THIS SEQUENCE:**
+        1. **FIRST**: Check if soup is in someone's hand → predict "Human Stage Soup" (PRIORITY 11)
+        2. **SECOND**: Check if soup is ready → predict serving actions (PRIORITIES 9-10)
+        3. **THIRD**: Check if soup is cooking → predict "Wait Till Ingredients Cooked" (PRIORITY 8)
+        4. **FOURTH**: Check if ingredients are in pot but stove off → predict "Turn Stove On" (PRIORITY 7)
+        5. **FIFTH**: Check if ingredients are missing → predict grab actions (look at plan for chopped or non-chopped) (PRIORITIES 1-4)
+        6. **LAST**: Check if ingredients are staged → predict placement actions (PRIORITIES 5-6)
 
         **DECISION PROCESS:**
         1. **Check current state**: What's already in pot/cooking/ready?
         2. **Apply rules above**: Use the exact conditions for each action
         3. **Select action**: Choose the action that matches current state and plan requirements
-        4. **Use the plan the user has provided to guide your decision**
+        4. **Use the plan the user has provided to guide your decision and know their preferences (ingredients used / chopped or not)**
 
+        **CRITICAL RULE - BEFORE PREDICTING ACTIONS, CHECK THE LIST OF PREDICTION RULES ABOVE AND MAKE SURE YOU DO NOT VIOLATE ANY OF THEM**
+        **WHEN YOU CHOOSE AN ACTION, GO THROUGH THE LIST OF PREDICTION RULES AND MAKE SURE YOU DO NOT VIOLATE ANY OF THE CONDITIONS FOR THAT ACTION**
+        
         Return only this line:
         Primary: <human_action_name>
         """

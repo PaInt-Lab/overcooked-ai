@@ -236,15 +236,13 @@ class SecondaryActionSelector:
         Select the best action from the relevant sequence based on current game state.
         Uses state-driven sequence progression logic.
         """
-        # Always prioritize soup serving (highest priority override)
-        if (game_state.get('soup_hand') == 'agent' and 
-            "place(soup)" in relevant_actions):
+        # ALWAYS prioritize soup handling (highest priority override)
+        # If robot has soup in hand, always place it
+        if game_state.get('soup_hand') == 'agent':
             return "place(soup)"
         
-        if (game_state.get('soup_ready', False) and 
-            game_state.get('soup_staged', False) and 
-            game_state.get('soup_hand') == 'none' and
-            "pickup(soup)" in relevant_actions):
+        # If soup is staged and robot doesn't have it, always pick it up
+        if game_state.get('soup_staged', False) and game_state.get('soup_hand') == 'none':
             return "pickup(soup)"
         
         # State-driven sequence progression for multi-step workflows
@@ -491,6 +489,15 @@ def _smart_select_secondary_action(game_state: Dict, predicted_primary_action: s
     This fixes the issue where robot keeps trying to pickup when it should place.
     Now also considers what's already in the pot to avoid redundant actions.
     """
+    
+    # ALWAYS prioritize soup handling (highest priority override)
+    # If robot has soup in hand, always place it
+    if game_state.get('soup_hand') == 'agent':
+        return "place(soup)"
+    
+    # If soup is staged and robot doesn't have it, always pick it up
+    if game_state.get('soup_staged', False) and game_state.get('soup_hand') == 'none':
+        return "pickup(soup)"
     
     # Human wants to grab chopped onion
     if "Human Grab Chopped Onion" in predicted_primary_action:

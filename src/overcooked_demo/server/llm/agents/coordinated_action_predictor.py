@@ -383,13 +383,13 @@ class CoordinatedActionPredictorAgent(Agent):
             elif bottom_stations:
                 self.onion_staging_tiles.extend(bottom_stations)
             
-            if right_stations:
-                self.dish_staging_tiles.extend(right_stations)
-            elif top_stations:
-                self.dish_staging_tiles.extend(top_stations)
+            # if right_stations:
+            #     self.dish_staging_tiles.extend(right_stations)
+            # elif top_stations:
+            #     self.dish_staging_tiles.extend(top_stations)
 
             self.tomato_staging_tiles = self.onion_staging_tiles.copy()
-            
+            self.dish_staging_tiles = self.onion_staging_tiles.copy() # Moving the dish staging tile to agent side
             self.soup_staging_tiles = self.dish_staging_tiles
 
         # Create chopping stations
@@ -1135,7 +1135,8 @@ class CoordinatedActionPredictorAgent(Agent):
         # NEW: Use unified state graph instead of task-specific mechanics
         # The unified state graph handles all recipe types dynamically
         
-        # Create optimized LLM prompt - plan as context, state graph as constraints
+        # Create optimized LLM prompt with EXACT rule-based conditions
+        # This replaces the vague guidance with specific rules for each action type
         # prompt = f"""
         # CURRENT STATE:
         # {self.last_summary}
@@ -1177,47 +1178,76 @@ class CoordinatedActionPredictorAgent(Agent):
         USER PLAN PRIMARY TASKS (Human Actions Only):
         {plan_text}
 
-        **RECIPE ANALYSIS & STATE AWARENESS:**
-        
-        **Current Recipe Status:**
-        - Analyze the plan to understand which ingredients are needed and in what sequence
-        - Check the current state to see what has already been completed
-        - Consider what logically comes next based on what's already in the pot/cooking
-        
-        **State Context:**
-        - If an onion is already in the pot, the next logical step is to get a tomato (not another onion)
-        - If a tomato is already in the pot, focus on cooking or serving steps
-        - If both ingredients are in the pot, focus on cooking completion and serving
-        - Consider the current cooking stage when deciding what to fetch next
-        
-        **CHOPPING AWARENESS:**
-        - Before predicting ingredient actions, check if the ingredient needs chopping according to the plan
-        - If chopping is needed, check the current state to see if it's already chopped
-        - Only predict "Human Grab Chopped [Ingredient]" if the ingredient is actually chopped
-        - If chopping is needed but not done, predict "Human Grab [Ingredient]" (to chop it) instead
-        - Examples:
-          * Plan needs chopped onion + onion not chopped → predict "Human Grab Onion" ✅
-          * Plan needs chopped onion + onion already chopped → predict "Human Grab Chopped Onion" ✅
-          * Plan needs chopped tomato + tomato not chopped → predict "Human Grab Tomato" ✅
-          * Plan needs chopped tomato + tomato already chopped → predict "Human Grab Chopped Tomato" ✅
-        
-        **STRATEGY: Plan as Context, State Graph as Constraints**
+        **PREDICTION RULES - FOLLOW THESE EXACTLY:**
 
-        The user's plan shows their preferred sequence and style of play. Use it to understand:
-        - What the user wants to accomplish next
-        - Their preferred order of operations  
-        - Their playing style and preferences
+        If there is a soup in the pot, or around, then the robot should focus on serving the soup. Don't focus on ingredients or cooking.
+        **1. Human Grab Onion** ONLY when:
+           - Plan requires onion AND
+           - Onion not in pot AND
+           - Onion not in partner hand AND
+           - Onion not already chopped (if plan needs chopped)
 
-        However, you MUST select from the available primary actions listed above. 
+        **2. Human Grab Chopped Onion** ONLY when:
+           - Plan requires chopped onion AND
+           - Onion not in pot AND
+           - Onion not in partner hand AND
+           - Onion is already chopped
+
+        **3. Human Grab Tomato** ONLY when:
+           - Plan requires tomato AND
+           - Tomato not in pot AND
+           - Tomato not in partner hand AND
+           - Tomato not already chopped (if plan needs chopped)
+
+        **4. Human Grab Chopped Tomato** ONLY when:
+           - Plan requires chopped tomato AND
+           - Tomato not in pot AND
+           - Tomato not in partner hand AND
+           - Tomato is already chopped
+
+        **5. Place Onion in Pot** ONLY when:
+           - Human has onion in hand AND
+           - Onion not in pot AND
+           - Plan requires onion in pot
+
+        **6. Place Tomato in Pot** ONLY when:
+           - Human has tomato in hand AND
+           - Tomato not in pot AND
+           - Plan requires tomato in pot
+
+        **7. Turn Stove On** ONLY when:
+           - All required ingredients from plan are in pot AND
+           - Soup is not cooking AND 
+           - Soup is not ready
+           - If soup is cooking, then the action is not Turn Stove On
+
+        **8. Wait Till Ingredients Cooked** ONLY when:
+           - Soup is cooking AND
+           - Soup is not ready
+
+        **9. Human Grab Dish** ONLY when:
+           - Soup is ready AND
+           - Dish not in partner hand
+
+        **10. Pour Soup** ONLY when:
+           - Soup is ready AND 
+           - Dish is in parter hand AND
+           - Soup is not in agent hand
+
+        **11. Human Stage Soup** ONLY when:
+           - Soup is in partner hand
+
+        **CRITICAL STATE CHECKS:**
+        - If both onion and tomato are in pot → focus on cooking/serving, NOT ingredient gathering
+        - If required onions are in the pot and soup is cooking, then the action is to Wait Till Ingredients Cooked
+        - If soup is cooking → focus on waiting or dish preparation, NOT ingredient gathering
+        - If soup is ready → focus on serving, NOT cooking steps
 
         **DECISION PROCESS:**
-        1. **Analyze current state**: What ingredients are already in the pot/cooking?
-        2. **Understand intent**: What does the user logically need to do next based on their plan AND current state?
-        3. **Find semantic match**: Which available action best matches their intent?
-        4. **Consider preferences**: If multiple actions match, prefer the one that follows their plan sequence
-        5. **Select executable action**: Choose from the available primary actions
-
-        **IMPORTANT:** You only need to predict the human's primary action. The robot will automatically coordinate its secondary actions using our optimized system.
+        1. **Check current state**: What's already in pot/cooking/ready?
+        2. **Apply rules above**: Use the exact conditions for each action
+        3. **Select action**: Choose the action that matches current state and plan requirements
+        4. **Use the plan the user has provided to guide your decision**
 
         Return only this line:
         Primary: <human_action_name>
@@ -1273,30 +1303,12 @@ class CoordinatedActionPredictorAgent(Agent):
             }
         
         # Execute the robot action using the EXACT same logic as action_predictor.py
+        # FIXED: We now ALWAYS create new action plans instead of reusing old ones
+        # This ensures the robot responds immediately to changing game states and predictions
         try:
-            # If we have a current action plan, continue executing it
-            if self.current_action_plan and self.current_action_index < len(self.current_action_plan):
-                # Get the next action from the current plan
-                next_action = self.current_action_plan[self.current_action_index]
-                self.current_action_index += 1
-                
-                # If we've completed the plan, reset it
-                if self.current_action_index >= len(self.current_action_plan):
-                    self.current_action_plan = []
-                    self.current_action_index = 0
-                
-                print(f"Executing action {self.current_action_index}/{len(self.current_action_plan)} from plan: {next_action}")
-                return next_action, {
-                    "predicted_human_action": predicted_human_action,
-                    "robot_action": robot_action,
-                    # "next_planned_action": next_planned_action,
-                    "llm_response": response,
-                    # "available_primary_actions": available_primary_actions,
-                    "reasoning": f"Executing action {self.current_action_index}/{len(self.current_action_plan)} from plan"
-                }
-            
-            # If no current plan, create a new one based on the robot action
-            # Parse the robot action to get function name and item (like action_predictor.py does)
+            # ALWAYS create a new action plan based on the current robot action
+            # This ensures we respond to changing game states and predictions
+            # We no longer reuse old plans - each prediction gets a fresh action plan
             func_name, item = self._parse_robot_action(robot_action)
             print(f"Parsed robot action: {func_name}({item})")
             

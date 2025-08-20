@@ -278,136 +278,122 @@ class UnifiedStateGraphGenerator:
     
     def _generate_human_transitions(self, node_id: str, state: Dict):
         """Generate transitions for human primary actions"""
-        # Human Grab Onion (from staging)
-        if state['onion_staged'] and state['onion_hand'] == 'none':
-            new_state = state.copy()
-            new_state['onion_hand'] = 'partner'
-            new_state['onion_staged'] = False
-            self._add_transition(node_id, new_state, 'Human Grab Onion')
+        if (
+            not state['onion_hand'] == 'partner' and
+            not state['tomato_hand'] == 'partner' and
+            not state['onion_staged'] and
+            not state['onion_in_pot'] and
+            not state['soup_cooking'] and
+            not state['soup_staged'] and
+            not state['soup_ready'] and
+            state['soup_hand'] == 'none' and
+            not state['onion_at_chopping']):
+            # Create edge to same node - action is available here
+            self._add_transition(node_id, state, 'Human Grab Onion')
         
-        # Human Grab Chopped Onion (from chopping station)
-        if state['onion_at_chopping'] and state['onion_chopped'] and state['onion_hand'] == 'none':
-            new_state = state.copy()
-            new_state['onion_hand'] = 'partner'
-            new_state['onion_at_chopping'] = False
-            self._add_transition(node_id, new_state, 'Human Grab Chopped Onion')
+        # Human Grab Chopped Onion (from chopping station) - only when no other onion operations are happening
+        # Similar conditions to prevent conflicts with other operations
+        if (
+            not state['onion_hand'] == 'partner' and
+            not state['tomato_hand'] == 'partner' and
+            not state['onion_staged'] and
+            not state['onion_in_pot'] and
+            not state['soup_cooking'] and
+            not state['soup_staged'] and
+            not state['soup_ready'] and
+            state['soup_hand'] == 'none'):
+            # Create edge to same node - action is available here
+            self._add_transition(node_id, state, 'Human Grab Chopped Onion')
         
-        # Human Grab Tomato (from staging)
-        if state['tomato_staged'] and state['tomato_hand'] == 'none':
-            new_state = state.copy()
-            new_state['tomato_hand'] = 'partner'
-            new_state['tomato_staged'] = False
-            self._add_transition(node_id, new_state, 'Human Grab Tomato')
+        # Human Grab Tomato (from staging) - only when no other tomato operations are happening
+        # Similar conditions to prevent conflicts with other operations
+        if (
+            not state['onion_hand'] == 'partner' and
+            not state['tomato_hand'] == 'partner' and
+            not state['tomato_staged'] and
+            not state['tomato_in_pot'] and
+            not state['soup_cooking'] and
+            not state['soup_staged'] and
+            not state['soup_ready'] and
+            state['soup_hand'] == 'none' and
+            not state['tomato_at_chopping']):
+            # Create edge to same node - action is available here
+            self._add_transition(node_id, state, 'Human Grab Tomato')
         
-        # Human Grab Chopped Tomato (from chopping station)
-        if state['tomato_at_chopping'] and state['tomato_chopped'] and state['tomato_hand'] == 'none':
-            new_state = state.copy()
-            new_state['tomato_hand'] = 'partner'
-            new_state['tomato_at_chopping'] = False
-            self._add_transition(node_id, new_state, 'Human Grab Chopped Tomato')
+        # Human Grab Chopped Tomato (from chopping station) - only when no other tomato operations are happening
+        # Similar conditions to prevent conflicts with other operations
+        if (
+            not state['onion_hand'] == 'partner' and
+            not state['tomato_hand'] == 'partner' and
+            not state['tomato_staged'] and
+            not state['tomato_in_pot'] and
+            not state['soup_cooking'] and
+            not state['soup_staged'] and
+            not state['soup_ready'] and
+            state['soup_hand'] == 'none'):
+            # Create edge to same node - action is available here
+            self._add_transition(node_id, state, 'Human Grab Chopped Tomato')
         
         # Human Grab dish (from staging)
-        if state['dish_staged'] and state['dish_hand'] == 'none':
-            new_state = state.copy()
-            new_state['dish_hand'] = 'partner'
-            new_state['dish_staged'] = False
-            self._add_transition(node_id, new_state, 'Human Grab dish')
+        if state['soup_ready'] or state['soup_cooking'] and not state['dish_hand'] == 'partner':
+            # Create edge to same node - action is available here
+            self._add_transition(node_id, state, 'Human Grab dish')
         
         # Place onion in pot (when human has onion)
-        if state['onion_hand'] == 'partner':
-            new_state = state.copy()
-            new_state['onion_hand'] = 'none'
-            new_state['onion_in_pot'] = True
-            new_state['soup_in_pot_not_cooking'] = True
-            self._add_transition(node_id, new_state, 'Place onion in pot')
+        if state['onion_hand'] == 'partner' or state['onion_staged']:
+            # Create edge to same node - action is available here
+            self._add_transition(node_id, state, 'Place onion in pot')
         
         # Place tomato in pot (when human has tomato)
-        if state['tomato_hand'] == 'partner':
-            new_state = state.copy()
-            new_state['tomato_hand'] = 'none'
-            new_state['tomato_in_pot'] = True
-            new_state['soup_in_pot_not_cooking'] = True
-            self._add_transition(node_id, new_state, 'Place tomato in pot')
+        if state['tomato_hand'] == 'partner' or state['tomato_staged']:
+            # Create edge to same node - action is available here
+            self._add_transition(node_id, state, 'Place tomato in pot')
         
         # Turn stove on (when both ingredients are in pot)
-        if state['onion_in_pot'] and state['tomato_in_pot'] and state['soup_in_pot_not_cooking']:
-            new_state = state.copy()
-            new_state['soup_in_pot_not_cooking'] = False
-            new_state['soup_cooking'] = True
-            self._add_transition(node_id, new_state, 'Turn stove on')
+        if state['onion_in_pot'] or state['tomato_in_pot'] and state['soup_in_pot_not_cooking']:
+            # Create edge to same node - action is available here
+            self._add_transition(node_id, state, 'Turn stove on')
+        
+        # Wait Till Ingredients Cook (when soup is cooking)
+        if state['soup_cooking'] and not state['soup_ready']:
+            # This action represents the human waiting, no state change needed
+            # Create a self-loop transition to represent the waiting action
+            self._add_transition(node_id, state, 'Wait Till Ingredients Cook')
         
         # Pour soup (when soup is ready and human has dish)
         if state['soup_ready'] and state['dish_hand'] == 'partner':
-            new_state = state.copy()
-            new_state['soup_hand'] = 'partner'
-            new_state['onion_in_pot'] = False
-            new_state['tomato_in_pot'] = False
-            new_state['dish_hand'] = 'none'
-            new_state['soup_ready'] = False
-            self._add_transition(node_id, new_state, 'Pour soup')
+            # Create edge to same node - action is available here
+            self._add_transition(node_id, state, 'Pour soup')
         
         # Human Stage Soup (when human has soup)
-        if state['soup_hand'] == 'partner':
-            new_state = state.copy()
-            new_state['soup_hand'] = 'none'
-            new_state['soup_staged'] = True
-            self._add_transition(node_id, new_state, 'Human Stage Soup')
+        if not state['soup_hand'] == 'none':
+            # Create edge to same node - action is available here
+            self._add_transition(node_id, state, 'Human Stage Soup')
         
-        # ADD MISSING CHOPPING TRANSITIONS
-        
-        # Place onion at chopping station (auto-chops)
-        if (state['onion_hand'] == 'partner' and not state['onion_chopped'] and 
-            not state['onion_at_chopping']):
-            new_state = state.copy()
-            new_state['onion_hand'] = 'none'
-            new_state['onion_at_chopping'] = True
-            new_state['onion_chopped'] = True
-            self._add_transition(node_id, new_state, 'Place onion at chopping')
-        
-        # Place tomato at chopping station (auto-chops)
-        if (state['tomato_hand'] == 'partner' and not state['tomato_chopped'] and 
-            not state['tomato_at_chopping']):
-            new_state = state.copy()
-            new_state['tomato_hand'] = 'none'
-            new_state['tomato_at_chopping'] = True
-            new_state['tomato_chopped'] = True
-            self._add_transition(node_id, new_state, 'Place tomato at chopping')
+        # Note: Removed "Place onion at chopping" and "Place tomato at chopping" 
+        # as these are robot actions, not human primary actions
     
     def _generate_environmental_transitions(self, node_id: str, state: Dict):
-        """Generate transitions for environmental changes"""
-        # Cooking starts automatically when both ingredients are in pot
-        if state['onion_in_pot'] and state['tomato_in_pot'] and state['soup_in_pot_not_cooking']:
-            new_state = state.copy()
-            new_state['soup_in_pot_not_cooking'] = False
-            new_state['soup_cooking'] = True
-            self._add_transition(node_id, new_state, 'cooking_start')
-        
-        # Soup becomes ready when cooking completes (automatic, no transition needed)
-        # This happens automatically in the game, not as a human action
+        """Generate transitions for environmental changes (not human actions)"""
+        # Note: Environmental changes like cooking completion happen automatically
+        # and don't need to be represented as human actions in the state graph
+        pass
     
     def _add_transition(self, from_node_id: str, to_state: Dict, action: str):
         """Add a transition between states"""
-        to_state_key = json.dumps(to_state, sort_keys=True)
+        # Since we're using the graph as a lookup table (not for navigation),
+        # all transitions go to the same node (self-loop)
+        to_node_id = from_node_id
         
-        # Find the target node by comparing state summaries
-        to_node_id = None
-        for node_id, node in self.graph.nodes.items():
-            node_state_key = json.dumps(node.state_summary, sort_keys=True)
-            if node_state_key == to_state_key:
-                to_node_id = node_id
-                break
-        
-        if to_node_id and to_node_id != from_node_id:
-            edge = StateEdge(
-                from_node=from_node_id,
-                to_node=to_node_id,
-                action=action,
-                weight=1.0
-            )
-            self.graph.add_edge(edge)
-            print(f"   Added transition: {from_node_id} --[{action}--> {to_node_id}")
-        else:
-            print(f"   Skipped transition: {from_node_id} --[{action}--> (target not found)")
+        # Create the edge (always a self-loop now)
+        edge = StateEdge(
+            from_node=from_node_id,
+            to_node=to_node_id,
+            action=action,
+            weight=1.0
+        )
+        self.graph.add_edge(edge)
+        print(f"   Added action '{action}' to node {from_node_id}")
 
 
 # Factory function to get the unified state graph

@@ -17,14 +17,14 @@ OVERCOOKED_GAME_MECHANICS = """
 Note: Cooking states are mutually exclusive: soup_cooking, soup_ready, and soup_in_pot_not_cooking cannot all be true simultaneously.
 
 ### Valid Action Sequences:
-1. FetchOnion -> StageOnion -> PlaceIngredientInPot -> TurnStoveOn -> WaitForSoupToCook -> soup_ready=true
+1. FetchOnion -> StageOnion -> PlaceIngredientInPot -> [Human: TurnStoveOn] -> WaitForSoupToCook -> soup_ready=true
 2. FetchDish -> StageDish -> FetchSoup -> StageSoup -> ServeSoup -> soup_served=true
 
 ### Transition Rules:
 - FetchOnion: onion_hand=none -> onion_hand=agent
 - StageOnion: onion_hand=agent -> onion_hand=none, onion_staged=true
 - PlaceIngredientInPot: onion_hand=partner -> onion_hand=none, ingredient_in_pot=true
-- Cooking & TurnStoveOn: soup_in_pot_not_cooking=true -> soup_cooking=true (automatic)
+- Cooking & TurnStoveOn: soup_in_pot_not_cooking=true -> soup_cooking=true 
 - Ready: soup_cooking=true -> soup_ready=true (automatic)
 - FetchSoup: soup_ready=true, soup_hand=none -> soup_hand=agent
 - StageSoup: soup_hand=agent -> soup_hand=none, soup_staged=true

@@ -705,14 +705,15 @@ def play_game(game: OvercookedGame, fps=6):
         k.startswith('overcooked_llm') or k == 'overcooked_llm' for k in getattr(game, 'npc_policies', {})
     )
     status = Game.Status.ACTIVE
+    
     if has_llm_agent:
-        # Event-driven: only tick when all pending_actions queues are non-empty
+        # Real-time movement mode: humans move freely, agents move when ready
         while status != Game.Status.DONE and status != Game.Status.INACTIVE:
             with game.lock:
-                # Wait until all pending_actions queues are non-empty
-                while any(q.empty() for q in game.pending_actions):
-                    socketio.sleep(0.1)
+                # Process any pending human actions immediately
+                game.apply_actions()
                 status = game.tick()
+            
             if status == Game.Status.RESET:
                 with game.lock:
                     data = game.get_data()
@@ -727,12 +728,15 @@ def play_game(game: OvercookedGame, fps=6):
                 )
                 socketio.sleep(game.reset_timeout / 1000)
             else:
+                # Broadcast state update
                 socketio.emit(
                     "state_pong", {"state": game.get_state()}, room=game.id
                 )
-            socketio.sleep(1 / fps)
+            
+            # Shorter sleep for more responsive human movement
+            socketio.sleep(1 / (fps * 2))  # Double the update rate for smoother movement
     else:
-        # Original tick-based loop
+        # Original tick-based loop for non-LLM agents
         while status != Game.Status.DONE and status != Game.Status.INACTIVE:
             with game.lock:
                 status = game.tick()

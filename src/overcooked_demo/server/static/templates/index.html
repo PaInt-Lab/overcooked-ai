@@ -55,7 +55,7 @@
               <select class="form-control" id="playerZero" name="playerZero">
                 <option value="human">Human Keyboard Input</option>
                 {% for agent_name in agent_names %}
-                <option value="{{agent_name}}">{{agent_name}}</option>
+                <option value="{{agent_name}}" {% if agent_name == "overcooked_llm" %}selected{% endif %}>{{agent_name}}</option>
                 {% endfor %}
               </select>
             </div>
@@ -72,7 +72,7 @@
               <label for="layout">Layout</label>
               <select class="form-control" id="layout" name="layout">
                 {% for layout in layouts %}
-                <option value="{{layout}}">{{layout}}</option>
+                <option value="{{layout}}" {% if layout == "counter_circuit" %}selected{% endif %}>{{layout}}</option>
                 {% endfor %}
               </select>
             </div>
@@ -81,7 +81,7 @@
               <input
                 type="number"
                 id="gameTime"
-                value="30"
+                value="700"
                 min="1"
                 max="1800"
                 name="gameTime"
@@ -151,6 +151,7 @@
             id="taskTitle"
             class="form-control"
             placeholder="e.g. Serving Onion Soup"
+            value="Serving Chopped Onion and Chopped Tomato Soup"
           />
         </div>
         <!-- Predefine Subtasks -->
@@ -176,14 +177,26 @@
                <button id="testSubtasksBtn" class="btn btn-light-yellow btn-block mt-2">
                  Onion Soup Subtasks (Testing)
                </button>
+               <button id="testChoppedOnionBtn" class="btn btn-light-green btn-block mt-2">
+                 Chopped Onion Soup (Testing)
+               </button>
                <button id="testTomatoBtn" class="btn btn-light-red btn-block mt-2">
                  Tomato Soup Subtasks (Testing)
+               </button>
+               <button id="testChoppedTomatoBtn" class="btn btn-light-pink btn-block mt-2">
+                 Chopped Tomato Soup (Testing)
                </button>
                <button id="testOnionTomatoBtn" class="btn btn-light-blue btn-block mt-2">
                  Onion & Tomato Soup Subtasks (Testing)
                </button>
+               <button id="testChoppedOnionTomatoBtn" class="btn btn-light-cyan btn-block mt-2">
+                 Chopped Onion and Tomato Soup (Testing)
+               </button>
+               <button id="testOnionChoppedTomatoBtn" class="btn btn-light-indigo btn-block mt-2">
+                 Onion and Chopped Tomato Soup (Testing)
+               </button>
                <button id="testChoppedBtn" class="btn btn-light-purple btn-block mt-2">
-                 Onion and Tomato - Chopped (Testing)
+                 Chopped Onion and Chopped Tomato Soup (Testing)
                </button>
              </div>
           </div>
@@ -398,6 +411,54 @@
         background-color: #d8bfd8;
         border-color: #c8a2c8;
         color: #2d004d;
+      }
+
+      /* Light green button for Chopped Onion Soup */
+      .btn-light-green {
+        background-color: #d4edda;
+        border-color: #c3e6cb;
+        color: #155724;
+      }
+      .btn-light-green:hover {
+        background-color: #c3e6cb;
+        border-color: #b1dfbb;
+        color: #0f5132;
+      }
+
+      /* Light pink button for Chopped Tomato Soup */
+      .btn-light-pink {
+        background-color: #fce4ec;
+        border-color: #f8bbd9;
+        color: #880e4f;
+      }
+      .btn-light-pink:hover {
+        background-color: #f8bbd9;
+        border-color: #f48fb1;
+        color: #4a148c;
+      }
+
+      /* Light cyan button for Chopped Onion and Tomato Soup */
+      .btn-light-cyan {
+        background-color: #e0f2f1;
+        border-color: #b2dfdb;
+        color: #004d40;
+      }
+      .btn-light-cyan:hover {
+        background-color: #b2dfdb;
+        border-color: #80cbc4;
+        color: #00251a;
+      }
+
+      /* Light indigo button for Onion and Chopped Tomato Soup */
+      .btn-light-indigo {
+        background-color: #e8eaf6;
+        border-color: #c5cae9;
+        color: #1a237e;
+      }
+      .btn-light-indigo:hover {
+        background-color: #c5cae9;
+        border-color: #9fa8da;
+        color: #0d47a1;
       }
 
       .subtask-edit {
@@ -788,15 +849,15 @@
             const testSubtasks = [
               "Robot Fetch onion",
               "Stage onion",
-              "Human Grab onion",
+              "Human Grab Onion",
               "Place onion in pot",
               "Turn stove on",
-              "Wait till onion cooked",
+              "Wait for ingredients to cook",
               "Robot Fetch dish",
               "Stage dish",
               "Human Grab dish",
               "Pour soup",
-              "Human stage soup",
+              "Human Stage Soup",
               "Robot place soup on serving station"
             ];
 
@@ -824,15 +885,15 @@
             const tomatoSubtasks = [
               "Robot Fetch tomato",
               "Stage tomato",
-              "Human Grab tomato",
+              "Human Grab Tomato",
               "Place tomato in pot",
               "Turn stove on",
-              "Wait till tomato cooked",
+              "Wait for ingredients to cook",
               "Robot Fetch dish",
               "Stage dish",
               "Human Grab dish",
               "Pour soup",
-              "Human stage soup",
+              "Human Stage Soup",
               "Robot place soup on serving station"
             ];
 
@@ -860,11 +921,11 @@
             const onionTomatoSubtasks = [
               "Robot Fetch onion",
               "Stage onion",
-              "Human Grab onion",
+              "Human Grab Onion",
               "Place onion in pot",
               "Robot Fetch tomato",
               "Stage tomato",
-              "Human Grab tomato",
+              "Human Grab Tomato",
               "Place tomato in pot",
               "Turn stove on",
               "Wait for ingredients to cook",
@@ -872,7 +933,7 @@
               "Stage dish",
               "Human Grab dish",
               "Pour soup",
-              "Human stage soup",
+              "Human Stage Soup",
               "Robot fetch soup",
               "Robot place soup on serving station"
             ];
@@ -900,14 +961,12 @@
             // Chopped Onion and Tomato subtasks
             const choppedSubtasks = [
               "Robot Fetch onion",
-              "Chop Onion",
               "Stage onion",
-              "Human Grab onion",
+              "Human Grab Chopped Onion",
               "Place onion in pot",
               "Robot Fetch tomato",
-              "Chop Tomato",
               "Stage tomato",
-              "Human Grab tomato",
+              "Human Grab Chopped Tomato",
               "Place tomato in pot",
               "Turn stove on",
               "Wait for ingredients to cook",
@@ -915,13 +974,167 @@
               "Stage dish",
               "Human Grab dish",
               "Pour soup",
-              "Human stage soup",
+              "Human Stage Soup",
               "Robot fetch soup",
               "Robot place soup on serving station"
             ];
 
             // Create cards for each chopped subtask
             choppedSubtasks.forEach((subtask) => {
+              createSubtaskCard(subtask);
+            });
+          });
+
+        // Chopped Onion Soup test functionality
+        document
+          .getElementById("testChoppedOnionBtn")
+          .addEventListener("click", function (e) {
+            e.preventDefault();
+            
+            // Clear existing subtasks
+            const container = document.getElementById("subtaskContainer");
+            const empty = document.getElementById("emptyMessage");
+            if (empty) {
+              empty.style.display = "none";
+            }
+            container.innerHTML = "";
+
+            // Chopped Onion Soup subtasks
+            const choppedOnionSubtasks = [
+              "Robot Fetch onion",
+              "Stage onion",
+              "Human Grab Chopped Onion",
+              "Place onion in pot",
+              "Turn stove on",
+              "Wait for ingredients to cook",
+              "Robot Fetch dish",
+              "Stage dish",
+              "Human Grab dish",
+              "Pour soup",
+              "Human Stage Soup",
+              "Robot place soup on serving station"
+            ];
+
+            // Create cards for each chopped onion subtask
+            choppedOnionSubtasks.forEach((subtask) => {
+              createSubtaskCard(subtask);
+            });
+          });
+
+        // Chopped Tomato Soup test functionality
+        document
+          .getElementById("testChoppedTomatoBtn")
+          .addEventListener("click", function (e) {
+            e.preventDefault();
+            
+            // Clear existing subtasks
+            const container = document.getElementById("subtaskContainer");
+            const empty = document.getElementById("emptyMessage");
+            if (empty) {
+              empty.style.display = "none";
+            }
+            container.innerHTML = "";
+
+            // Chopped Tomato Soup subtasks
+            const choppedTomatoSubtasks = [
+              "Robot Fetch tomato",
+              "Stage tomato",
+              "Human Grab Chopped Tomato",
+              "Place tomato in pot",
+              "Turn stove on",
+              "Wait for ingredients to cook",
+              "Robot Fetch dish",
+              "Stage dish",
+              "Human Grab dish",
+              "Pour soup",
+              "Human Stage Soup",
+              "Robot place soup on serving station"
+            ];
+
+            // Create cards for each chopped tomato subtask
+            choppedTomatoSubtasks.forEach((subtask) => {
+              createSubtaskCard(subtask);
+            });
+          });
+
+        // Chopped Onion and Tomato Soup test functionality
+        document
+          .getElementById("testChoppedOnionTomatoBtn")
+          .addEventListener("click", function (e) {
+            e.preventDefault();
+            
+            // Clear existing subtasks
+            const container = document.getElementById("subtaskContainer");
+            const empty = document.getElementById("emptyMessage");
+            if (empty) {
+              empty.style.display = "none";
+            }
+            container.innerHTML = "";
+
+            // Chopped Onion and Tomato Soup subtasks
+            const choppedOnionTomatoSubtasks = [
+              "Robot Fetch onion",
+              "Stage onion",
+              "Human Grab Chopped Onion",
+              "Place onion in pot",
+              "Robot Fetch tomato",
+              "Stage tomato",
+              "Human Grab Tomato",
+              "Place tomato in pot",
+              "Turn stove on",
+              "Wait for ingredients to cook",
+              "Robot Fetch dish",
+              "Stage dish",
+              "Human Grab dish",
+              "Pour soup",
+              "Human Stage Soup",
+              "Robot fetch soup",
+              "Robot place soup on serving station"
+            ];
+
+            // Create cards for each chopped onion and tomato subtask
+            choppedOnionTomatoSubtasks.forEach((subtask) => {
+              createSubtaskCard(subtask);
+            });
+          });
+
+        // Onion and Chopped Tomato Soup test functionality
+        document
+          .getElementById("testOnionChoppedTomatoBtn")
+          .addEventListener("click", function (e) {
+            e.preventDefault();
+            
+            // Clear existing subtasks
+            const container = document.getElementById("subtaskContainer");
+            const empty = document.getElementById("emptyMessage");
+            if (empty) {
+              empty.style.display = "none";
+            }
+            container.innerHTML = "";
+
+            // Onion and Chopped Tomato Soup subtasks
+            const onionChoppedTomatoSubtasks = [
+              "Robot Fetch onion",
+              "Stage onion",
+              "Human Grab Onion",
+              "Place onion in pot",
+              "Robot Fetch tomato",
+              "Stage tomato",
+              "Human Grab Chopped Tomato",
+              "Place tomato in pot",
+              "Turn stove on",
+              "Wait for ingredients to cook",
+              "Robot Fetch dish",
+              "Stage dish",
+              "Human Grab dish",
+              "Pour soup",
+              "Human Stage Soup",
+              "Robot fetch soup",
+              "Robot place soup on serving station"
+            ];
+
+            // Create cards for each onion and chopped tomato subtask
+            onionChoppedTomatoSubtasks.forEach((subtask) => {
               createSubtaskCard(subtask);
             });
           });

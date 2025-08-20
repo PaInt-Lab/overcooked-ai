@@ -211,11 +211,11 @@ class CoordinatedActionPredictorAgent(Agent):
         self.current_action_plan = []
         self.current_action_index = 0
         
-        # NEW: Set the model directly since state graph is disabled
+        # NEW: Set the model directly for unified state graph
         self.selected_model = UNIFIED_OVERCOOKED_MODEL
         print(f"Selected unified model: {self.selected_model}")
         
-        # NEW: Set default task title since state graph is disabled
+        # NEW: Set default task title for unified state graph
         self.task_title = "Unknown Task"
 
     def _initialize_state_graph(self):
@@ -286,18 +286,17 @@ class CoordinatedActionPredictorAgent(Agent):
         
         # NEW: Filter plan to extract only primary tasks for LLM context
         self.primary_tasks = self._extract_primary_tasks_from_plan()
-        print(f"📋 Full plan loaded with {len(self.plan.events)} total tasks")
-        print(f"🎯 Filtered to {len(self.primary_tasks)} primary tasks for LLM")
+        print(f"Full plan loaded with {len(self.plan.events)} total tasks")
+        print(f"Filtered to {len(self.primary_tasks)} primary tasks for LLM")
         
-        # NEW: Set task title from plan since state graph is disabled
+        # NEW: Set task title from plan for unified state graph
         if hasattr(self.plan, 'task_title'):
             self.task_title = self.plan.task_title
             print(f"Task title set from plan: {self.task_title}")
         
         # Initialize state graph now that we have the plan with task title
-        # TEMPORARILY COMMENTED OUT: State graph disabled for testing
-        # self._initialize_state_graph()
-        print("State graph initialization disabled for testing")
+        self._initialize_state_graph()
+        print("State graph initialization enabled")
     
     def _extract_primary_tasks_from_plan(self) -> List[str]:
         """
@@ -1094,33 +1093,35 @@ class CoordinatedActionPredictorAgent(Agent):
         print(f"State summary: {self.last_summary}")
         
         # NEW: Get available primary actions directly from our unified state graph
-        # try:
-        #     available_primary_actions = self._get_available_primary_actions_from_unified_graph(self.last_summary)
-        #     print(f"Available primary actions from unified graph: {available_primary_actions}")
-        # except Exception as e:
-        #     print(f"Error getting available actions from unified graph: {e}")
-        #     available_primary_actions = []
+        try:
+            available_primary_actions = self._get_available_primary_actions_from_unified_graph(self.last_summary)
+            print(f"Available primary actions from unified graph: {available_primary_actions}")
+        except Exception as e:
+            print(f"Error getting available actions from unified graph: {e}")
+            available_primary_actions = []
         
-        # # FALLBACK: If no actions available from unified graph, provide basic actions
-        # if not available_primary_actions:
-        #     print("⚠️  WARNING: No actions from unified graph, using fallback actions")
-        #     available_primary_actions = [
-        #         'Human Grab Onion',
-        #         'Human Grab Chopped Onion', 
-        #         'Human Grab Tomato',
-        #         'Human Grab Chopped Tomato',
-        #         'Human Grab dish',
-        #         'Place onion in pot',
-        #         'Place tomato in pot',
-        #         'Turn stove on',
-        #         'Pour soup',
-        #         'Human Stage Soup',
-        #         'NOOP'
-        #     ]
+        # FALLBACK: If no actions available from unified graph, provide basic actions
+        if not available_primary_actions:
+            print("⚠️  WARNING: No actions from unified graph, using fallback actions")
+            available_primary_actions = [
+                'Human Grab Onion',
+                'Human Grab Chopped Onion', 
+                'Human Grab Tomato',
+                'Human Grab Chopped Tomato',
+                'Human Grab dish',
+                'Place onion in pot',
+                'Place tomato in pot',
+                'Turn stove on',
+                'Pour soup',
+                'Human Stage Soup',
+                'NOOP'
+            ]
         
         # Generate plan to goal
+        # TODO: Implement A* pathfinding for next_planned_action with new unified state graph
         # next_planned_action = self._generate_plan_to_goal(self.last_summary)
         # print(f"Next planned action: {next_planned_action}")
+        next_planned_action = None  # Temporarily disabled
         
         # NEW: Use filtered primary tasks only for LLM context
         plan_text = ""
@@ -1137,6 +1138,9 @@ class CoordinatedActionPredictorAgent(Agent):
         
         # Create optimized LLM prompt with EXACT rule-based conditions
         # This replaces the vague guidance with specific rules for each action type
+        # MOST EFFICIENT NEXT ACTION FOR GOAL COMPLETION:
+        # Next planned action: {next_planned_action}  # TODO: Re-enable when A* is implemented
+        
         # prompt = f"""
         # CURRENT STATE:
         # {self.last_summary}
@@ -1144,16 +1148,13 @@ class CoordinatedActionPredictorAgent(Agent):
         # USER PLAN PRIMARY TASKS (Human Actions Only):
         # {plan_text}
 
-        # MOST EFFICIENT NEXT ACTION FOR GOAL COMPLETION:
-        # Next planned action: {next_planned_action}
-
         # AVAILABLE PRIMARY ACTIONS (from unified state graph):
         # {available_primary_actions}
 
         # **STRATEGY: Plan as Context, State Graph as Constraints**
 
         # The user's plan shows their preferred sequence and style of play. Use it to understand:
-        # - What the user wants to accomplish next
+        # - What the user want to accomplish next
         # - Their preferred order of operations
         # - Their playing style and preferences
 
@@ -1171,244 +1172,6 @@ class CoordinatedActionPredictorAgent(Agent):
         # Primary: <human_action_name>
         # """
 
-        # prompt = f"""
-        # CURRENT STATE:
-        # {self.last_summary}
-
-        # USER PLAN PRIMARY TASKS (Human Actions Only):
-        # {plan_text}
-
-        # **PREDICTION RULES - FOLLOW THESE EXACTLY:**
-
-        # If there is a soup in the pot, or around, then the robot should focus on serving the soup. Don't focus on ingredients or cooking.
-        # **1. Human Grab Onion** ONLY when:
-        #    - Plan requires onion AND
-        #    - Onion not in pot AND
-        #    - Onion not in partner hand AND
-        #    - Onion not already chopped (if plan needs chopped)
-
-        # **2. Human Grab Chopped Onion** ONLY when:
-        #    - Plan requires chopped onion AND
-        #    - Onion not in pot AND
-        #    - Onion not in partner hand AND
-        #    - Onion is already chopped
-
-        # **3. Human Grab Tomato** ONLY when:
-        #    - Plan requires tomato AND
-        #    - Tomato not in pot AND
-        #    - Tomato not in partner hand AND
-        #    - Tomato not already chopped (if plan needs chopped)
-
-        # **4. Human Grab Chopped Tomato** ONLY when:
-        #    - Plan requires chopped tomato AND
-        #    - Tomato not in pot AND
-        #    - Tomato not in partner hand AND
-        #    - Tomato is already chopped
-
-        # **5. Place Onion in Pot** ONLY when:
-        #    - Human has onion in hand AND
-        #    - Onion not in pot AND
-        #    - Plan requires onion in pot
-
-        # **6. Place Tomato in Pot** ONLY when:
-        #    - Human has tomato in hand AND
-        #    - Tomato not in pot AND
-        #    - Plan requires tomato in pot
-
-        # **7. Turn Stove On** ONLY when:
-        #    - All required ingredients from plan are in pot AND
-        #    - Soup is not cooking AND 
-        #    - Soup is not ready
-        #    - If soup is cooking, then the action is not Turn Stove On
-
-        # **8. Wait Till Ingredients Cooked** ONLY when:
-        #    - Soup is cooking AND
-        #    - Soup is not ready
-
-        # **9. Human Grab Dish** ONLY when:
-        #    - Soup is ready AND
-        #    - Dish not in partner hand
-
-        # **10. Pour Soup** ONLY when:
-        #    - Soup is ready AND 
-        #    - Dish is in parter hand AND
-        #    - Soup is not in agent hand
-
-        # **11. Human Stage Soup** ONLY when:
-        #    - Soup is in partner hand
-
-        # **CRITICAL STATE CHECKS:**
-        # - If both onion and tomato are in pot → focus on cooking/serving, NOT ingredient gathering
-        # - If required onions are in the pot and soup is cooking, then the action is to Wait Till Ingredients Cooked
-        # - If soup is cooking → focus on waiting or dish preparation, NOT ingredient gathering
-        # - If soup is ready → focus on serving, NOT cooking steps
-
-        # **DECISION PROCESS:**
-        # 1. **Check current state**: What's already in pot/cooking/ready?
-        # 2. **Apply rules above**: Use the exact conditions for each action
-        # 3. **Select action**: Choose the action that matches current state and plan requirements
-        # 4. **Use the plan the user has provided to guide your decision**
-
-        # Return only this line:
-        # Primary: <human_action_name>
-        # """
-
-        # prompt = f"""
-        # CURRENT STATE:
-        # {self.last_summary}
-
-        # USER PLAN PRIMARY TASKS (Human Actions Only):
-        # {plan_text}
-
-        # **CRITICAL RULE - AGENTS CANNOT PLACE INGREDIENTS IN POTS:**
-        # - Only humans can place ingredients in pots and interact with the stove
-        # - If an agent has an ingredient in hand, we cannot predict it to place it in the pot
-
-        # **PREDICTION RULES - FOLLOW THESE EXACTLY:**
-
-        # **1. Human Grab Onion** ONLY when:
-        #    - Plan requires onion AND
-        #    - onion_in_pot = False AND
-        #    - onion_hand != 'partner' AND
-        #    - onion_chopped = False (if plan needs chopped)
-
-        # **2. Human Grab Chopped Onion** ONLY when:
-        #    - Plan requires chopped onion AND
-        #    - onion_in_pot = False AND
-        #    - onion_hand != 'partner' AND
-        #    - onion_chopped = True
-
-        # **3. Human Grab Tomato** ONLY when:
-        #    - Plan requires tomato AND
-        #    - tomato_in_pot = False AND
-        #    - tomato_hand != 'partner' AND
-        #    - tomato_chopped = False (if plan needs chopped)
-
-        # **4. Human Grab Chopped Tomato** ONLY when:
-        #    - Plan requires chopped tomato AND
-        #    - tomato_in_pot = False AND
-        #    - tomato_hand != 'partner' AND
-        #    - tomato_chopped = True
-
-        # **5. Place Onion in Pot** ONLY when:
-        #    - onion_staged = True AND
-        #    - onion_hand != 'agent' AND
-        #    - onion_in_pot = False AND
-        #    - Plan requires onion in pot
-
-        # **6. Place Tomato in Pot** ONLY when:
-        #    - tomato_staged = True AND
-        #    - tomato_hand != 'agent' AND
-        #    - tomato_in_pot = False AND
-        #    - Plan requires tomato in pot
-
-        # **7. Turn Stove On** ONLY when:
-        #    - soup_cooking = False AND 
-        #    - All required ingredients from plan are in pot AND
-        #    - soup_ready = False
-        #    - If soup is cooking, then the action is to Wait Till Ingredients Cooked
-
-        # **8. Wait Till Ingredients Cooked** ONLY when:
-        #    - soup_cooking = True AND
-        #    - soup_ready = False
-
-        # **9. Human Grab Dish** ONLY when:
-        #    - soup_ready = True AND
-        #    - dish_hand != 'partner'
-
-        # **10. Pour Soup** ONLY when:
-        #    - soup_ready = True AND 
-        #    - dish_hand == 'partner' AND
-        #    - soup_hand != 'partner'
-
-        # **11. Human Stage Soup** ONLY when:
-        #    - soup_hand == 'partner'
-
-        # **DECISION PROCESS:**
-        # 1. **Check current state**: What's already in pot/cooking/ready?
-        # 2. **Apply rules above**: Use the exact conditions for each action
-        # 3. **Select action**: Choose the action that matches current state and plan requirements
-        # 4. **Use the plan the user has provided to guide your decision**
-
-        # **CRITICAL RULE - BEFORE PREDICTING ACTIONS, CHECK THE LIST OF PREDICTION RULES ABOVE AND MAKE SURE YOU DO NOT VIOLATE ANY OF THEM**
-        # **WHEN YOU CHOSE AN ACTION, GO THROUGH THE LIST OF PREDICTION RULES AND MAKE SURE YOU DO NOT VIOLATE ANY OF THE CONDITIONS FOR THAT ACTION**
-        
-        # Return only this line:
-        # Primary: <human_action_name>
-        # """
-
-        # prompt = f"""
-        # CURRENT STATE:
-        # {self.last_summary}
-
-        # USER PLAN PRIMARY TASKS (Human Actions Only):
-        # {plan_text}
-
-        # **CRITICAL RULE - AGENTS CANNOT PLACE INGREDIENTS IN POTS:**
-        # - Only humans can place ingredients in pots and interact with the stove
-        # - If an agent has an ingredient in hand, we cannot predict it to place it in the pot
-
-        # **PREDICTION RULES - FOLLOW THESE EXACTLY:**
-
-        # **1. Human Grab Onion** ONLY when:
-        #    - The plan requires a non-chopped onion AND
-        #    - There is no onion in the pot AND
-        #    - There is no onion staged at the staging station
-
-        # **2. Human Grab Chopped Onion** ONLY when:
-        #    - The plan requires a chopped onion AND
-        #    - There is no onion in the pot AND
-        #    - There is no onion staged at the chopping station or staging station
-
-        # **3. Human Grab Tomato** ONLY when:
-        #    - The plan requires a tomato AND
-        #    - There is no tomato in the pot AND
-        #    - There is no tomato staged at the staging station
-
-        # **4. Human Grab Chopped Tomato** ONLY when:
-        #    - The plan requires a chopped tomato AND
-        #    - There is no tomato in the pot AND
-        #    - There is no tomato staged at the chopping station or staging station
-
-        # **5. Place Onion in Pot** ONLY when:
-        #    - ONLY when the onion is staged at the staging station AND
-        #    - There is no onion in the pot AND
-
-        # **6. Place Tomato in Pot** ONLY when:
-        #    - ONLY when the tomato is staged at the staging station AND
-        #    - There is no tomato in the pot AND
-
-        # **7. Turn Stove On** ONLY when:
-        #    - ONLY When the soup is NOT cooking AND 
-        #    - All required ingredients from the plan are in the pot
-
-        # **8. Wait Till Ingredients Cooked** ONLY when:
-        #    - The soup is cooking 
-
-        # **9. Human Grab Dish** ONLY when:
-        #    - The soup is ready AND
-        #    - Human is not holding a dish
-
-        # **10. Pour Soup** ONLY when:
-        #    - The soup is ready AND 
-        #    - Human is holding a dish AND
-
-        # **11. Human Stage Soup** ONLY when:
-        #    - Human is holding soup
-
-        # **DECISION PROCESS:**
-        # 1. **Check current state**: What's already in pot/cooking/ready?
-        # 2. **Apply rules above**: Use the exact conditions for each action
-        # 3. **Select action**: Choose the action that matches current state and plan requirements
-        # 4. **Use the plan the user has provided to guide your decision**
-
-        # **CRITICAL RULE - BEFORE PREDICTING ACTIONS, CHECK THE LIST OF PREDICTION RULES ABOVE AND MAKE SURE YOU DO NOT VIOLATE ANY OF THEM**
-        # **WHEN YOU CHOSE AN ACTION, GO THROUGH THE LIST OF PREDICTION RULES AND MAKE SURE YOU DO NOT VIOLATE ANY OF THE CONDITIONS FOR THAT ACTION**
-        
-        # Return only this line:
-        # Primary: <human_action_name>
-        # """
-        
         prompt = f"""
         CURRENT STATE:
         {self.last_summary}
@@ -1486,10 +1249,14 @@ class CoordinatedActionPredictorAgent(Agent):
         2. **Apply rules above**: Use the exact conditions for each action
         3. **Select action**: Choose the action that matches current state and plan requirements
         4. **Use the plan the user has provided to guide your decision and know their preferences (ingredients used / chopped or not)**
+        5. **SELECT THE CHOICE FROM THE LIST OF AVAILABLE PRIMARY ACTIONS TO SELECT FROM**
 
         **CRITICAL RULE - BEFORE PREDICTING ACTIONS, CHECK THE LIST OF PREDICTION RULES ABOVE AND MAKE SURE YOU DO NOT VIOLATE ANY OF THEM**
         **WHEN YOU CHOOSE AN ACTION, GO THROUGH THE LIST OF PREDICTION RULES AND MAKE SURE YOU DO NOT VIOLATE ANY OF THE CONDITIONS FOR THAT ACTION**
         
+        AVAILABLE PRIMARY ACTIONS TO SELECT FROM (from unified state graph):
+        {available_primary_actions}
+
         Return only this line:
         Primary: <human_action_name>
         """
@@ -1527,9 +1294,9 @@ class CoordinatedActionPredictorAgent(Agent):
                     return move, {
                         "predicted_human_action": predicted_human_action,
                         "robot_action": robot_action,
-                        # "next_planned_action": next_planned_action,
+                        # "next_planned_action": next_planned_action,  # TODO: Re-enable
                         "llm_response": response,
-                        # "available_primary_actions": available_primary_actions,
+                        "available_primary_actions": available_primary_actions,
                         "reasoning": "Moving to safe position to avoid blocking"
                     }
             
@@ -1537,9 +1304,9 @@ class CoordinatedActionPredictorAgent(Agent):
             return Action.STAY, {
                 "predicted_human_action": predicted_human_action,
                 "robot_action": robot_action,
-                # "next_planned_action": next_planned_action,
+                # "next_planned_action": next_planned_action,  # TODO: Re-enable
                 "llm_response": response,
-                # "available_primary_actions": available_primary_actions,
+                "available_primary_actions": available_primary_actions,
                 "reasoning": "No robot action needed"
             }
         
@@ -1566,9 +1333,9 @@ class CoordinatedActionPredictorAgent(Agent):
                         return move, {
                             "predicted_human_action": predicted_human_action,
                             "robot_action": robot_action,
-                            # "next_planned_action": next_planned_action,
+                            # "next_planned_action": next_planned_action,  # TODO: Re-enable
                             "llm_response": response,
-                            # "available_primary_actions": available_primary_actions,
+                            "available_primary_actions": available_primary_actions,
                             "blocking_prevention": True,
                             "action_plan": action_plan
                         }
@@ -1577,9 +1344,9 @@ class CoordinatedActionPredictorAgent(Agent):
                         return Action.STAY, {
                             "predicted_human_action": predicted_human_action,
                             "robot_action": robot_action,
-                            # "next_planned_action": next_planned_action,
+                            # "next_planned_action": next_planned_action,  # TODO: Re-enable
                             "llm_response": response,
-                            # "available_primary_actions": available_primary_actions,
+                            "available_primary_actions": available_primary_actions,
                             "blocking_prevention": False,
                             "action_plan": []
                         }
@@ -1588,9 +1355,9 @@ class CoordinatedActionPredictorAgent(Agent):
                     return Action.STAY, {
                         "predicted_human_action": predicted_human_action,
                         "robot_action": robot_action,
-                        # "next_planned_action": next_planned_action,
+                        # "next_planned_action": next_planned_action,  # TODO: Re-enable
                         "llm_response": response,
-                        # "available_primary_actions": available_primary_actions,
+                        "available_primary_actions": available_primary_actions,
                         "blocking_prevention": False,
                         "action_plan": []
                     }
@@ -1619,9 +1386,9 @@ class CoordinatedActionPredictorAgent(Agent):
                 return move, {
                     "predicted_human_action": predicted_human_action,
                     "robot_action": robot_action,
-                    # "next_planned_action": next_planned_action,
+                    # "next_planned_action": next_planned_action,  # TODO: Re-enable
                     "llm_response": response,
-                    # "available_primary_actions": available_primary_actions,
+                    "available_primary_actions": available_primary_actions,
                     "function_call": f"{func_name}({item})",
                     "action_plan": action_plan
                 }
@@ -1629,9 +1396,9 @@ class CoordinatedActionPredictorAgent(Agent):
                 return Action.STAY, {
                     "predicted_human_action": predicted_human_action,
                     "robot_action": robot_action,
-                    # "next_planned_action": next_planned_action,
+                    # "next_planned_action": next_planned_action,  # TODO: Re-enable
                     "llm_response": response,
-                    # "available_primary_actions": available_primary_actions,
+                    "available_primary_actions": available_primary_actions,
                     "function_call": f"{func_name}({item})",
                     "action_plan": []
                 }
@@ -1641,15 +1408,41 @@ class CoordinatedActionPredictorAgent(Agent):
             return Action.STAY, {
                 "predicted_human_action": predicted_human_action,
                 "robot_action": robot_action,
-                # "next_planned_action": next_planned_action, 
+                # "next_planned_action": next_planned_action,  # TODO: Re-enable 
                 "llm_response": response,
-                # "available_primary_actions": available_primary_actions,
+                "available_primary_actions": available_primary_actions,
                 "reasoning": "Action execution failed, staying in place"
             }
 
     def actions(self, states, agent_indices):
         return [self.action(s) for s in states]
     
+    def _filter_actions_by_plan(self, actions: List[str], primary_tasks: List[str]) -> List[str]:
+        """
+        Filter available actions based on plan context to show only relevant actions to LLM.
+        Only allow actions that are explicitly mentioned in the primary_tasks list.
+        This eliminates Human Grab Chopped Onion and Human Grab Onion depending on the plan (chopped or not).
+        We can improve this function in the future, but it will do the job for now.
+        """
+        if not primary_tasks or not actions:
+            return actions
+        
+        print(f"🔍 Plan contains these primary tasks: {primary_tasks}")
+        
+        # Filter actions based on what's in the primary_tasks
+        filtered_actions = []
+        for action in actions:
+            if action in primary_tasks:
+                filtered_actions.append(action)
+                print(f"🔍 Allowed '{action}' - found in primary tasks")
+            else:
+                print(f"🔍 Filtered out '{action}' - not in primary tasks")
+        
+        print(f"🔍 Action filtering: {len(actions)} → {len(filtered_actions)} actions")
+        print(f"🔍 Filtered actions: {filtered_actions}")
+        
+        return filtered_actions
+
     def _get_available_primary_actions_from_unified_graph(self, current_state: dict) -> List[str]:
         """
         NEW: Get available primary actions directly from our unified state graph.
@@ -1688,7 +1481,18 @@ class CoordinatedActionPredictorAgent(Agent):
                     available_actions.append(edge.action)
             
             print(f"Found {len(available_actions)} available primary actions from unified graph")
-            return available_actions
+            
+            # Print current node ID and available actions for visibility
+            print(f"🔍 Current state graph node: {current_node_id}")
+            print(f"📋 Available actions from state graph: {available_actions}")
+            
+            # NEW: Apply plan-aware filtering to show only relevant actions to LLM
+            if hasattr(self, 'primary_tasks') and self.primary_tasks:
+                filtered_actions = self._filter_actions_by_plan(available_actions, self.primary_tasks)
+                return filtered_actions
+            else:
+                print("No plan available for filtering, returning all actions")
+                return available_actions
             
         except Exception as e:
             print(f"Error getting available actions from unified graph: {e}")

@@ -694,6 +694,8 @@ class OvercookedGame(Game):
         self.mdp = OvercookedGridworld.from_layout_name(
             self.curr_layout, **self.mdp_params
         )
+        
+
         if self.show_potential:
             self.mp = MotionPlanner.from_pickle_or_compute(
                 self.mdp, counter_goals=NO_COUNTERS_PARAMS
@@ -748,9 +750,73 @@ class OvercookedGame(Game):
         return state_dict
 
     def to_json(self):
+        print("=== to_json() CALLED ===")
         obj_dict = {}
-        obj_dict["terrain"] = self.mdp.terrain_mtx if self._is_active else None
         obj_dict["state"] = self.get_state() if self._is_active else None
+        
+        # Create a COPY of terrain for graphics with special tile markers
+        if self._is_active and self.mdp:
+            # Start with original terrain (keeps game logic intact)
+            original_terrain = self.mdp.terrain_mtx
+            graphics_terrain = [row[:] for row in original_terrain]  # Deep copy
+            H, W = len(graphics_terrain), len(graphics_terrain[0])
+            
+            # Find stove tiles to identify staging and chopping positions
+            stove_tiles = [(j, i) for i, row in enumerate(graphics_terrain) for j, c in enumerate(row) if c == 'P']
+            
+            # For each stove, find adjacent counter tiles that can be staging areas
+            staging_positions = []
+            for (stove_c, stove_r) in stove_tiles:
+                adjacent_counters = []
+                for dc, dr in [(1,0), (-1,0), (0,1), (0,-1)]:
+                    nc, nr = stove_c + dc, stove_r + dr
+                    if 0 <= nr < H and 0 <= nc < W and graphics_terrain[nr][nc] == 'X':
+                        adjacent_counters.append((nc, nr, dc, dr))
+                
+                # Prioritize left tiles, then bottom tiles as staging areas
+                left_stations = [(c, r) for c, r, dc, dr in adjacent_counters if dc == -1]
+                bottom_stations = [(c, r) for c, r, dc, dr in adjacent_counters if dr == 1]
+                
+                if left_stations:
+                    staging_positions.extend(left_stations)
+                elif bottom_stations:
+                    staging_positions.extend(bottom_stations)
+            
+            # Mark staging tiles as 'G' in the COPY
+            for (x, y) in staging_positions:
+                print(f"Marking staging tile at ({x}, {y}) as 'G' in graphics terrain")
+                graphics_terrain[y][x] = 'G'
+            
+            # For each staging position, find adjacent counter tiles that can be chopping stations
+            chopping_positions = []
+            for staging_pos in staging_positions:
+                staging_c, staging_r = staging_pos
+                for dc, dr in [(-1, 0), (0, -1)]:  # Check left and up from staging
+                    chopping_c, chopping_r = staging_c + dc, staging_r + dr
+                    if (0 <= chopping_r < H and 0 <= chopping_c < W and 
+                        graphics_terrain[chopping_r][chopping_c] == 'X' and
+                        (chopping_c, chopping_r) not in chopping_positions and
+                        (chopping_c, chopping_r) not in staging_positions):
+                        chopping_positions.append((chopping_c, chopping_r))
+                        break
+            
+            # Mark chopping tiles as 'C' in the COPY
+            for (x, y) in chopping_positions:
+                print(f"Marking chopping tile at ({x}, {y}) as 'C' in graphics terrain")
+                graphics_terrain[y][x] = 'C'
+            
+            print(f"=== TERRAIN MODIFICATION ===")
+            print(f"Original terrain unchanged: {original_terrain == self.mdp.terrain_mtx}")
+            print(f"Graphics terrain modified for staging/chopping")
+            print(f"Staging positions: {staging_positions}")
+            print(f"Chopping positions: {chopping_positions}")
+            print(f"=== END TERRAIN MODIFICATION ===")
+            
+            # Send the MODIFIED terrain copy to graphics
+            obj_dict["terrain"] = graphics_terrain
+        else:
+            obj_dict["terrain"] = None
+        
         return obj_dict
 
     def get_policy(self, npc_id, idx=0):

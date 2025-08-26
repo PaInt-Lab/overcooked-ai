@@ -750,7 +750,6 @@ class OvercookedGame(Game):
         return state_dict
 
     def to_json(self):
-        print("=== to_json() CALLED ===")
         obj_dict = {}
         obj_dict["state"] = self.get_state() if self._is_active else None
         
@@ -784,7 +783,6 @@ class OvercookedGame(Game):
             
             # Mark staging tiles as 'G' in the COPY
             for (x, y) in staging_positions:
-                print(f"Marking staging tile at ({x}, {y}) as 'G' in graphics terrain")
                 graphics_terrain[y][x] = 'G'
             
             # For each staging position, find adjacent counter tiles that can be chopping stations
@@ -802,15 +800,7 @@ class OvercookedGame(Game):
             
             # Mark chopping tiles as 'C' in the COPY
             for (x, y) in chopping_positions:
-                print(f"Marking chopping tile at ({x}, {y}) as 'C' in graphics terrain")
                 graphics_terrain[y][x] = 'C'
-            
-            print(f"=== TERRAIN MODIFICATION ===")
-            print(f"Original terrain unchanged: {original_terrain == self.mdp.terrain_mtx}")
-            print(f"Graphics terrain modified for staging/chopping")
-            print(f"Staging positions: {staging_positions}")
-            print(f"Chopping positions: {chopping_positions}")
-            print(f"=== END TERRAIN MODIFICATION ===")
             
             # Send the MODIFIED terrain copy to graphics
             obj_dict["terrain"] = graphics_terrain

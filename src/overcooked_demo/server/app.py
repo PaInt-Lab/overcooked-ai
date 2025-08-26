@@ -287,15 +287,9 @@ def _create_game(user_id, game_name, params={}):
         if game.is_ready():
             game.activate()
             ACTIVE_GAMES.add(game.id)
-            start_info = game.to_json()
-            print(f"=== APP.PY SENDING start_info ===")
-            print(f"start_info keys: {start_info.keys()}")
-            print(f"staging_positions in start_info: {start_info.get('staging_positions', 'NOT FOUND')}")
-            print(f"chopping_positions in start_info: {start_info.get('chopping_positions', 'NOT FOUND')}")
-            print(f"=== END APP.PY DEBUG ===")
             emit(
                 "start_game",
-                {"spectating": spectating, "start_info": start_info},
+                {"spectating": spectating, "start_info": game.to_json()},
                 room=game.id,
             )
             socketio.start_background_task(play_game, game, fps=6)

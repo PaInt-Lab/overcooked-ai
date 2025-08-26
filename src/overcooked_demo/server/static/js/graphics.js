@@ -198,7 +198,6 @@ class OvercookedScene extends Phaser.Scene {
             "STAGE",
             { fontSize: '14px', fill: '#000000', fontWeight: 'bold' }
           ).setOrigin(0.5);
-          console.log(`Applied solid yellow and STAGE label to tile at (${x}, ${y})`);
         } else if (ttype === 'C') {
           // Chopping station - Solid orange rectangle
           this.add.rectangle(
@@ -214,7 +213,6 @@ class OvercookedScene extends Phaser.Scene {
             "CHOP",
             { fontSize: '14px', fill: '#000000', fontWeight: 'bold' }
           ).setOrigin(0.5);
-          console.log(`Applied solid orange and CHOP label to tile at (${x}, ${y})`);
         }
       }
     }

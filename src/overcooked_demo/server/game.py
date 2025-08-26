@@ -694,6 +694,8 @@ class OvercookedGame(Game):
         self.mdp = OvercookedGridworld.from_layout_name(
             self.curr_layout, **self.mdp_params
         )
+        # Set layout name on MDP for agent access
+        self.mdp.layout_name = self.curr_layout
         
 
         if self.show_potential:
@@ -801,6 +803,18 @@ class OvercookedGame(Game):
             # Mark chopping tiles as 'C' in the COPY
             for (x, y) in chopping_positions:
                 graphics_terrain[y][x] = 'C'
+            
+            # Add sink stations if using LLM agent with sink support
+            sink_positions = []
+            for npc_policy in self.npc_policies.values():
+                if hasattr(npc_policy, 'sink_stations') and npc_policy.sink_stations:
+                    sink_positions.extend(npc_policy.sink_stations)
+                    break  # Only need one agent's sink positions
+            
+            # Mark sink tiles as 'W' in the COPY
+            for (x, y) in sink_positions:
+                if 0 <= y < H and 0 <= x < W:
+                    graphics_terrain[y][x] = 'W'
             
             # Send the MODIFIED terrain copy to graphics
             obj_dict["terrain"] = graphics_terrain

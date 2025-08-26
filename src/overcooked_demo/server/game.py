@@ -787,18 +787,29 @@ class OvercookedGame(Game):
             for (x, y) in staging_positions:
                 graphics_terrain[y][x] = 'G'
             
-            # For each staging position, find adjacent counter tiles that can be chopping stations
+            # Get chopping stations from agent (for layouts with hardcoded positions) or use dynamic detection
             chopping_positions = []
-            for staging_pos in staging_positions:
-                staging_c, staging_r = staging_pos
-                for dc, dr in [(-1, 0), (0, -1)]:  # Check left and up from staging
-                    chopping_c, chopping_r = staging_c + dc, staging_r + dr
-                    if (0 <= chopping_r < H and 0 <= chopping_c < W and 
-                        graphics_terrain[chopping_r][chopping_c] == 'X' and
-                        (chopping_c, chopping_r) not in chopping_positions and
-                        (chopping_c, chopping_r) not in staging_positions):
-                        chopping_positions.append((chopping_c, chopping_r))
-                        break
+            agent_chopping_positions = []
+            for npc_policy in self.npc_policies.values():
+                if hasattr(npc_policy, 'onion_chopping_stations') and npc_policy.onion_chopping_stations:
+                    agent_chopping_positions.extend(npc_policy.onion_chopping_stations)
+                    break  # Only need one agent's chopping positions
+            
+            if agent_chopping_positions:
+                # Use agent's hardcoded positions
+                chopping_positions = agent_chopping_positions
+            else:
+                # Use dynamic detection for layouts without hardcoded positions
+                for staging_pos in staging_positions:
+                    staging_c, staging_r = staging_pos
+                    for dc, dr in [(-1, 0), (0, -1)]:  # Check left and up from staging
+                        chopping_c, chopping_r = staging_c + dc, staging_r + dr
+                        if (0 <= chopping_r < H and 0 <= chopping_c < W and 
+                            graphics_terrain[chopping_r][chopping_c] == 'X' and
+                            (chopping_c, chopping_r) not in chopping_positions and
+                            (chopping_c, chopping_r) not in staging_positions):
+                            chopping_positions.append((chopping_c, chopping_r))
+                            break
             
             # Mark chopping tiles as 'C' in the COPY
             for (x, y) in chopping_positions:

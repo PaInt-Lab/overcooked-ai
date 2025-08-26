@@ -391,35 +391,40 @@ class CoordinatedActionPredictorAgent(Agent):
             self.dish_staging_tiles = self.onion_staging_tiles.copy() # Moving the dish staging tile to agent side
             self.soup_staging_tiles = self.dish_staging_tiles
 
+        # Get layout name for special handling
+        layout_name = getattr(mdp, 'layout_name', 'unknown')
+        
         # Create chopping stations
         self.onion_chopping_stations = []
         self.tomato_chopping_stations = []
         
-        for staging_pos in self.onion_staging_tiles:
-            staging_c, staging_r = staging_pos
-            for dc, dr in [(-1, 0), (0, -1)]:
-                chopping_c, chopping_r = staging_c + dc, staging_r + dr
-                if (0 <= chopping_r < H and 0 <= chopping_c < W and 
-                    terrain[chopping_r][chopping_c] == 'X' and
-                    (chopping_c, chopping_r) not in self.onion_chopping_stations):
-                    self.onion_chopping_stations.append((chopping_c, chopping_r))
-                    break
-        
-        self.tomato_chopping_stations = self.onion_chopping_stations.copy()
+        if layout_name == 'cramped_room_tomato':
+            # For cramped_room_tomato: use hardcoded chopping station at (0,2)
+            self.onion_chopping_stations = [(0, 2)]
+            self.tomato_chopping_stations = [(0, 2)]
+        else:
+            # Use dynamic detection for other layouts
+            for staging_pos in self.onion_staging_tiles:
+                staging_c, staging_r = staging_pos
+                for dc, dr in [(-1, 0), (0, -1)]:
+                    chopping_c, chopping_r = staging_c + dc, staging_r + dr
+                    if (0 <= chopping_r < H and 0 <= chopping_c < W and 
+                        terrain[chopping_r][chopping_c] == 'X' and
+                        (chopping_c, chopping_r) not in self.onion_chopping_stations):
+                        self.onion_chopping_stations.append((chopping_c, chopping_r))
+                        break
+            
+            self.tomato_chopping_stations = self.onion_chopping_stations.copy()
 
-        # Create sink stations with hardcoded positions for specific maps
+        # Create sink stations
         self.sink_stations = []
-        layout_name = getattr(mdp, 'layout_name', 'unknown')
         
         if layout_name == 'counter_circuit':
             # For counter_circuit: sink at (0,2)
             self.sink_stations.append((0, 2))
         elif layout_name == 'cramped_room_tomato':
-            # For cramped_room_tomato: sink at (2,3) and chopping station at (0,2)
+            # For cramped_room_tomato: sink at (2,3)
             self.sink_stations.append((2, 3))
-            # Also move chopping station to (0,2) for this layout
-            self.onion_chopping_stations = [(0, 2)]
-            self.tomato_chopping_stations = [(0, 2)]
         
                 # Compute frontiers
         self.ingredient_frontier = self._compute_frontier(self.ingredient_spawns, terrain)

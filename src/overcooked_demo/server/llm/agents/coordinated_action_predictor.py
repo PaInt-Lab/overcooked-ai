@@ -407,7 +407,21 @@ class CoordinatedActionPredictorAgent(Agent):
         
         self.tomato_chopping_stations = self.onion_chopping_stations.copy()
 
-        # Compute frontiers
+        # Create sink stations with hardcoded positions for specific maps
+        self.sink_stations = []
+        layout_name = getattr(mdp, 'layout_name', 'unknown')
+        
+        if layout_name == 'counter_circuit':
+            # For counter_circuit: sink at (0,2)
+            self.sink_stations.append((0, 2))
+        elif layout_name == 'cramped_room_tomato':
+            # For cramped_room_tomato: sink at (2,3) and chopping station at (0,2)
+            self.sink_stations.append((2, 3))
+            # Also move chopping station to (0,2) for this layout
+            self.onion_chopping_stations = [(0, 2)]
+            self.tomato_chopping_stations = [(0, 2)]
+        
+                # Compute frontiers
         self.ingredient_frontier = self._compute_frontier(self.ingredient_spawns, terrain)
         self.onion_frontier = self._compute_frontier(self.onion_spawns, terrain)
         self.tomato_frontier = self._compute_frontier(self.tomato_spawns, terrain)
@@ -420,6 +434,7 @@ class CoordinatedActionPredictorAgent(Agent):
         self.soup_staging_frontier = self._compute_frontier(self.soup_staging_tiles, terrain)
         self.onion_chopping_frontier = self._compute_frontier(self.onion_chopping_stations, terrain)
         self.tomato_chopping_frontier = self._compute_frontier(self.tomato_chopping_stations, terrain)
+        self.sink_frontier = self._compute_frontier(self.sink_stations, terrain)
         
         my_goals = {
             'ingredient': self.ingredient_spawns,
@@ -582,6 +597,17 @@ class CoordinatedActionPredictorAgent(Agent):
             self.onion_chopped = False
             self.tomato_chopped = False
 
+        # Check sink-related states
+        onion_at_sink = any(
+            "onion" in tile_contents.get(pos, [])
+            for pos in self.sink_stations
+        )
+        
+        tomato_at_sink = any(
+            "tomato" in tile_contents.get(pos, [])
+            for pos in self.sink_stations
+        )
+
         return {
             "onion_hand": onion_hand,
             "onion_staged": onion_staged,
@@ -600,7 +626,9 @@ class CoordinatedActionPredictorAgent(Agent):
             "dish_staged": dish_staged,
             "soup_hand": soup_hand,
             "soup_staged": soup_staged,
-            "soup_served": soup_served
+            "soup_served": soup_served,
+            "onion_at_sink": onion_at_sink,
+            "tomato_at_sink": tomato_at_sink
         }
     
     def _generate_plan_to_goal(self, current_state: dict) -> str:
@@ -614,10 +642,12 @@ class CoordinatedActionPredictorAgent(Agent):
             'onion_staged': False,
             'onion_at_chopping': False,
             'onion_chopped': False,
+            'onion_at_sink': False,
             'tomato_hand': 'none',
             'tomato_staged': False,
             'tomato_at_chopping': False,
             'tomato_chopped': False,
+            'tomato_at_sink': False,
             'onion_in_pot': False,
             'tomato_in_pot': False,
             'soup_cooking': False,
@@ -711,6 +741,14 @@ class CoordinatedActionPredictorAgent(Agent):
             not current_state['tomato_at_chopping'] and not current_state['tomato_in_pot']):
             return 'pickup(tomato)'
         
+        # 13. If onion is at sink, pick it up (washing complete)
+        if current_state['onion_at_sink'] and current_state['onion_hand'] == 'none':
+            return 'pickup(onion)'
+        
+        # 14. If tomato is at sink, pick it up (washing complete)
+        if current_state['tomato_at_sink'] and current_state['tomato_hand'] == 'none':
+            return 'pickup(tomato)'
+        
         # Default: no action needed
         return 'NOOP'
 
@@ -762,6 +800,9 @@ class CoordinatedActionPredictorAgent(Agent):
         important_tiles.update(self.onion_chopping_stations)
         important_tiles.update(self.tomato_chopping_stations)
         
+        # Add all sink stations
+        important_tiles.update(self.sink_stations)
+        
         # Add all frontier tiles (adjacent to important locations)
         important_tiles.update([pos for pos, _ in self.ingredient_frontier])
         important_tiles.update([pos for pos, _ in self.onion_frontier])
@@ -800,6 +841,7 @@ class CoordinatedActionPredictorAgent(Agent):
         important_tiles.update(self.soup_staging_tiles)
         important_tiles.update(self.onion_chopping_stations)
         important_tiles.update(self.tomato_chopping_stations)
+        important_tiles.update(self.sink_stations)
         important_tiles.update([pos for pos, _ in self.ingredient_frontier])
         important_tiles.update([pos for pos, _ in self.onion_frontier])
         important_tiles.update([pos for pos, _ in self.tomato_frontier])
@@ -812,6 +854,7 @@ class CoordinatedActionPredictorAgent(Agent):
         important_tiles.update([pos for pos, _ in self.soup_staging_frontier])
         important_tiles.update([pos for pos, _ in self.onion_chopping_frontier])
         important_tiles.update([pos for pos, _ in self.tomato_chopping_frontier])
+        important_tiles.update([pos for pos, _ in self.sink_frontier])
         
         # Get other player position to avoid blocking them
         other_player_pos = state.player_positions[1 - self.agent_index]
@@ -929,6 +972,13 @@ class CoordinatedActionPredictorAgent(Agent):
                     "tomato": self.tomato_staging_frontier,
                 }
                 return frontier_map.get(item)
+            elif destination == "sink":
+                # Place at sink station (for washing ingredients)
+                frontier_map = {
+                    "onion": self.sink_frontier,
+                    "tomato": self.sink_frontier,
+                }
+                return frontier_map.get(item)
             else:
                 # Default destinations for other items (no destination needed)
                 frontier_map = {
@@ -1004,7 +1054,7 @@ class CoordinatedActionPredictorAgent(Agent):
         if place_match:
             item = place_match.group(1).strip()
             destination = place_match.group(2).strip()
-            if item in ["onion", "tomato", "dish"] and destination in ["chopping_station", "staging_station"]:
+            if item in ["onion", "tomato", "dish"] and destination in ["chopping_station", "staging_station", "sink"]:
                 return "place", (item, destination)
 
         # Parse place actions without destination (for items with fixed destinations)
@@ -1041,6 +1091,12 @@ class CoordinatedActionPredictorAgent(Agent):
                     "onion": self.onion_staging_frontier,
                     "tomato": self.tomato_staging_frontier,
                     "dish": self.dish_staging_frontier,
+                }
+                choices = frontier_map.get(item)
+            elif destination == "sink":
+                frontier_map = {
+                    "onion": self.sink_frontier,
+                    "tomato": self.sink_frontier,
                 }
                 choices = frontier_map.get(item)
             else:
@@ -1114,6 +1170,8 @@ class CoordinatedActionPredictorAgent(Agent):
                 'Turn stove on',
                 'Pour soup',
                 'Human Stage Soup',
+                'Wash onion at sink',
+                'Wash tomato at sink',
                 'NOOP'
             ]
         
@@ -1227,12 +1285,24 @@ class CoordinatedActionPredictorAgent(Agent):
            - There is no tomato in the pot AND
            - There is no tomato staged at the chopping station or staging station
 
+        **5. Wash Onion at Sink** ONLY when:
+           - The plan requires a washed onion AND
+           - There is no onion at the sink AND
+           - There is no onion in the pot AND
+           - Human is holding an onion
+
+        **6. Wash Tomato at Sink** ONLY when:
+           - The plan requires a washed tomato AND
+           - There is no tomato at the sink AND
+           - There is no tomato in the pot AND
+           - Human is holding a tomato
+
         **LOWEST PRIORITY:**
-        **5. Place Onion in Pot** ONLY when:
+        **7. Place Onion in Pot** ONLY when:
            - ONLY when the onion is staged at the staging station AND
            - There is no onion in the pot AND
 
-        **6. Place Tomato in Pot** ONLY when:
+        **8. Place Tomato in Pot** ONLY when:
            - ONLY when the tomato is staged at the staging station AND
            - There is no tomato in the pot AND
 
@@ -1241,8 +1311,9 @@ class CoordinatedActionPredictorAgent(Agent):
         2. **SECOND**: Check if soup is ready → predict serving actions (PRIORITIES 9-10)
         3. **THIRD**: Check if soup is cooking → predict "Wait Till Ingredients Cooked" (PRIORITY 8)
         4. **FOURTH**: Check if ingredients are in pot but stove off → predict "Turn Stove On" (PRIORITY 7)
-        5. **FIFTH**: Check if ingredients are missing → predict grab actions (look at plan for chopped or non-chopped) (PRIORITIES 1-4)
-        6. **LAST**: Check if ingredients are staged → predict placement actions (PRIORITIES 5-6)
+        5. **FIFTH**: Check if ingredients need washing → predict wash actions (PRIORITIES 5-6)
+        6. **SIXTH**: Check if ingredients are missing → predict grab actions (look at plan for chopped or non-chopped) (PRIORITIES 1-4)
+        7. **LAST**: Check if ingredients are staged → predict placement actions (PRIORITIES 7-8)
 
         **DECISION PROCESS:**
         1. **Check current state**: What's already in pot/cooking/ready?

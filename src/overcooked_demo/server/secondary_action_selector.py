@@ -23,22 +23,27 @@ class RecipeType(Enum):
 
 
 class PrimaryAction(Enum):
-    """Primary actions from actual plans"""
-    # Plan-style primary actions - Raw ingredients
-    HUMAN_GRAB_ONION = "Human Grab onion"
-    HUMAN_GRAB_TOMATO = "Human Grab tomato"
-    HUMAN_GRAB_DISH = "Human Grab dish"
+    """Primary actions from actual plans and complete state graph"""
+    # NEW: Washing actions (from complete state graph)
+    WASH_ONION = "Wash Onion"
+    WASH_TOMATO = "Wash Tomato"
     
-    # Plan-style primary actions - Chopped ingredients
-    HUMAN_GRAB_CHOPPED_ONION = "Human Grab chopped onion"
-    HUMAN_GRAB_CHOPPED_TOMATO = "Human Grab chopped tomato"
+    # NEW: Processing actions (from complete state graph)
+    CHOP_ONION = "Chop Onion"
+    CHOP_TOMATO = "Chop Tomato"
     
-    # Cooking actions
-    PLACE_ONION_IN_POT = "Place onion in pot"
-    PLACE_TOMATO_IN_POT = "Place tomato in pot"
-    TURN_STOVE_ON = "Turn stove on"
-    WAIT_TILL_INGREDIENTS_COOKED = "Wait Till Ingredients Cooked"
-    POUR_SOUP = "Pour soup"
+    # Plan-style primary actions (standardized case)
+    HUMAN_GRAB_ONION = "Human Grab Onion"
+    HUMAN_GRAB_TOMATO = "Human Grab Tomato"
+    HUMAN_GRAB_DISH = "Human Grab Dish"
+    
+    # Cooking actions (standardized case)
+    PLACE_ONION_IN_POT = "Place Onion in Pot"
+    PLACE_TOMATO_IN_POT = "Place Tomato in Pot"
+    TURN_STOVE_ON = "Turn Stove On"
+    WAIT_TILL_INGREDIENTS_COOKED = "Wait For Ingredients to Cook"
+    POUR_SOUP = "Pour Soup in Dish"
+    SERVE_SOUP = "Serve Soup"
     
     # State graph style (fallback)
     HUMAN_GRAB_ONION_STATE = "human_grab_onion"
@@ -70,43 +75,49 @@ ROBOT_TASK_TO_ACTION = {
 
 # Primary Action to Secondary Action Sequences (Based on Real Plans)
 PRIMARY_TO_SECONDARY_SEQUENCES = {
+    # NEW: Washing actions - Robot handles the washing workflow
+    PrimaryAction.WASH_ONION: [
+        "pickup(onion)",                 # Step 1: Fetch raw onion
+        "place(onion, sink)"             # Step 2: Place at sink for washing
+    ],
+    
+    PrimaryAction.WASH_TOMATO: [
+        "pickup(tomato)",                # Step 1: Fetch raw tomato
+        "place(tomato, sink)"            # Step 2: Place at sink for washing
+    ],
+    
+    # NEW: Processing actions - Robot handles the chopping workflow
+    PrimaryAction.CHOP_ONION: [
+        "pickup(onion)",                 # Step 1: Fetch onion (raw or washed)
+        "place(onion, chopping_station)" # Step 2: Place at chopping station
+    ],
+    
+    PrimaryAction.CHOP_TOMATO: [
+        "pickup(tomato)",                # Step 1: Fetch tomato (raw or washed)
+        "place(tomato, chopping_station)" # Step 2: Place at chopping station
+    ],
+    
     # Plan-style primary actions with sequential workflows
     
-    # "Human Grab onion" -> Robot: fetch and stage RAW onion
+    # "Human Grab Onion" -> Robot: fetch and stage onion (state-aware: raw, washed, or chopped)
     PrimaryAction.HUMAN_GRAB_ONION: [
-        "pickup(onion)",                 # Step 1: Fetch raw onion
-        "place(onion, staging_station)"  # Step 2: Stage raw onion
+        "pickup(onion)",                 # Step 1: Fetch onion in current state
+        "place(onion, staging_station)"  # Step 2: Stage onion for human
     ],
     
-    # "Human Grab chopped onion" -> Robot: complete chopping workflow  
-    PrimaryAction.HUMAN_GRAB_CHOPPED_ONION: [
-        "pickup(onion)",                 # Step 1: Fetch raw onion for chopping
-        "place(onion, chopping_station)", # Step 2: Send onion to chopping station
-        "pickup(chopped_onion)",         # Step 3: Pick up chopped onion
-        "place(chopped_onion)"           # Step 4: Stage chopped onion
-    ],
-    
-    # "Human Grab tomato" -> Robot: fetch and stage RAW tomato
+    # "Human Grab Tomato" -> Robot: fetch and stage tomato (state-aware: raw, washed, or chopped)
     PrimaryAction.HUMAN_GRAB_TOMATO: [
-        "pickup(tomato)",                # Step 1: Fetch raw tomato
-        "place(tomato, staging_station)" # Step 2: Stage raw tomato
+        "pickup(tomato)",                # Step 1: Fetch tomato in current state
+        "place(tomato, staging_station)" # Step 2: Stage tomato for human
     ],
     
-    # "Human Grab chopped tomato" -> Robot: complete chopping workflow
-    PrimaryAction.HUMAN_GRAB_CHOPPED_TOMATO: [
-        "pickup(tomato)",                # Step 1: Fetch raw tomato for chopping
-        "place(tomato, chopping_station)", # Step 2: Send tomato to chopping station
-        "pickup(chopped_tomato)",        # Step 3: Pick up chopped tomato
-        "place(chopped_tomato)"          # Step 4: Stage chopped tomato
-    ],
-    
-    # "Human Grab dish" -> Robot: fetch dish, then stage it
+    # "Human Grab Dish" -> Robot: fetch dish, then stage it
     PrimaryAction.HUMAN_GRAB_DISH: [
         "pickup(dish)",   # Step 1: Fetch dish for human
         "place(dish)"     # Step 2: Stage dish
     ],
     
-    # "Place X in pot" -> Robot does NOOP (human task)
+    # "Place X in Pot" -> Robot does NOOP (human task)
     PrimaryAction.PLACE_ONION_IN_POT: ["NOOP"],
     PrimaryAction.PLACE_TOMATO_IN_POT: ["NOOP"],
     
@@ -119,10 +130,11 @@ PRIMARY_TO_SECONDARY_SEQUENCES = {
         "place(dish, staging_station)"  # Step 2: Stage dish for when soup is ready
     ],
     
-    # "Pour soup" -> Robot does NOOP (human task)
+    # "Pour Soup in Dish" -> Robot does NOOP (human task)
     PrimaryAction.POUR_SOUP: ["NOOP"],
     
-
+    # "Serve Soup" -> Robot does NOOP (human task)  
+    PrimaryAction.SERVE_SOUP: ["NOOP"],
     
     # State graph style actions (fallback compatibility)
     PrimaryAction.HUMAN_GRAB_ONION_STATE: ["pickup(dish)"],
@@ -499,8 +511,42 @@ def _smart_select_secondary_action(game_state: Dict, predicted_primary_action: s
     if game_state.get('soup_staged', False) and game_state.get('soup_hand') == 'none':
         return "pickup(soup)"
     
-    # Human wants to grab chopped onion
-    if "Human Grab Chopped Onion" in predicted_primary_action:
+    # NEW: Handle washing actions
+    if predicted_primary_action == "Wash Onion":
+        if game_state.get('onion_hand') == 'agent':
+            # Robot has onion, place it at sink for washing
+            return "place(onion, sink)"
+        elif game_state.get('onion_hand') == 'none':
+            # Robot needs to pick up onion first
+            return "pickup(onion)"
+    
+    if predicted_primary_action == "Wash Tomato":
+        if game_state.get('tomato_hand') == 'agent':
+            # Robot has tomato, place it at sink for washing
+            return "place(tomato, sink)"
+        elif game_state.get('tomato_hand') == 'none':
+            # Robot needs to pick up tomato first
+            return "pickup(tomato)"
+    
+    # NEW: Handle chopping actions  
+    if predicted_primary_action == "Chop Onion":
+        if game_state.get('onion_hand') == 'agent':
+            # Robot has onion, place it at chopping station
+            return "place(onion, chopping_station)"
+        elif game_state.get('onion_hand') == 'none':
+            # Robot needs to pick up onion first
+            return "pickup(onion)"
+    
+    if predicted_primary_action == "Chop Tomato":
+        if game_state.get('tomato_hand') == 'agent':
+            # Robot has tomato, place it at chopping station
+            return "place(tomato, chopping_station)"
+        elif game_state.get('tomato_hand') == 'none':
+            # Robot needs to pick up tomato first
+            return "pickup(tomato)"
+    
+    # Handle generic Human Grab Onion (state tells us if ingredient is chopped/washed/raw)
+    if predicted_primary_action == "Human Grab Onion":
         if game_state.get('onion_hand') == 'agent':
             # Robot has onion - check if it's chopped or raw
             if game_state.get('onion_chopped', False):
@@ -530,8 +576,8 @@ def _smart_select_secondary_action(game_state: Dict, predicted_primary_action: s
             # Default fallback
             return "pickup(onion)"
     
-    # Human wants to grab chopped tomato
-    elif "Human Grab Chopped Tomato" in predicted_primary_action:
+    # Handle generic Human Grab Tomato (state tells us if ingredient is chopped/washed/raw)
+    elif predicted_primary_action == "Human Grab Tomato":
         if game_state.get('tomato_hand') == 'agent':
             # Robot has tomato - check if it's chopped or raw
             if game_state.get('tomato_chopped', False):
@@ -561,8 +607,8 @@ def _smart_select_secondary_action(game_state: Dict, predicted_primary_action: s
             # Default fallback
             return "pickup(tomato)"
     
-    # Human wants to grab raw onion
-    elif "Human Grab Onion" in predicted_primary_action and "Chopped" not in predicted_primary_action:
+    # Additional fallback for Human Grab Onion (shouldn't reach here with our current logic)
+    elif "Human Grab Onion" in predicted_primary_action:
         if game_state.get('onion_hand') == 'agent':
             # Robot has onion, should stage it
             return "place(onion, staging_station)"

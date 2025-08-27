@@ -1366,57 +1366,19 @@ class CoordinatedActionPredictorAgent(Agent):
     def _filter_actions_by_plan(self, actions: List[str], primary_tasks: List[str]) -> List[str]:
         """
         Filter available actions based on plan context to show only relevant actions to LLM.
-        Checks if the plan requires chopped or non-chopped ingredients and filters actions accordingly.
-        This eliminates Human Grab Chopped Onion and Human Grab Onion depending on the plan (chopped or not).
+        Since we simplified to generic Human Grab actions, this now just returns all actions.
+        Could be extended in the future for other types of plan-based filtering.
         """
         if not primary_tasks or not actions:
             return actions
         
         print(f"🔍 Plan contains these primary tasks: {primary_tasks}")
+        print(f"🔍 Using simplified action system - no filtering needed for grab actions")
+        print(f"🔍 All {len(actions)} actions available: {actions}")
         
-        # Check what the plan requires for GRAB actions specifically
-        plan_requires_chopped_onion = any("grab chopped onion" in task.lower() for task in primary_tasks)
-        plan_requires_chopped_tomato = any("grab chopped tomato" in task.lower() for task in primary_tasks)
-        plan_requires_regular_onion = any("grab onion" in task.lower() and "chopped" not in task.lower() for task in primary_tasks)
-        plan_requires_regular_tomato = any("grab tomato" in task.lower() and "chopped" not in task.lower() for task in primary_tasks)
-        
-        print(f"🔍 Plan analysis (GRAB actions only):")
-        print(f"   - Requires grab chopped onion: {plan_requires_chopped_onion}")
-        print(f"   - Requires grab regular onion: {plan_requires_regular_onion}")
-        print(f"   - Requires grab chopped tomato: {plan_requires_chopped_tomato}")
-        print(f"   - Requires grab regular tomato: {plan_requires_regular_tomato}")
-        
-        # Filter actions based on plan requirements
-        filtered_actions = []
-        for action in actions:
-            should_include = True
-            
-            # Handle onion actions
-            if "Human Grab Chopped Onion" in action:
-                should_include = plan_requires_chopped_onion
-            elif "Human Grab Onion" in action:
-                should_include = plan_requires_regular_onion
-            
-            # Handle tomato actions  
-            elif "Human Grab Chopped Tomato" in action:
-                should_include = plan_requires_chopped_tomato
-            elif "Human Grab Tomato" in action:
-                should_include = plan_requires_regular_tomato
-            
-            # Include all other actions (they don't have chopped/non-chopped variants)
-            else:
-                should_include = True
-            
-            if should_include:
-                filtered_actions.append(action)
-                print(f"🔍 Allowed '{action}' - matches plan requirements")
-            else:
-                print(f"🔍 Filtered out '{action}' - doesn't match plan requirements")
-        
-        print(f"🔍 Action filtering: {len(actions)} → {len(filtered_actions)} actions")
-        print(f"🔍 Filtered actions: {filtered_actions}")
-        
-        return filtered_actions
+        # With simplified action system, no filtering needed
+        # The game state will determine if ingredients are chopped/washed/raw
+        return actions
 
     def _get_available_primary_actions_from_unified_graph(self, current_state: dict) -> List[str]:
         """
@@ -1461,12 +1423,12 @@ class CoordinatedActionPredictorAgent(Agent):
             print(f"🔍 Current state graph node: {current_node_id}")
             print(f"📋 Available actions from state graph: {available_actions}")
             
-            # NEW: Apply plan-aware filtering to show only relevant actions to LLM
+            # Apply basic filtering (simplified action system doesn't need complex filtering)
             if hasattr(self, 'primary_tasks') and self.primary_tasks:
                 filtered_actions = self._filter_actions_by_plan(available_actions, self.primary_tasks)
                 return filtered_actions
             else:
-                print("No plan available for filtering, returning all actions")
+                print("No plan available, returning all actions")
                 return available_actions
             
         except Exception as e:

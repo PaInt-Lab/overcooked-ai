@@ -16,6 +16,7 @@ from unified_state_graph import get_unified_state_graph  # NEW: Unified state gr
 from plan_session import PLAN_STORE
 from game_mechanics import get_mechanics_for_task
 from optimized_coordination_system import get_coordination_system, quick_coordinate
+from complete_state_graph import CompleteStateGraphGenerator, CompleteRecipeState  # NEW: Complete state graph with washing
 
 UNIFIED_OVERCOOKED_MODEL = "ft:gpt-4.1-mini-2025-04-14:personal:ap-one-model:C6I6sz96"
 
@@ -209,6 +210,10 @@ class CoordinatedActionPredictorAgent(Agent):
         self.state_graph = None
         # Defer state graph initialization until plan is set
         
+        # NEW: Complete state graph with washing capabilities
+        self.complete_state_graph_generator = None
+        self.complete_state_graph = None
+        
         # Action execution state - like action_predictor.py
         self.current_action_plan = []
         self.current_action_index = 0
@@ -220,6 +225,38 @@ class CoordinatedActionPredictorAgent(Agent):
         # NEW: Set default task title for unified state graph
         self.task_title = "Unknown Task"
 
+    def _initialize_complete_state_graph(self):
+        """Initialize the complete state graph with washing capabilities"""
+        if self.complete_state_graph_generator is None:
+            print("Initializing complete state graph with washing capabilities...")
+            self.complete_state_graph_generator = CompleteStateGraphGenerator()
+            # Use cached version for fast loading
+            self.complete_state_graph = self.complete_state_graph_generator.get_or_generate_graph()
+            print("Complete state graph ready for action selection")
+    
+    def get_available_primary_actions(self, state, info):
+        """Get available primary actions from complete state graph"""
+        # Initialize complete state graph if needed
+        self._initialize_complete_state_graph()
+        
+        # Get current state summary
+        state_summary = self.summarize_state(state, info)
+        
+        # Convert to CompleteRecipeState
+        complete_state = CompleteRecipeState.from_game_state(state_summary)
+        
+        # Find corresponding node in graph
+        node_id = self.complete_state_graph.get_node_for_state(complete_state)
+        
+        if node_id:
+            # Get available actions from state graph
+            available_actions = self.complete_state_graph.get_possible_actions(node_id)
+            return available_actions
+        else:
+            # Fallback to default actions if state not found
+            print(f"Warning: State not found in graph, using fallback actions")
+            return ["NOOP", "Human Grab Onion", "Human Grab Tomato", "Human Grab Dish"]
+    
     def _initialize_state_graph(self):
         """Initialize the unified state graph and coordination system"""
         print("Initializing unified state graph...")
@@ -1169,17 +1206,17 @@ class CoordinatedActionPredictorAgent(Agent):
         print(f"Current position: {state.player_positions[self.agent_index]}")
         print(f"State summary: {self.last_summary}")
         
-        # NEW: Get available primary actions directly from our unified state graph
+        # NEW: Get available primary actions from our complete state graph with washing
         try:
-            available_primary_actions = self._get_available_primary_actions_from_unified_graph(self.last_summary)
-            print(f"Available primary actions from unified graph: {available_primary_actions}")
+            available_primary_actions = self.get_available_primary_actions(state, {})
+            print(f"Available primary actions from complete state graph: {available_primary_actions}")
         except Exception as e:
-            print(f"Error getting available actions from unified graph: {e}")
+            print(f"Error getting available actions from complete state graph: {e}")
             available_primary_actions = []
         
-        # FALLBACK: If no actions available from unified graph, provide basic actions
+        # FALLBACK: If no actions available from complete state graph, provide basic actions
         if not available_primary_actions:
-            print("⚠️  WARNING: No actions from unified graph, using fallback actions")
+            print("WARNING: No actions from complete state graph, using fallback actions")
             available_primary_actions = [
                 'Human Grab Onion',
                 'Human Grab Chopped Onion', 
@@ -1346,7 +1383,7 @@ class CoordinatedActionPredictorAgent(Agent):
         **CRITICAL RULE - BEFORE PREDICTING ACTIONS, CHECK THE LIST OF PREDICTION RULES ABOVE AND MAKE SURE YOU DO NOT VIOLATE ANY OF THEM**
         **WHEN YOU CHOOSE AN ACTION, GO THROUGH THE LIST OF PREDICTION RULES AND MAKE SURE YOU DO NOT VIOLATE ANY OF THE CONDITIONS FOR THAT ACTION**
         
-        AVAILABLE PRIMARY ACTIONS TO SELECT FROM (from unified state graph):
+        AVAILABLE PRIMARY ACTIONS TO SELECT FROM (from complete state graph):
         {available_primary_actions} or NOOP
 
         Return only this line:

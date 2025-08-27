@@ -202,6 +202,8 @@ class CoordinatedActionPredictorAgent(Agent):
         self.memory = VectorMemory()
         self.onion_chopped = False
         self.tomato_chopped = False
+        self.onion_washed = False
+        self.tomato_washed = False
         
         # State graph - using optimized coordination system instead
         self.state_graph = None
@@ -601,6 +603,8 @@ class CoordinatedActionPredictorAgent(Agent):
         if soup_served:
             self.onion_chopped = False
             self.tomato_chopped = False
+            self.onion_washed = False
+            self.tomato_washed = False
 
         # Check sink-related states
         onion_at_sink = any(
@@ -612,16 +616,28 @@ class CoordinatedActionPredictorAgent(Agent):
             "tomato" in tile_contents.get(pos, [])
             for pos in self.sink_stations
         )
+        
+        # Track washing completion state
+        # When an ingredient is at the sink, it means it's being washed or has been washed
+        if onion_at_sink:
+            self.onion_washed = True
+            
+        if tomato_at_sink:
+            self.tomato_washed = True
 
         return {
             "onion_hand": onion_hand,
             "onion_staged": onion_staged,
             "onion_at_chopping": onion_at_chopping,
             "onion_chopped": self.onion_chopped,
+            "onion_at_sink": onion_at_sink,
+            "onion_washed": self.onion_washed,
             "tomato_hand": tomato_hand,
             "tomato_staged": tomato_staged,
             "tomato_at_chopping": tomato_at_chopping,
             "tomato_chopped": self.tomato_chopped,
+            "tomato_at_sink": tomato_at_sink,
+            "tomato_washed": self.tomato_washed,
             "onion_in_pot": onion_in_pot,
             "tomato_in_pot": tomato_in_pot,
             "soup_cooking": soup_cooking,
@@ -631,9 +647,7 @@ class CoordinatedActionPredictorAgent(Agent):
             "dish_staged": dish_staged,
             "soup_hand": soup_hand,
             "soup_staged": soup_staged,
-            "soup_served": soup_served,
-            "onion_at_sink": onion_at_sink,
-            "tomato_at_sink": tomato_at_sink
+            "soup_served": soup_served
         }
     
     def _generate_plan_to_goal(self, current_state: dict) -> str:
@@ -648,11 +662,13 @@ class CoordinatedActionPredictorAgent(Agent):
             'onion_at_chopping': False,
             'onion_chopped': False,
             'onion_at_sink': False,
+            'onion_washed': False,
             'tomato_hand': 'none',
             'tomato_staged': False,
             'tomato_at_chopping': False,
             'tomato_chopped': False,
             'tomato_at_sink': False,
+            'tomato_washed': False,
             'onion_in_pot': False,
             'tomato_in_pot': False,
             'soup_cooking': False,
@@ -746,12 +762,12 @@ class CoordinatedActionPredictorAgent(Agent):
             not current_state['tomato_at_chopping'] and not current_state['tomato_in_pot']):
             return 'pickup(tomato)'
         
-        # 13. If onion is at sink, pick it up (washing complete)
-        if current_state['onion_at_sink'] and current_state['onion_hand'] == 'none':
+        # 13. If onion is washed and at sink, pick it up (washing complete)
+        if current_state['onion_washed'] and current_state['onion_at_sink'] and current_state['onion_hand'] == 'none':
             return 'pickup(onion)'
         
-        # 14. If tomato is at sink, pick it up (washing complete)
-        if current_state['tomato_at_sink'] and current_state['tomato_hand'] == 'none':
+        # 14. If tomato is washed and at sink, pick it up (washing complete)
+        if current_state['tomato_washed'] and current_state['tomato_at_sink'] and current_state['tomato_hand'] == 'none':
             return 'pickup(tomato)'
         
         # Default: no action needed

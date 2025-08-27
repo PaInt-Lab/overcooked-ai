@@ -14,7 +14,6 @@ from dataclasses import dataclass, asdict
 from typing import Dict, List, Optional, Tuple
 import itertools
 import json
-import copy
 
 
 @dataclass
@@ -500,7 +499,7 @@ class CompleteStateGraphGenerator:
             self.state_to_node_mapping[state.to_json_key()] = node_id
     
     def _generate_all_edges(self):
-        """Create edges for all valid transitions"""
+        """Create edges for all valid actions from each state"""
         
         total_states = len(self.all_valid_states)
         processed = 0
@@ -510,21 +509,15 @@ class CompleteStateGraphGenerator:
             
             # Try each primary action from this state
             for action in self.primary_actions:
-                new_state = self._apply_action(state, action)
-                
-                if new_state is not None:
-                    # Check if the new state exists in our valid states
-                    new_state_key = new_state.to_json_key()
-                    if new_state_key in self.state_to_node_mapping:
-                        target_node_id = self.state_to_node_mapping[new_state_key]
-                        
-                        edge = CompleteRecipeEdge(
-                            from_node=current_node_id,
-                            to_node=target_node_id,
-                            primary_action=action
-                        )
-                        
-                        self.graph.add_edge(edge)
+                if self._is_action_valid(state, action):
+                    # Create edge with dummy target (we don't need actual target nodes)
+                    edge = CompleteRecipeEdge(
+                        from_node=current_node_id,
+                        to_node="",  # Not used - we only care about valid actions
+                        primary_action=action
+                    )
+                    
+                    self.graph.add_edge(edge)
             
             processed += 1
             if processed % 5000 == 0:
@@ -535,179 +528,86 @@ class CompleteStateGraphGenerator:
         initial_state = CompleteRecipeState()
         return state == initial_state
     
-    def _apply_action(self, state: CompleteRecipeState, action: str) -> Optional[CompleteRecipeState]:
+    def _is_action_valid(self, state: CompleteRecipeState, action: str) -> bool:
         """
-        Apply a primary action to a state and return the new state.
-        Returns None if the action is not valid from this state.
+        Check if a primary action is valid from this state.
+        Returns True if the action can be attempted, False otherwise.
         
-        This is the core transition logic that defines how each action changes the game state.
+        This is the core validation logic that defines which actions are possible.
         """
         
-        # Create a copy of the state to modify
-        new_state = copy.deepcopy(state)
-        
-        # Implement transition logic for each primary action
+        # Implement validation logic for each primary action
         if action == "NOOP":
-            # NOOP always valid - no state change (self-loop)
-            return new_state
+            # NOOP always valid
+            return True
             
         elif action == "Wash Onion":
             # Valid if: sink is available, onion needs washing
-            if (not state.onion_at_sink and not state.tomato_at_sink and  # Sink available
-                not state.onion_washed and  # Onion not already washed
-                not state.onion_in_pot):    # Onion not already used
-                new_state.onion_at_sink = True
-                new_state.onion_washed = True
-                return new_state
-            return None
+            return (not state.onion_at_sink and not state.tomato_at_sink and  # Sink available
+                    not state.onion_washed and  # Onion not already washed
+                    not state.onion_in_pot)     # Onion not already used
             
         elif action == "Chop Onion":
-            # Valid if: chopping station available, onion is washed and ready
-            if (not state.onion_at_chopping and not state.tomato_at_chopping and  # Station available
-                state.onion_washed and not state.onion_chopped and  # Onion washed but not chopped
-                not state.onion_in_pot):  # Onion not already used
-                new_state.onion_at_chopping = True
-                new_state.onion_chopped = True
-                new_state.onion_at_sink = False  # Move from sink to chopping
-                return new_state
-            return None
+            # Valid if: chopping station available, onion not already chopped, onion not in pot
+            # Can chop raw onion OR already washed onion - chopping is independent of washing
+            return (not state.onion_at_chopping and not state.tomato_at_chopping and  # Station available
+                    not state.onion_chopped and  # Onion not already chopped
+                    not state.onion_in_pot)       # Onion not already used
             
         elif action == "Human Grab Onion":
             # Always valid if human has empty hands (they can grab from multiple locations)
             # Locations: dispenser (raw), sink (washed), chopping station (chopped), staging (processed)
-            if self._human_hands_empty(state):
-                # Priority order: staged > chopping station > sink > dispenser (most processed first)
-                if state.onion_staged:
-                    # Grab processed onion from staging area
-                    new_state.onion_hand = "partner"
-                    new_state.onion_staged = False
-                elif state.onion_at_chopping:
-                    # Grab chopped onion from chopping station
-                    new_state.onion_hand = "partner"
-                    new_state.onion_at_chopping = False
-                elif state.onion_at_sink:
-                    # Grab washed onion from sink
-                    new_state.onion_hand = "partner" 
-                    new_state.onion_at_sink = False
-                else:
-                    # Grab raw onion from dispenser (always available)
-                    new_state.onion_hand = "partner"
-                    # Raw onion from dispenser - no location flags change
-                
-                return new_state
-            return None
+            return self._human_hands_empty(state)
             
         elif action == "Place Onion in Pot":
             # Valid if: human is holding onion, pot available
-            if state.onion_hand == "partner":
-                new_state.onion_hand = "none"
-                new_state.onion_in_pot = True
-                return new_state
-            return None
+            return state.onion_hand == "partner"
             
         elif action == "Wash Tomato":
             # Valid if: sink is available, tomato needs washing
-            if (not state.onion_at_sink and not state.tomato_at_sink and  # Sink available
-                not state.tomato_washed and  # Tomato not already washed
-                not state.tomato_in_pot):    # Tomato not already used
-                new_state.tomato_at_sink = True
-                new_state.tomato_washed = True
-                return new_state
-            return None
+            return (not state.onion_at_sink and not state.tomato_at_sink and  # Sink available
+                    not state.tomato_washed and  # Tomato not already washed
+                    not state.tomato_in_pot)     # Tomato not already used
             
         elif action == "Chop Tomato":
-            # Valid if: chopping station available, tomato is washed and ready
-            if (not state.onion_at_chopping and not state.tomato_at_chopping and  # Station available
-                state.tomato_washed and not state.tomato_chopped and  # Tomato washed but not chopped
-                not state.tomato_in_pot):  # Tomato not already used
-                new_state.tomato_at_chopping = True
-                new_state.tomato_chopped = True
-                new_state.tomato_at_sink = False  # Move from sink to chopping
-                return new_state
-            return None
+            # Valid if: chopping station available, tomato not already chopped, tomato not in pot
+            # Can chop raw tomato OR already washed tomato - chopping is independent of washing
+            return (not state.onion_at_chopping and not state.tomato_at_chopping and  # Station available
+                    not state.tomato_chopped and  # Tomato not already chopped
+                    not state.tomato_in_pot)       # Tomato not already used
             
         elif action == "Human Grab Tomato":
             # Always valid if human has empty hands (they can grab from multiple locations)
             # Locations: dispenser (raw), sink (washed), chopping station (chopped), staging (processed)
-            if self._human_hands_empty(state):
-                # Priority order: staged > chopping station > sink > dispenser (most processed first)
-                if state.tomato_staged:
-                    # Grab processed tomato from staging area
-                    new_state.tomato_hand = "partner"
-                    new_state.tomato_staged = False
-                elif state.tomato_at_chopping:
-                    # Grab chopped tomato from chopping station
-                    new_state.tomato_hand = "partner"
-                    new_state.tomato_at_chopping = False
-                elif state.tomato_at_sink:
-                    # Grab washed tomato from sink
-                    new_state.tomato_hand = "partner"
-                    new_state.tomato_at_sink = False
-                else:
-                    # Grab raw tomato from dispenser (always available)
-                    new_state.tomato_hand = "partner"
-                    # Raw tomato from dispenser - no location flags change
-                
-                return new_state
-            return None
+            return self._human_hands_empty(state)
             
         elif action == "Place Tomato in Pot":
             # Valid if: human is holding tomato, pot available
-            if state.tomato_hand == "partner":
-                new_state.tomato_hand = "none"
-                new_state.tomato_in_pot = True
-                return new_state
-            return None
+            return state.tomato_hand == "partner"
             
         elif action == "Turn Stove On":
             # Valid if: both ingredients in pot, stove not already on
-            if (state.onion_in_pot and state.tomato_in_pot and
-                not state.soup_cooking and not state.soup_ready):
-                new_state.soup_cooking = True
-                new_state.soup_in_pot_not_cooking = False
-                return new_state
-            return None
+            return (state.onion_in_pot and state.tomato_in_pot and
+                    not state.soup_cooking and not state.soup_ready)
             
         elif action == "Wait For Ingredients to Cook":
             # Valid if: soup is cooking, advances to ready state
-            if state.soup_cooking:
-                new_state.soup_cooking = False
-                new_state.soup_ready = True
-                return new_state
-            return None
+            return state.soup_cooking
             
         elif action == "Human Grab Dish":
             # Always valid if human has empty hands (they can attempt to grab)
-            if self._human_hands_empty(state):
-                # If dish is staged, they successfully grab it
-                if state.dish_staged:
-                    new_state.dish_hand = "partner"
-                    new_state.dish_staged = False
-                else:
-                    # If no dish staged, action is valid but no state change (failed attempt)
-                    new_state.dish_hand = "partner"
-                return new_state
-            return None
+            return self._human_hands_empty(state)
             
         elif action == "Pour Soup in Dish":
             # Valid if: soup is ready, human holding dish
-            if state.soup_ready and state.dish_hand == "partner":
-                new_state.soup_hand = "partner"
-                new_state.dish_hand = "none"
-                new_state.soup_ready = False
-                return new_state
-            return None
+            return state.soup_ready and state.dish_hand == "partner"
             
         elif action == "Serve Soup":
             # Valid if: human holding soup
-            if state.soup_hand == "partner":
-                new_state.soup_hand = "none"
-                new_state.soup_served = True
-                return new_state
-            return None
+            return state.soup_hand != "none"
         
         # Unknown action
-        return None
+        return False
     
     def _human_hands_empty(self, state: CompleteRecipeState) -> bool:
         """Check if human has empty hands (not holding any item)"""

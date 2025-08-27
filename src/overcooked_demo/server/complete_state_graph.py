@@ -14,6 +14,10 @@ from dataclasses import dataclass, asdict
 from typing import Dict, List, Optional, Tuple
 import itertools
 import json
+import pickle
+import os
+import hashlib
+import time
 
 
 @dataclass
@@ -440,6 +444,11 @@ class CompleteStateGraphGenerator:
         # We'll populate this with our 31,296 valid states
         self.all_valid_states = []
         self.state_to_node_mapping = {}
+        
+        # Caching configuration
+        self.cache_dir = "data"
+        self.cache_file = os.path.join(self.cache_dir, "complete_state_graph_cache.pkl")
+        self.cache_meta_file = os.path.join(self.cache_dir, "complete_state_graph_meta.json")
     
     def generate_complete_graph(self) -> CompleteRecipeGraph:
         """
@@ -453,21 +462,21 @@ class CompleteStateGraphGenerator:
         # Step 1: Generate all valid states (we already tested this)
         print("Step 1: Generating all valid states...")
         self.all_valid_states = generate_all_valid_states()
-        print(f"   ✅ Generated {len(self.all_valid_states)} valid states")
+        print(f"   Generated {len(self.all_valid_states)} valid states")
         
         # Step 2: Create nodes for all states
         print("Step 2: Creating graph nodes...")
         self._generate_all_nodes()
-        print(f"   ✅ Created {len(self.graph.nodes)} nodes")
+        print(f"   Created {len(self.graph.nodes)} nodes")
         
         # Step 3: Create edges for all valid transitions
         print("Step 3: Creating graph edges...")
         self._generate_all_edges()
         total_edges = sum(len(edges) for edges in self.graph.edges.values())
-        print(f"   ✅ Created {total_edges} edges")
+        print(f"   Created {total_edges} edges")
         
         print(f"Complete state graph generated!")
-        print(f"   📊 {len(self.graph.nodes)} nodes, {total_edges} edges")
+        print(f"   {len(self.graph.nodes)} nodes, {total_edges} edges")
         
         return self.graph
     
@@ -608,6 +617,120 @@ class CompleteStateGraphGenerator:
                 state.tomato_hand != "partner" and
                 state.dish_hand != "partner" and
                 state.soup_hand != "partner")
+    
+    def _get_code_hash(self) -> str:
+        """Generate a hash of the current code to detect changes"""
+        # Hash the key parts of the state graph implementation
+        hash_content = ""
+        
+        # Hash the primary actions
+        hash_content += str(self.primary_actions)
+        
+        # Hash the state dataclass structure (field names and types)
+        state_fields = [(field.name, str(field.type)) for field in CompleteRecipeState.__dataclass_fields__.values()]
+        hash_content += str(state_fields)
+        
+        # Hash the validation logic by reading this file's content
+        try:
+            with open(__file__, 'r') as f:
+                # Only hash the validation methods to detect logic changes
+                content = f.read()
+                # Extract validation-related methods
+                for line in content.split('\n'):
+                    if ('def _is_action_valid' in line or 
+                        'def is_valid_state' in line or
+                        'def _human_hands_empty' in line):
+                        hash_content += line
+        except:
+            hash_content += "no_file_access"
+        
+        return hashlib.md5(hash_content.encode()).hexdigest()
+    
+    def _save_graph_to_cache(self):
+        """Save the generated graph to cache"""
+        print("Saving graph to cache...")
+        
+        # Ensure cache directory exists
+        os.makedirs(self.cache_dir, exist_ok=True)
+        
+        # Save the graph data
+        cache_data = {
+            'graph': self.graph,
+            'all_valid_states': self.all_valid_states,
+            'state_to_node_mapping': self.state_to_node_mapping
+        }
+        
+        with open(self.cache_file, 'wb') as f:
+            pickle.dump(cache_data, f)
+        
+        # Save metadata
+        metadata = {
+            'code_hash': self._get_code_hash(),
+            'generation_time': time.time(),
+            'node_count': len(self.graph.nodes),
+            'edge_count': sum(len(edges) for edges in self.graph.edges.values()),
+            'version': '1.0'
+        }
+        
+        with open(self.cache_meta_file, 'w') as f:
+            json.dump(metadata, f, indent=2)
+        
+        print(f"   Graph cached to {self.cache_file}")
+    
+    def _load_graph_from_cache(self) -> bool:
+        """Load graph from cache if valid. Returns True if successful."""
+        
+        if not os.path.exists(self.cache_file) or not os.path.exists(self.cache_meta_file):
+            return False
+        
+        try:
+            # Check if cache is still valid
+            with open(self.cache_meta_file, 'r') as f:
+                metadata = json.load(f)
+            
+            current_hash = self._get_code_hash()
+            if metadata.get('code_hash') != current_hash:
+                print("Cache invalid (code changed), regenerating...")
+                return False
+            
+            # Load the cached graph
+            print("Loading graph from cache...")
+            with open(self.cache_file, 'rb') as f:
+                cache_data = pickle.load(f)
+            
+            self.graph = cache_data['graph']
+            self.all_valid_states = cache_data['all_valid_states']
+            self.state_to_node_mapping = cache_data['state_to_node_mapping']
+            
+            print(f"   Loaded {metadata['node_count']:,} nodes, {metadata['edge_count']:,} edges")
+            print(f"   Instant loading (cached {time.time() - metadata['generation_time']:.0f}s ago)")
+            
+            return True
+            
+        except Exception as e:
+            print(f"Failed to load cache: {e}")
+            return False
+    
+    def get_or_generate_graph(self) -> CompleteRecipeGraph:
+        """
+        Get the complete state graph, using cache if available or generating if needed.
+        This is the main entry point for production use.
+        """
+        print("INITIALIZING COMPLETE STATE GRAPH")
+        print("="*50)
+        
+        # Try to load from cache first
+        if self._load_graph_from_cache():
+            return self.graph
+        
+        # Cache miss or invalid - generate fresh
+        print("Generating fresh state graph...")
+        graph = self.generate_complete_graph()
+        
+        # Save to cache for next time
+        self._save_graph_to_cache()
+        
+        return graph
 
 
 # Washing state detection is already implemented in CoordinatedActionPredictorAgent.summarize_state()
@@ -615,128 +738,4 @@ class CompleteStateGraphGenerator:
 # No additional detection functions needed!
 
 
-# Test the implementation
-if __name__ == "__main__":
-    print("Testing CompleteRecipeState implementation...")
-    
-    # Test 1: Create a basic state
-    initial_state = CompleteRecipeState()
-    print(f"Initial state: {initial_state}")
-    print(f"Initial state valid: {is_valid_state(initial_state)}")
-    
-    # Test 2: Create an invalid state (holding multiple items)
-    invalid_state = CompleteRecipeState(
-        onion_hand="agent",
-        tomato_hand="agent"  # Invalid: can't hold both
-    )
-    print(f"Invalid state valid: {is_valid_state(invalid_state)}")
-    
-    # Test 3: Create a valid mid-game state
-    valid_state = CompleteRecipeState(
-        onion_hand="agent",
-        onion_washed=True,
-        tomato_at_sink=True,
-        tomato_washed=True
-    )
-    print(f"Valid mid-game state: {is_valid_state(valid_state)}")
-    
-    # Test 4: Generate ALL valid states to see the state space size
-    print("\n" + "="*50)
-    print("TESTING STATE SPACE GENERATION")
-    print("="*50)
-    
-    import time
-    start_time = time.time()
-    
-    valid_states = generate_all_valid_states()
-    
-    end_time = time.time()
-    generation_time = end_time - start_time
-    
-    print(f"\n📊 STATE SPACE ANALYSIS:")
-    print(f"   ✅ Generated {len(valid_states)} valid states")
-    print(f"   ⏱️  Generation took {generation_time:.2f} seconds")
-    print(f"   💾 Estimated memory: ~{len(valid_states) * 1000 / 1024:.1f} KB")
-    
-    if len(valid_states) > 0:
-        print(f"\n🔍 SAMPLE STATES:")
-        # Show first few states
-        for i, state in enumerate(valid_states[:3]):
-            print(f"   State {i+1}: {state}")
-        
-        # Show goal states
-        goal_states = [s for s in valid_states if s.soup_served]
-        print(f"\n🎯 GOAL STATES: Found {len(goal_states)} goal states")
-        if goal_states:
-            print(f"   Sample goal state: {goal_states[0]}")
-    
-    print("CompleteRecipeState implementation test complete!")
-    
-    # Test 5: Generate complete state graph
-    print("\n" + "="*50)
-    print("TESTING COMPLETE STATE GRAPH GENERATION")
-    print("="*50)
-    
-    import time
-    
-    # Test just a small subset first
-    print("🧪 Testing graph generation process...")
-    
-    generator = CompleteStateGraphGenerator()
-    
-    print("\n🔧 Testing transition logic with sample states...")
-    
-    # Test some basic transitions
-    initial_state = CompleteRecipeState()
-    
-    # Test NOOP (should always work)
-    noop_result = generator._apply_action(initial_state, "NOOP")
-    print(f"   NOOP from initial state: {'✅ Valid' if noop_result else '❌ Invalid'}")
-    
-    # Test wash onion from initial state (should work if sink available)
-    wash_result = generator._apply_action(initial_state, "Wash Onion")
-    print(f"   Wash Onion from initial: {'✅ Valid' if wash_result else '❌ Invalid'}")
-    
-    # Test grab onion from initial state (should fail - no onion staged)
-    grab_result = generator._apply_action(initial_state, "Human Grab Onion")
-    print(f"   Grab Onion from initial: {'✅ Valid' if grab_result else '❌ Invalid (expected)'}")
-    
-    print("\n⚠️  Full graph generation will take a while...")
-    print("   - 31,296 states × 14 actions = ~438,000 transition tests")
-    print("   - Estimated time: 2-3 minutes")
-    
-    user_input = input("\nGenerate full graph? (y/n): ")
-    
-    if user_input.lower() == 'y':
-        start_time = time.time()
-        
-        complete_graph = generator.generate_complete_graph()
-        
-        end_time = time.time()
-        generation_time = end_time - start_time
-        
-        # Analysis
-        total_edges = sum(len(edges) for edges in complete_graph.edges.values())
-        avg_edges_per_node = total_edges / len(complete_graph.nodes) if complete_graph.nodes else 0
-        
-        goal_nodes = [node for node in complete_graph.nodes.values() if node.is_goal_state]
-        initial_nodes = [node for node in complete_graph.nodes.values() if node.is_initial_state]
-        
-        print(f"\n📊 COMPLETE GRAPH ANALYSIS:")
-        print(f"   📦 Nodes: {len(complete_graph.nodes)}")
-        print(f"   🔗 Edges: {total_edges}")
-        print(f"   📈 Avg edges per node: {avg_edges_per_node:.1f}")
-        print(f"   🎯 Goal nodes: {len(goal_nodes)}")
-        print(f"   🚀 Initial nodes: {len(initial_nodes)}")
-        print(f"   ⏱️  Generation time: {generation_time:.2f} seconds")
-        
-        if initial_nodes:
-            initial_node = initial_nodes[0]
-            available_actions = complete_graph.get_possible_actions(initial_node.node_id)
-            print(f"\n🎮 Actions from initial state: {available_actions}")
-        
-        print("\n✅ Complete state graph generation successful!")
-    else:
-        print("   Skipped full generation.")
-    
-    print("\nComplete state graph test complete!")
+

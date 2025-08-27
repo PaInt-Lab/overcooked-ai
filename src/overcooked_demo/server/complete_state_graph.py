@@ -131,27 +131,24 @@ class CompleteRecipeGraph:
     def __init__(self):
         self.nodes: Dict[str, CompleteRecipeNode] = {}
         self.edges: Dict[str, List[CompleteRecipeEdge]] = {}        # from_node -> [edges]
-        self.reverse_edges: Dict[str, List[CompleteRecipeEdge]] = {} # to_node -> [edges]
         self.state_to_node_id: Dict[str, str] = {}                 # state_json -> node_id
     
     def add_node(self, node: CompleteRecipeNode):
         """Add a node to the graph and update mappings"""
         self.nodes[node.node_id] = node
         
-        # Initialize edge lists
+        # Initialize edge list
         if node.node_id not in self.edges:
             self.edges[node.node_id] = []
-        if node.node_id not in self.reverse_edges:
-            self.reverse_edges[node.node_id] = []
         
         # Add state-to-node mapping for fast lookup
         state_key = node.state.to_json_key()
         self.state_to_node_id[state_key] = node.node_id
     
     def add_edge(self, edge: CompleteRecipeEdge):
-        """Add an edge to the graph and update forward/reverse mappings"""
+        """Add an edge to the graph (only forward mapping needed)"""
         self.edges[edge.from_node].append(edge)
-        self.reverse_edges[edge.to_node].append(edge)
+        # No reverse edges needed since we don't use to_node
     
     def get_possible_actions(self, node_id: str) -> List[str]:
         """Get all valid primary actions from this node"""
@@ -168,10 +165,6 @@ class CompleteRecipeGraph:
     def get_edges_from(self, node_id: str) -> List[CompleteRecipeEdge]:
         """Get all edges from a node"""
         return self.edges.get(node_id, [])
-    
-    def get_edges_to(self, node_id: str) -> List[CompleteRecipeEdge]:
-        """Get all edges to a node"""
-        return self.reverse_edges.get(node_id, [])
 
 
 def is_valid_state(state: CompleteRecipeState) -> bool:

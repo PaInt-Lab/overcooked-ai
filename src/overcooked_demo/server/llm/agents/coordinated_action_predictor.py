@@ -689,13 +689,13 @@ class CoordinatedActionPredictorAgent(Agent):
         if current_state['soup_ready'] and current_state['soup_staged'] and current_state['soup_hand'] == 'none':
             return 'pickup(soup)'
         
-        # 3. If we have chopped onion, place it at staging
+        # 3. If we have onion and it's chopped, place it at staging
         if current_state['onion_hand'] == 'agent' and current_state['onion_chopped']:
-            return 'place(chopped_onion)'
+            return 'place(onion, staging_station)'
         
-        # 4. If we have chopped tomato, place it at staging
+        # 4. If we have tomato and it's chopped, place it at staging
         if current_state['tomato_hand'] == 'agent' and current_state['tomato_chopped']:
-            return 'place(chopped_tomato)'
+            return 'place(tomato, staging_station)'
         
         # 5. If we have raw onion, chop it
         if current_state['onion_hand'] == 'agent' and not current_state['onion_chopped']:
@@ -707,11 +707,11 @@ class CoordinatedActionPredictorAgent(Agent):
         
         # 7. If onion is at chopping and chopped, pick it up
         if current_state['onion_at_chopping'] and current_state['onion_chopped'] and current_state['onion_hand'] == 'none':
-            return 'pickup(chopped_onion)'
+            return 'pickup(onion)'  # State-aware pickup will find it at chopping station
         
         # 8. If tomato is at chopping and chopped, pick it up
         if current_state['tomato_at_chopping'] and current_state['tomato_chopped'] and current_state['tomato_hand'] == 'none':
-            return 'pickup(chopped_tomato)'
+            return 'pickup(tomato)'  # State-aware pickup will find it at chopping station
         
         # 9. If we have dish, place it at staging
         if current_state['dish_hand'] == 'agent':
@@ -939,8 +939,6 @@ class CoordinatedActionPredictorAgent(Agent):
             frontier_map = {
                 "onion": self.onion_frontier,  # From onion dispenser
                 "tomato": self.tomato_frontier,  # From tomato dispenser
-                "chopped_onion": self.onion_chopping_frontier,  # From chopping station
-                "chopped_tomato": self.tomato_chopping_frontier,  # From chopping station
                 "dish": self.dish_frontier,  # From dish dispenser
                 "soup": self.soup_staging_frontier,  # From soup staging
             }
@@ -972,8 +970,6 @@ class CoordinatedActionPredictorAgent(Agent):
             else:
                 # Default destinations for other items (no destination needed)
                 frontier_map = {
-                    "chopped_onion": self.onion_staging_frontier,  # Always to onion staging
-                    "chopped_tomato": self.tomato_staging_frontier,  # Always to tomato staging
                     "dish": self.dish_staging_frontier,  # Always to dish staging
                     "soup": self.delivery_frontier,  # Always to serving station
                 }
@@ -1023,20 +1019,49 @@ class CoordinatedActionPredictorAgent(Agent):
         start_pair = (my_pos, tuple(my_ori))
         return self._get_action_plan(start_pair, goal)
 
-    def _parse_robot_action(self, robot_action):
+    def _parse_robot_action(self, robot_action, game_state=None):
         """
-        Parse the robot action to get function name and item (like _parse_function_call in action_predictor.py).
+        Parse the robot action to get function name and item with state-aware location detection.
         Expected format: pickup(onion) or place(onion, chopping_station) or NOOP
+        
+        For pickup actions, uses game state to determine the appropriate location:
+        - pickup(onion) checks onion_at_chopping, onion_at_sink, or defaults to dispenser
+        - pickup(tomato) checks tomato_at_chopping, tomato_at_sink, or defaults to dispenser
         """
         # Check for explicit NOOP
         if robot_action == "NOOP":
             return "NOOP", None
 
-        # Parse pickup actions
+        # Parse pickup actions with state-aware location detection
         pickup_match = re.search(r'pickup\(([^)]+)\)', robot_action)
         if pickup_match:
             item = pickup_match.group(1).strip()
-            if item in ["onion", "tomato", "chopped_onion", "chopped_tomato", "dish", "soup"]:
+            
+            # State-aware location detection for onion/tomato
+            if item == "onion" and game_state:
+                if game_state.get('onion_at_chopping', False):
+                    location = "chopping_station"
+                elif game_state.get('onion_at_sink', False):
+                    location = "sink"
+                else:
+                    location = "dispenser"
+                return "pickup", (item, location)
+                
+            elif item == "tomato" and game_state:
+                if game_state.get('tomato_at_chopping', False):
+                    location = "chopping_station"
+                elif game_state.get('tomato_at_sink', False):
+                    location = "sink"
+                else:
+                    location = "dispenser"
+                return "pickup", (item, location)
+            
+            # Other items have fixed/unambiguous locations
+            elif item in ["dish", "soup"]:
+                return "pickup", item
+                
+            # Fallback for onion/tomato without game state
+            elif item in ["onion", "tomato"]:
                 return "pickup", item
 
         # Parse place actions with destination
@@ -1051,25 +1076,43 @@ class CoordinatedActionPredictorAgent(Agent):
         place_simple_match = re.search(r'place\(([^)]+)\)', robot_action)
         if place_simple_match:
             item = place_simple_match.group(1).strip()
-            if item in ["chopped_onion", "chopped_tomato", "dish", "soup"]:
+            if item in ["dish", "soup"]:
                 return "place", (item, "default")
 
         # final fallback
         return "pickup", "onion"
 
-    def _move_to(self, action: str, item: str, start_pos: tuple, start_ori: tuple, destination: str = None):
+    def _move_to(self, action: str, item_info, start_pos: tuple, start_ori: tuple, destination: str = None):
         """Move to the appropriate location for the given action and item."""
         if action == "pickup":
-            frontier_map = {
-                "onion": self.onion_frontier,
-                "tomato": self.tomato_frontier,
-                "chopped_onion": self.onion_chopping_frontier,
-                "chopped_tomato": self.tomato_chopping_frontier,
-                "dish": self.dish_frontier,
-                "soup": self.soup_staging_frontier,
-            }
-            choices = frontier_map.get(item)
+            # Handle new tuple format (item, location) or legacy format (just item)
+            if isinstance(item_info, tuple):
+                item, location = item_info
+                if location == "chopping_station":
+                    choices = self.onion_chopping_frontier if item == "onion" else self.tomato_chopping_frontier
+                elif location == "sink":
+                    choices = self.sink_frontier
+                elif location == "dispenser":
+                    choices = self.onion_frontier if item == "onion" else self.tomato_frontier
+                else:
+                    choices = None
+            else:
+                # Legacy format: just item name
+                item = item_info
+                frontier_map = {
+                    "onion": self.onion_frontier,
+                    "tomato": self.tomato_frontier,
+                    "dish": self.dish_frontier,
+                    "soup": self.soup_staging_frontier,
+                }
+                choices = frontier_map.get(item)
         elif action == "place":
+            # Extract item name from tuple format if needed
+            if isinstance(item_info, tuple):
+                item = item_info[0]  # Extract item from (item, location) tuple
+            else:
+                item = item_info
+                
             if destination == "chopping_station":
                 frontier_map = {
                     "onion": self.onion_chopping_frontier,
@@ -1091,8 +1134,6 @@ class CoordinatedActionPredictorAgent(Agent):
                 choices = frontier_map.get(item)
             else:
                 frontier_map = {
-                    "chopped_onion": self.onion_staging_frontier,
-                    "chopped_tomato": self.tomato_staging_frontier,
                     "dish": self.dish_staging_frontier,
                     "soup": self.delivery_frontier,
                 }
@@ -1107,9 +1148,9 @@ class CoordinatedActionPredictorAgent(Agent):
         start_pair = (start_pos, tuple(start_ori))
         return self._get_action_plan(start_pair, goal)
 
-    def PickUp(self, item, start_pos, start_ori):
-        """Returns an action plan to pick up the specified item."""
-        action_plan = self._move_to("pickup", item, start_pos, start_ori)
+    def PickUp(self, item_info, start_pos, start_ori):
+        """Returns an action plan to pick up the specified item (supports both tuple and string format)."""
+        action_plan = self._move_to("pickup", item_info, start_pos, start_ori)
         # Only add INTERACT if it's not already in the plan
         if action_plan and Action.INTERACT not in action_plan:
             action_plan.append(Action.INTERACT)
@@ -1263,8 +1304,8 @@ class CoordinatedActionPredictorAgent(Agent):
             # ALWAYS create a new action plan based on the current robot action
             # This ensures we respond to changing game states and predictions
             # We no longer reuse old plans - each prediction gets a fresh action plan
-            func_name, item = self._parse_robot_action(robot_action)
-            print(f"Parsed robot action: {func_name}({item})")
+            func_name, item_info = self._parse_robot_action(robot_action, self.last_summary)
+            print(f"Parsed robot action: {func_name}({item_info})")
             
             if func_name == "NOOP":
                 # Check if the agent is blocking important tiles
@@ -1310,13 +1351,13 @@ class CoordinatedActionPredictorAgent(Agent):
 
             # Execute the compound action (EXACTLY like action_predictor.py)
             if func_name == "pickup":
-                action_plan = self.PickUp(item, my_pos, my_ori)
+                action_plan = self.PickUp(item_info, my_pos, my_ori)
             elif func_name == "place":
-                if isinstance(item, tuple):
-                    item_to_place, destination = item
+                if isinstance(item_info, tuple):
+                    item_to_place, destination = item_info
                     action_plan = self.Place(item_to_place, my_pos, my_ori, destination)
                 else:
-                    action_plan = self.Place(item, my_pos, my_ori, "default")
+                    action_plan = self.Place(item_info, my_pos, my_ori, "default")
             else:
                 # Fallback to simple movement
                 action_plan = [Action.STAY]
@@ -1335,7 +1376,7 @@ class CoordinatedActionPredictorAgent(Agent):
                     # "next_planned_action": next_planned_action,  # TODO: Re-enable
                     "llm_response": response,
                     "available_primary_actions": available_primary_actions,
-                    "function_call": f"{func_name}({item})",
+                    "function_call": f"{func_name}({item_info})",
                     "action_plan": action_plan
                 }
             else:
@@ -1345,7 +1386,7 @@ class CoordinatedActionPredictorAgent(Agent):
                     # "next_planned_action": next_planned_action,  # TODO: Re-enable
                     "llm_response": response,
                     "available_primary_actions": available_primary_actions,
-                    "function_call": f"{func_name}({item})",
+                    "function_call": f"{func_name}({item_info})",
                     "action_plan": []
                 }
         

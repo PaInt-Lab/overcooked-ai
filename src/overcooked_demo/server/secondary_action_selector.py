@@ -551,13 +551,13 @@ def _smart_select_secondary_action(game_state: Dict, predicted_primary_action: s
             # Robot has onion - check if it's chopped or raw
             if game_state.get('onion_chopped', False):
                 # Robot has chopped onion, should stage it for human
-                return "place(chopped_onion)"  # Use chopped_onion for proper item type
+                return "place(onion, staging_station)"  # State-aware place action
             else:
                 # Robot has raw onion, should place it at chopping station
                 return "place(onion, chopping_station)"
         elif game_state.get('onion_hand') == 'none' and game_state.get('onion_at_chopping', False) and game_state.get('onion_chopped', False):
             # Onion is chopped and ready, robot should pick it up
-            return "pickup(chopped_onion)"
+            return "pickup(onion)"  # State-aware pickup will find it at chopping station
         elif game_state.get('onion_hand') == 'none':
             # Check if we already have onion in pot - if so, prioritize tomato
             if game_state.get('onion_in_pot', False):
@@ -582,13 +582,13 @@ def _smart_select_secondary_action(game_state: Dict, predicted_primary_action: s
             # Robot has tomato - check if it's chopped or raw
             if game_state.get('tomato_chopped', False):
                 # Robot has chopped tomato, should stage it for human
-                return "place(chopped_tomato)"  # Use chopped_tomato for proper item type
+                return "place(tomato, staging_station)"  # State-aware place action
             else:
                 # Robot has raw tomato, should place it at chopping station
                 return "place(tomato, chopping_station)"
         elif game_state.get('tomato_hand') == 'none' and game_state.get('tomato_at_chopping', False) and game_state.get('tomato_chopped', False):
             # Tomato is chopped and ready, robot should pick it up
-            return "pickup(chopped_tomato)"
+            return "pickup(tomato)"  # State-aware pickup will find it at chopping station
         elif game_state.get('tomato_hand') == 'none':
             # Check if we already have tomato in pot - if so, prioritize onion
             if game_state.get('tomato_in_pot', False):

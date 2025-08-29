@@ -513,6 +513,37 @@ class CompleteStateGraphGenerator:
         This is the core validation logic that defines which actions are possible.
         """
         
+        # CRITICAL: If human is holding an ingredient, they can only do actions related to that ingredient
+        if state.onion_hand == "partner":
+            # Human holding onion - can only do onion-related actions or NOOP
+            allowed_actions = ["NOOP"]
+            
+            # Add onion-specific actions based on processing state
+            if not state.onion_in_pot:
+                allowed_actions.append("Place Onion in Pot")
+            if not state.onion_chopped:
+                allowed_actions.append("Chop Onion")
+            if not state.onion_washed:
+                allowed_actions.append("Wash Onion")
+            
+            if action not in allowed_actions:
+                return False
+        
+        elif state.tomato_hand == "partner":
+            # Human holding tomato - can only do tomato-related actions or NOOP
+            allowed_actions = ["NOOP"]
+            
+            # Add tomato-specific actions based on processing state
+            if not state.tomato_in_pot:
+                allowed_actions.append("Place Tomato in Pot")
+            if not state.tomato_chopped:
+                allowed_actions.append("Chop Tomato")
+            if not state.tomato_washed:
+                allowed_actions.append("Wash Tomato")
+            
+            if action not in allowed_actions:
+                return False
+        
         # Implement validation logic for each primary action
         if action == "NOOP":
             # NOOP always valid

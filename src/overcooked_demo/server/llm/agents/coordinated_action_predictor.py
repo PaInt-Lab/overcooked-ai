@@ -888,7 +888,7 @@ class CoordinatedActionPredictorAgent(Agent):
                 "Turn Stove On",               # Human starts cooking when both ingredients in pot
                 "Wait For Ingredients to Cook", # System state - cooking in progress
                 "Human Grab Dish",             # Human grabs clean dish for serving
-                "Pour Soup in Dish",           # Human pours ready soup into dish
+                "Pour Soup",                   # Human pours ready soup into dish
                 "Serve Soup",                  # Human serves soup (goal action)
                 "NOOP"                         # No action needed (waiting/self-loop)
             ]

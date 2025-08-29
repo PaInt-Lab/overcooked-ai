@@ -67,7 +67,7 @@ class PrimaryAction(Enum):
     PLACE_TOMATO_IN_POT = "Place Tomato in Pot"
     TURN_STOVE_ON = "Turn Stove On"
     WAIT_TILL_INGREDIENTS_COOKED = "Wait For Ingredients to Cook"
-    POUR_SOUP = "Pour Soup in Dish"
+    POUR_SOUP = "Pour Soup"
     SERVE_SOUP = "Serve Soup"
     
     # State graph style (fallback)
@@ -143,7 +143,7 @@ PRIMARY_TO_SECONDARY_SEQUENCES = {
         "place(dish, staging_station)"  # Step 2: Stage dish for when soup is ready
     ],
     
-    # "Pour Soup in Dish" -> Robot does NOOP (human task)
+    # "Pour Soup" -> Robot does NOOP (human task)
     PrimaryAction.POUR_SOUP: ["NOOP"],
     
     # "Serve Soup" -> Robot does NOOP (human task)  
@@ -427,10 +427,6 @@ def _smart_select_secondary_action(game_state: Dict, predicted_primary_action: s
             # Default fallback
             return "NOOP"
 
-        
-            
-
-    
     # Handle generic Human Grab Tomato (state tells us if ingredient is chopped/washed/raw)
     elif predicted_primary_action == "Human Grab Tomato":
         # NEW: Check if tomato is already staged - if so, work on onion instead
@@ -468,7 +464,7 @@ def _smart_select_secondary_action(game_state: Dict, predicted_primary_action: s
             return "NOOP"
     
     # Human wants to grab dish
-    elif "Human Grab dish" in predicted_primary_action:
+    elif predicted_primary_action == "Human Grab Dish":
         # Check if there's already a staged dish - if so, do NOOP
         if game_state.get('dish_staged', False):
             return "NOOP"
@@ -480,11 +476,16 @@ def _smart_select_secondary_action(game_state: Dict, predicted_primary_action: s
             return "pickup(dish)"
     
     # Turn stove on - when this happens, robot should do nothing
-    elif "Turn stove on" in predicted_primary_action:
+    elif predicted_primary_action == "Turn Stove On":
+        return "NOOP"
+    
+    # Pour soup action - human task
+    elif predicted_primary_action == "Pour Soup":
+        # Human task - robot should do nothing
         return "NOOP"
     
     # Wait Till Ingredients Cooked - prepare dish for soup serving
-    elif "Wait Till Ingredients Cooked" in predicted_primary_action:
+    elif predicted_primary_action == "Wait For Ingredients to Cook":
         # When human is waiting for ingredients to cook, robot should prepare for soup serving
         if game_state.get('dish_hand') == 'agent':
             # Robot has dish, should stage it for when soup is ready

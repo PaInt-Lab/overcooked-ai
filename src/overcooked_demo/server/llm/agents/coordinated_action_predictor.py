@@ -9,7 +9,7 @@ from overcooked_ai_py.mdp.actions import Action, Direction
 import os
 from openai import OpenAI
 from plan_session import PLAN_STORE
-from optimized_coordination_system import quick_coordinate
+from secondary_action_selector import select_secondary_action
 from complete_state_graph import CompleteStateGraphGenerator, CompleteRecipeState  # NEW: Complete state graph with washing
 
 # Use a simple vanilla model instead of fine-tuned ones
@@ -945,7 +945,7 @@ class CoordinatedActionPredictorAgent(Agent):
         
         # Get robot action using our smart coordination system
         try:
-            robot_action = quick_coordinate(self.last_summary, self.task_title, predicted_human_action)
+            robot_action = select_secondary_action(self.last_summary, self.task_title, predicted_human_action)
         except Exception as e:
             print(f"Error getting robot action: {e}")
             robot_action = "NOOP"

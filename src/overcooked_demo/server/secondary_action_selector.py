@@ -81,6 +81,7 @@ class PrimaryAction(Enum):
     
     # Special
     NOOP = "NOOP"
+    HUMAN_NOOP = "Human NOOP"
 
 
 

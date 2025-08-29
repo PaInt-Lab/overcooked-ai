@@ -862,13 +862,12 @@ class CoordinatedActionPredictorAgent(Agent):
         
         # Get current state summary
         self.last_summary = self.summarize_state(state, {})
-        print(f"Current position: {state.player_positions[self.agent_index]}")
         print(f"State summary: {self.last_summary}")
         
         # NEW: Get available primary actions from our complete state graph with washing
         try:
             available_primary_actions = self.get_available_primary_actions(state, {})
-            print(f"Available primary actions from complete state graph: {available_primary_actions}")
+            print(f"STATE GRAPH ACTIONS: {available_primary_actions}")
         except Exception as e:
             print(f"Error getting available actions from complete state graph: {e}")
             available_primary_actions = []
@@ -912,21 +911,21 @@ class CoordinatedActionPredictorAgent(Agent):
             plan_text = "No primary tasks available"
 
         prompt = f"""
-        You are helping a human cook soup. Analyze the current game state and use the user's plan to select the best primary action.
+        You are helping a human cook soup. Follow the user's plan step-by-step in the correct sequence.
 
         CURRENT STATE:
         {self.last_summary}
 
-        USER PLAN:
+        USER PLAN (follow in order):
         {plan_text}
 
         AVAILABLE ACTIONS:
         {available_primary_actions}
 
-        **IMPORTANT: Prioritize the user's plan above all else.**
-        - When multiple actions are possible, choose the one that aligns with their plan
-        - Follow their preferred sequence and cooking style
-        - Use the plan as your primary decision-making guide but make sure the actions are valid and possible in the current game state
+        **CRITICAL: Follow the plan sequence step-by-step!**
+        - The plan is designed to be followed in order
+        - Don't skip ahead to later steps
+        - Only choose actions that are both AVAILABLE and the NEXT LOGICAL STEP in the user's plan
 
         Select the action that best aligns with the user's plan and current state.
 
@@ -935,7 +934,8 @@ class CoordinatedActionPredictorAgent(Agent):
         """
         
         # Display essential information for testing
-        print(f"STATE: {self.last_summary}")
+        print(f"CURRENT STATE: {self.last_summary}")
+        print(f"SUPPLYING {len(available_primary_actions)} ACTIONS TO LLM: {available_primary_actions}")
                 
         # Call LLM to get predictions
         response = query_openai(prompt, self.selected_model)
@@ -951,8 +951,9 @@ class CoordinatedActionPredictorAgent(Agent):
             robot_action = "NOOP"
         
         # Clean, essential debugging output
-        print(f"PREDICTION: {predicted_human_action}")
-        print(f"ROBOT: {robot_action}")
+        print(f"LLM PREDICTION: {predicted_human_action}")
+        print(f"ROBOT ACTION: {robot_action}")
+        print(f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
         
         # Convert high-level action to low-level movement
         my_pos = state.player_positions[self.agent_index]
@@ -1024,8 +1025,6 @@ class CoordinatedActionPredictorAgent(Agent):
             # Return first action from the plan
             if action_plan:
                 move = action_plan[0] if action_plan else Action.STAY
-                print(f"Next Move: {move}")
-                print(f"Full Action Plan: {action_plan}")
                 
                 return move, {
                     "predicted_human_action": predicted_human_action,

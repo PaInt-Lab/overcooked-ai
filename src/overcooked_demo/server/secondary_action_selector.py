@@ -382,7 +382,7 @@ def _smart_select_secondary_action(game_state: Dict, predicted_primary_action: s
     # Handle generic Human Grab Onion (state tells us if ingredient is chopped/washed/raw)
     if predicted_primary_action == "Human Grab Onion":
         # NEW: Check if onion is already staged - if so, work on tomato instead
-        if game_state.get('onion_staged', False):
+        if game_state.get('onion_staged', False) or game_state.get('onion_in_pot', False):
             # Onion is already staged for human, check if we should work on tomato
             if "tomato" in task_title.lower():
                 # Recipe involves tomato, check tomato status
@@ -399,36 +399,27 @@ def _smart_select_secondary_action(game_state: Dict, predicted_primary_action: s
             else:
                 # Single ingredient recipe, onion is ready, do NOOP
                 return "NOOP"
-        
+
         if game_state.get('onion_hand') == 'agent' and game_state.get('onion_washed', False) and game_state.get('onion_chopped', False):
             # Robot has onion - check if it's chopped or raw
             return "place(onion, staging_station)"
-        elif game_state.get('onion_hand') == 'none' and game_state.get('onion_washed', False) and game_state.get('onion_chopped', False):
+        elif game_state.get('onion_hand') == 'none' and not game_state.get('onion_staged', False):
             # Onion is chopped AND washed and ready, robot should pick it up
             return "pickup(onion)"  # State-aware pickup will find it at chopping station
-        elif game_state.get('onion_hand') == 'none':
-            # Check if we already have onion in pot - if so, prioritize tomato
-            if game_state.get('onion_in_pot', False):
-                # Onion already in pot, check if we need tomato instead
-                if "tomato" in task_title.lower() and not game_state.get('tomato_in_pot', False):
-                    if game_state.get('tomato_hand') == 'none':
-                        return "pickup(tomato)"  # Get tomato instead of another onion
-                    elif game_state.get('tomato_hand') == 'agent':
-                        return "place(tomato, staging_station)"  # Stage tomato
-                # If no tomato needed or tomato already in pot, get onion for chopping
-                return "pickup(onion)"
-            else:
-                # No onion in pot, get onion for chopping
-                return "pickup(onion)"
+        
         else:
             # Default fallback
-            return "pickup(onion)"
+            return "NOOP"
+
+        
+            
+
     
     # Handle generic Human Grab Tomato (state tells us if ingredient is chopped/washed/raw)
     elif predicted_primary_action == "Human Grab Tomato":
         # NEW: Check if tomato is already staged - if so, work on onion instead
-        if game_state.get('tomato_staged', False):
-            # Tomato is already staged for human, check if we should work on onion
+        if game_state.get('tomato_staged', False) or game_state.get('tomato_in_pot', False):
+            # Tomato is already staged for human or in pot, check if we should work on onion
             if "onion" in task_title.lower():
                 # Recipe involves onion, check onion status
                 if not game_state.get('onion_staged', False) and not game_state.get('onion_in_pot', False):
@@ -448,26 +439,13 @@ def _smart_select_secondary_action(game_state: Dict, predicted_primary_action: s
         if game_state.get('tomato_hand') == 'agent' and game_state.get('tomato_chopped', False) and game_state.get('tomato_washed', False):
             # Robot has tomato - check if it's chopped or raw
             return "place(tomato, staging_station)"  # State-aware place action
-        elif game_state.get('tomato_hand') == 'none' and game_state.get('tomato_washed', False) and game_state.get('tomato_chopped', False):
-            # Tomato is chopped and washed and ready, robot should pick it up
+        elif game_state.get('tomato_hand') == 'none' and not game_state.get('tomato_staged', False):
+            # Tomato is chopped AND washed and ready, robot should pick it up
             return "pickup(tomato)"  # State-aware pickup will find it at chopping station
-        elif game_state.get('tomato_hand') == 'none':
-            # Check if we already have tomato in pot - if so, prioritize onion
-            if game_state.get('tomato_in_pot', False):
-                # Tomato already in pot, check if we need onion instead
-                if "onion" in task_title.lower() and not game_state.get('onion_in_pot', False):
-                    if game_state.get('onion_hand') == 'none':
-                        return "pickup(onion)"  # Get onion instead of another tomato
-                    elif game_state.get('onion_hand') == 'agent':
-                        return "place(onion, staging_station)"  # Stage onion
-                # If no onion needed or tomato already in pot, get tomato for chopping
-                return "pickup(tomato)"
-            else:
-                # No tomato in pot, get tomato for chopping
-                return "pickup(tomato)"
+        
         else:
             # Default fallback
-            return "pickup(tomato)"
+            return "NOOP"
     
     # Human wants to grab dish
     elif "Human Grab dish" in predicted_primary_action:

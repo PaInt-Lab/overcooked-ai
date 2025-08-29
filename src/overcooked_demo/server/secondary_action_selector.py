@@ -403,8 +403,6 @@ def _smart_select_secondary_action(game_state: Dict, predicted_primary_action: s
         if game_state.get('onion_hand') == 'agent' and game_state.get('onion_washed', False) and game_state.get('onion_chopped', False):
             # Robot has onion - check if it's chopped or raw
             return "place(onion, staging_station)"
-        else:
-            return "NOOP"
         elif game_state.get('onion_hand') == 'none' and game_state.get('onion_washed', False) and game_state.get('onion_chopped', False):
             # Onion is chopped AND washed and ready, robot should pick it up
             return "pickup(onion)"  # State-aware pickup will find it at chopping station

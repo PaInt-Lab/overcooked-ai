@@ -532,9 +532,9 @@ class CompleteStateGraphGenerator:
                     not state.onion_in_pot)       # Onion not already used
             
         elif action == "Human Grab Onion":
-            # Always valid if human has empty hands (they can grab from multiple locations)
+            # Valid if: human has empty hands AND onion not already in pot (no point grabbing if already used)
             # Locations: dispenser (raw), sink (washed), chopping station (chopped), staging (processed)
-            return self._human_hands_empty(state)
+            return self._human_hands_empty(state) and not state.onion_in_pot
             
         elif action == "Place Onion in Pot":
             # Valid if: human is holding onion, pot available
@@ -554,9 +554,9 @@ class CompleteStateGraphGenerator:
                     not state.tomato_in_pot)       # Tomato not already used
             
         elif action == "Human Grab Tomato":
-            # Always valid if human has empty hands (they can grab from multiple locations)
+            # Valid if: human has empty hands AND tomato not already in pot (no point grabbing if already used)
             # Locations: dispenser (raw), sink (washed), chopping station (chopped), staging (processed)
-            return self._human_hands_empty(state)
+            return self._human_hands_empty(state) and not state.tomato_in_pot
             
         elif action == "Place Tomato in Pot":
             # Valid if: human is holding tomato, pot available

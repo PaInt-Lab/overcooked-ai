@@ -862,7 +862,6 @@ class CoordinatedActionPredictorAgent(Agent):
         
         # Get current state summary
         self.last_summary = self.summarize_state(state, {})
-        print(f"State summary: {self.last_summary}")
         
         # NEW: Get available primary actions from our complete state graph with washing
         try:

@@ -400,9 +400,11 @@ def _smart_select_secondary_action(game_state: Dict, predicted_primary_action: s
                 # Single ingredient recipe, onion is ready, do NOOP
                 return "NOOP"
         
-        if game_state.get('onion_hand') == 'agent':
+        if game_state.get('onion_hand') == 'agent' and game_state.get('onion_washed', False) and game_state.get('onion_chopped', False):
             # Robot has onion - check if it's chopped or raw
             return "place(onion, staging_station)"
+        else:
+            return "NOOP"
         elif game_state.get('onion_hand') == 'none' and game_state.get('onion_washed', False) and game_state.get('onion_chopped', False):
             # Onion is chopped AND washed and ready, robot should pick it up
             return "pickup(onion)"  # State-aware pickup will find it at chopping station
@@ -445,7 +447,7 @@ def _smart_select_secondary_action(game_state: Dict, predicted_primary_action: s
                 # Single ingredient recipe, tomato is ready, do NOOP
                 return "NOOP"
         
-        if game_state.get('tomato_hand') == 'agent':
+        if game_state.get('tomato_hand') == 'agent' and game_state.get('tomato_chopped', False) and game_state.get('tomato_washed', False):
             # Robot has tomato - check if it's chopped or raw
             return "place(tomato, staging_station)"  # State-aware place action
         elif game_state.get('tomato_hand') == 'none' and game_state.get('tomato_washed', False) and game_state.get('tomato_chopped', False):

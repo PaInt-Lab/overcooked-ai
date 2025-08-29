@@ -79,12 +79,11 @@ class CompleteRecipeState:
         """
         Create state from existing game state summary.
         
-        The game state summary already includes all needed variables including
-        onion_washed and tomato_washed from CoordinatedActionPredictorAgent.
+        The game state summary already includes all needed variables from CoordinatedActionPredictorAgent.
         """
         state = cls()
         
-        # Copy all existing state variables (including washing states)
+        # Copy all existing state variables 
         for key, value in game_state_summary.items():
             if hasattr(state, key):
                 setattr(state, key, value)
@@ -386,30 +385,6 @@ def generate_all_valid_states() -> List[CompleteRecipeState]:
     
     return valid_states
 
-
-def create_state_mapping(states: List[CompleteRecipeState]) -> Dict[str, str]:
-    """
-    Create a mapping from state JSON keys to node IDs.
-    
-    This provides fast lookup from game state to graph node for real-time gameplay.
-    
-    Args:
-        states: List of valid states
-        
-    Returns:
-        Dictionary mapping state JSON keys to node IDs
-    """
-    
-    state_mapping = {}
-    
-    for i, state in enumerate(states):
-        node_id = f"state_{i:06d}"  # Create consistent node IDs
-        state_key = state.to_json_key()
-        state_mapping[state_key] = node_id
-    
-    return state_mapping
-
-
 class CompleteStateGraphGenerator:
     """
     Generates the complete state graph for washing+chopping recipe.
@@ -563,7 +538,7 @@ class CompleteStateGraphGenerator:
             
         elif action == "Place Onion in Pot":
             # Valid if: human is holding onion, pot available
-            return state.onion_hand == "partner"
+            return state.onion_hand == "partner" or state.onion_staged
             
         elif action == "Wash Tomato":
             # Valid if: sink is available, tomato needs washing
@@ -585,7 +560,7 @@ class CompleteStateGraphGenerator:
             
         elif action == "Place Tomato in Pot":
             # Valid if: human is holding tomato, pot available
-            return state.tomato_hand == "partner"
+            return state.tomato_hand == "partner" or state.tomato_staged
             
         elif action == "Turn Stove On":
             # Valid if: both ingredients in pot, stove not already on

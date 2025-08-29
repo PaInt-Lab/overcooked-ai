@@ -347,7 +347,10 @@ def _smart_select_secondary_action(game_state: Dict, predicted_primary_action: s
     
     # NEW: Handle washing actions
     if predicted_primary_action == "Wash Onion":
-        if game_state.get('onion_hand') == 'agent':
+        # If human has the onion, let them wash it themselves
+        if game_state.get('onion_hand') == 'partner':
+            return "NOOP"
+        elif game_state.get('onion_hand') == 'agent':
             # Robot has onion, place it at sink for washing
             return "place(onion, sink)"
         elif game_state.get('onion_hand') == 'none':
@@ -355,7 +358,10 @@ def _smart_select_secondary_action(game_state: Dict, predicted_primary_action: s
             return "pickup(onion)"
     
     if predicted_primary_action == "Wash Tomato":
-        if game_state.get('tomato_hand') == 'agent':
+        # If human has the tomato, let them wash it themselves
+        if game_state.get('tomato_hand') == 'partner':
+            return "NOOP"
+        elif game_state.get('tomato_hand') == 'agent':
             # Robot has tomato, place it at sink for washing
             return "place(tomato, sink)"
         elif game_state.get('tomato_hand') == 'none':
@@ -364,7 +370,10 @@ def _smart_select_secondary_action(game_state: Dict, predicted_primary_action: s
     
     # NEW: Handle chopping actions  
     if predicted_primary_action == "Chop Onion":
-        if game_state.get('onion_hand') == 'agent':
+        # If human has the onion, let them chop it themselves
+        if game_state.get('onion_hand') == 'partner':
+            return "NOOP"
+        elif game_state.get('onion_hand') == 'agent':
             # Robot has onion, place it at chopping station
             return "place(onion, chopping_station)"
         elif game_state.get('onion_hand') == 'none':
@@ -372,7 +381,10 @@ def _smart_select_secondary_action(game_state: Dict, predicted_primary_action: s
             return "pickup(onion)"
     
     if predicted_primary_action == "Chop Tomato":
-        if game_state.get('tomato_hand') == 'agent':
+        # If human has the tomato, let them chop it themselves
+        if game_state.get('tomato_hand') == 'partner':
+            return "NOOP"
+        elif game_state.get('tomato_hand') == 'agent':
             # Robot has tomato, place it at chopping station
             return "place(tomato, chopping_station)"
         elif game_state.get('tomato_hand') == 'none':

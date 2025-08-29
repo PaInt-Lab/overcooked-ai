@@ -411,7 +411,7 @@ class CompleteStateGraphGenerator:
             "Turn Stove On",               # Human starts cooking when both ingredients in pot
             "Wait For Ingredients to Cook", # System state - cooking in progress
             "Human Grab Dish",             # Human grabs clean dish for serving
-            "Pour Soup in Dish",           # Human pours ready soup into dish
+            "Pour Soup",                   # Human pours ready soup into dish
             "Serve Soup",                  # Human serves soup (goal action)
             "NOOP"                         # No action needed (waiting/self-loop)
         ]
@@ -420,10 +420,9 @@ class CompleteStateGraphGenerator:
         self.all_valid_states = []
         self.state_to_node_mapping = {}
         
-        # Caching configuration
-        self.cache_dir = "data"
-        self.cache_file = os.path.join(self.cache_dir, "complete_state_graph_cache.pkl")
-        self.cache_meta_file = os.path.join(self.cache_dir, "complete_state_graph_meta.json")
+        # Caching configuration - store directly in server directory
+        self.cache_file = "complete_state_graph_cache.pkl"
+        self.cache_meta_file = "complete_state_graph_meta.json"
     
     def generate_complete_graph(self) -> CompleteRecipeGraph:
         """
@@ -606,7 +605,7 @@ class CompleteStateGraphGenerator:
             # Always valid if human has empty hands (they can attempt to grab)
             return self._human_hands_empty(state)
             
-        elif action == "Pour Soup in Dish":
+        elif action == "Pour Soup":
             # Valid if: soup is ready, human holding dish
             return state.soup_ready and state.dish_hand == "partner"
             
@@ -656,8 +655,7 @@ class CompleteStateGraphGenerator:
         """Save the generated graph to cache"""
         print("Saving graph to cache...")
         
-        # Ensure cache directory exists
-        os.makedirs(self.cache_dir, exist_ok=True)
+        # Cache files stored directly in server directory (no subdirectory needed)
         
         # Save the graph data
         cache_data = {

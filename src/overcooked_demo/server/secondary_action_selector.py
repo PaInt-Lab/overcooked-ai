@@ -469,46 +469,6 @@ def _smart_select_secondary_action(game_state: Dict, predicted_primary_action: s
             # Default fallback
             return "pickup(tomato)"
     
-    # Additional fallback for Human Grab Onion (shouldn't reach here with our current logic)
-    elif "Human Grab Onion" in predicted_primary_action:
-        if game_state.get('onion_hand') == 'agent':
-            # Robot has onion, should stage it
-            return "place(onion, staging_station)"
-        else:
-            # Check if onion already in pot - if so, prioritize tomato
-            if game_state.get('onion_in_pot', False):
-                # Onion already in pot, check if we need tomato instead
-                if "tomato" in task_title.lower() and not game_state.get('tomato_in_pot', False):
-                    if game_state.get('tomato_hand') == 'none':
-                        return "pickup(tomato)"  # Get tomato instead of another onion
-                    elif game_state.get('tomato_hand') == 'agent':
-                        return "place(tomato, staging_station)"  # Stage tomato
-                # If no tomato needed or tomato already in pot, get onion
-                return "pickup(onion)"
-            else:
-                # No onion in pot, get onion
-                return "pickup(onion)"
-    
-    # Human wants to grab raw tomato
-    elif "Human Grab Tomato" in predicted_primary_action and "Chopped" not in predicted_primary_action:
-        if game_state.get('tomato_hand') == 'agent':
-            # Robot has tomato, should stage it
-            return "place(tomato, staging_station)"
-        else:
-            # Check if tomato already in pot - if so, prioritize onion
-            if game_state.get('tomato_in_pot', False):
-                # Tomato already in pot, check if we need onion instead
-                if "onion" in task_title.lower() and not game_state.get('onion_in_pot', False):
-                    if game_state.get('onion_hand') == 'none':
-                        return "pickup(onion)"  # Get onion instead of another tomato
-                    elif game_state.get('onion_hand') == 'agent':
-                        return "place(onion, staging_station)"  # Stage onion
-                # If no onion needed or onion already in pot, get tomato
-                return "pickup(tomato)"
-            else:
-                # No tomato in pot, get tomato
-                return "pickup(tomato)"
-    
     # Human wants to grab dish
     elif "Human Grab dish" in predicted_primary_action:
         # Check if there's already a staged dish - if so, do NOOP

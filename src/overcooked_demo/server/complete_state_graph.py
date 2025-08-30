@@ -413,8 +413,7 @@ class CompleteStateGraphGenerator:
             "Human Grab Dish",             # Human grabs clean dish for serving
             "Pour Soup",                   # Human pours ready soup into dish
             "Human Stage Soup",            # Human stages soup for serving
-            "Wait For Robot To Serve Soup", # Robot serves the soup (robot action)
-            "NOOP"                         # No action needed (waiting/self-loop)
+            "Wait For Robot To Serve Soup"  # Robot serves the soup (robot action)
         ]
         
         # We'll populate this with our 31,296 valid states
@@ -515,8 +514,8 @@ class CompleteStateGraphGenerator:
         
         # CRITICAL: If human is holding an ingredient, they can only do actions related to that ingredient
         if state.onion_hand == "partner":
-            # Human holding onion - can only do onion-related actions or NOOP
-            allowed_actions = ["NOOP"]
+            # Human holding onion - can only do onion-related actions
+            allowed_actions = []
             
             # Add onion-specific actions based on processing state
             if not state.onion_in_pot:
@@ -530,8 +529,8 @@ class CompleteStateGraphGenerator:
                 return False
         
         elif state.tomato_hand == "partner":
-            # Human holding tomato - can only do tomato-related actions or NOOP
-            allowed_actions = ["NOOP"]
+            # Human holding tomato - can only do tomato-related actions
+            allowed_actions = []
             
             # Add tomato-specific actions based on processing state
             if not state.tomato_in_pot:
@@ -545,11 +544,7 @@ class CompleteStateGraphGenerator:
                 return False
         
         # Implement validation logic for each primary action
-        if action == "NOOP":
-            # NOOP always valid
-            return True
-            
-        elif action == "Wash Onion":
+        if action == "Wash Onion":
             # Valid if: sink is available, onion needs washing
             return (not state.onion_at_sink and not state.tomato_at_sink and  # Sink available
                     not state.onion_washed and  # Onion not already washed

@@ -68,7 +68,8 @@ class PrimaryAction(Enum):
     TURN_STOVE_ON = "Turn Stove On"
     WAIT_TILL_INGREDIENTS_COOKED = "Wait For Ingredients to Cook"
     POUR_SOUP = "Pour Soup"
-    SERVE_SOUP = "Serve Soup"
+    HUMAN_STAGE_SOUP = "Human Stage Soup"
+    WAIT_FOR_ROBOT_TO_SERVE_SOUP = "Wait For Robot To Serve Soup"
     
     # State graph style (fallback)
     HUMAN_GRAB_ONION_STATE = "human_grab_onion"
@@ -315,6 +316,13 @@ def _smart_select_secondary_action(game_state: Dict, predicted_primary_action: s
     This fixes the issue where robot keeps trying to pickup when it should place.
     Now also considers what's already in the pot to avoid redundant actions.
     """
+    # Prioritize soup handling - No Primary Action Expected - So when soup is ready, Robot should serve it
+    if game_state.get('soup_hand') == 'agent':
+        # Robot has soup, place it (staging or serving station)
+        return "place(soup)"
+    if game_state.get('soup_staged', False) and game_state.get('soup_hand') == 'none':
+        # Soup is staged and ready, robot should pick it up for serving
+        return "pickup(soup)"
     
     # Handle NOOP case (when no primary action predicted)
     if predicted_primary_action == "NOOP":
@@ -499,20 +507,23 @@ def _smart_select_secondary_action(game_state: Dict, predicted_primary_action: s
             # Default fallback
             return "NOOP"
 
-    # Serve soup action - robot helps with soup workflow
-    elif predicted_primary_action == "Serve Soup":
-        # Consolidated soup handling logic
+    # Human Stage Soup action - robot helps with soup workflow  
+    elif predicted_primary_action == "Human Stage Soup":
+        # Robot wait for human to stage soup
+        return "NOOP"
+    
+    # Wait For Robot To Serve Soup - robot actively serves the soup
+    elif predicted_primary_action == "Wait For Robot To Serve Soup":
         if game_state.get('soup_hand') == 'agent':
-            # Robot has soup, place it (staging or serving station)
+            # Robot has soup, deliver it
             return "place(soup)"
         elif game_state.get('soup_staged', False) and game_state.get('soup_hand') == 'none':
-            # Soup is staged and ready, robot should pick it up for serving
+            # Soup is staged, robot should pick it up
             return "pickup(soup)"
         elif game_state.get('soup_hand') == 'none' and not game_state.get('soup_staged', False):
-            # No soup available yet, robot should wait
+            # No soup available yet, wait
             return "NOOP"
         else:
-            # Default fallback for soup serving
             return "NOOP"
     
     # Default fallback

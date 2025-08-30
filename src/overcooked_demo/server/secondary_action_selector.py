@@ -148,7 +148,10 @@ PRIMARY_TO_SECONDARY_SEQUENCES = {
     PrimaryAction.POUR_SOUP: ["NOOP"],
     
     # "Serve Soup" -> Robot does NOOP (human task)  
-    PrimaryAction.SERVE_SOUP: ["NOOP"],
+    PrimaryAction.WAIT_FOR_ROBOT_TO_SERVE_SOUP: ["NOOP"],
+    
+    # "Human Stage Soup" -> Robot does NOOP (human task)
+    PrimaryAction.HUMAN_STAGE_SOUP: ["NOOP"],
     
     # Special cases
     PrimaryAction.NOOP: ["pickup(soup)", "place(soup)"],

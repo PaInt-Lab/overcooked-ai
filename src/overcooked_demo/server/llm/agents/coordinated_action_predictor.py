@@ -866,8 +866,6 @@ class CoordinatedActionPredictorAgent(Agent):
         # NEW: Get available primary actions from our complete state graph with washing
         try:
             available_primary_actions = self.get_available_primary_actions(state, {})
-            # TEMPORARILY remove NOOP for testing
-            available_primary_actions = [action for action in available_primary_actions if action != "NOOP"]
             print(f"STATE GRAPH ACTIONS: {available_primary_actions}")
         except Exception as e:
             print(f"Error getting available actions from complete state graph: {e}")
@@ -892,8 +890,7 @@ class CoordinatedActionPredictorAgent(Agent):
                 "Human Grab Dish",             # Human grabs clean dish for serving
                 "Pour Soup",                   # Human pours ready soup into dish
                 "Human Stage Soup",            # Human stages soup for serving
-                "Wait For Robot To Serve Soup", # Robot serves the soup (robot action)
-                # "NOOP"                       # TEMPORARILY REMOVED for testing
+                "Wait For Robot To Serve Soup"  # Robot serves the soup (robot action)
             ]
         
         plan_text = ""
@@ -907,6 +904,7 @@ class CoordinatedActionPredictorAgent(Agent):
 
         prompt = f"""
         You are helping a human cook soup. Follow the user's plan step-by-step in the correct sequence.
+        IMPORTANT: SERVE THE CURRENT SOUP BEFORE STARTING WITH NEW INGREDIENTS.
 
         CURRENT STATE:
         {self.last_summary}
@@ -921,7 +919,7 @@ class CoordinatedActionPredictorAgent(Agent):
         - The plan is designed to be followed in order
         - Don't skip ahead to later steps
         - Only choose actions that are both AVAILABLE and the NEXT LOGICAL STEP in the user's plan
-
+        
         Select the action that best aligns with the user's plan and current state.
 
         Return only this line:
@@ -931,7 +929,6 @@ class CoordinatedActionPredictorAgent(Agent):
         # Display essential information for testing
         print(f"CURRENT STATE: {self.last_summary}")
         print(f"SUPPLYING {len(available_primary_actions)} ACTIONS TO LLM: {available_primary_actions}")
-                
         # Call LLM to get predictions
         response = query_openai(prompt, self.selected_model)
         print(f"LLM RESPONSE: {response}")

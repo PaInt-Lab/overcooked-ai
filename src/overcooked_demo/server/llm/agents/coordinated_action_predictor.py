@@ -866,6 +866,8 @@ class CoordinatedActionPredictorAgent(Agent):
         # NEW: Get available primary actions from our complete state graph with washing
         try:
             available_primary_actions = self.get_available_primary_actions(state, {})
+            # TEMPORARILY remove NOOP for testing
+            available_primary_actions = [action for action in available_primary_actions if action != "NOOP"]
             print(f"STATE GRAPH ACTIONS: {available_primary_actions}")
         except Exception as e:
             print(f"Error getting available actions from complete state graph: {e}")
@@ -889,17 +891,11 @@ class CoordinatedActionPredictorAgent(Agent):
                 "Wait For Ingredients to Cook", # System state - cooking in progress
                 "Human Grab Dish",             # Human grabs clean dish for serving
                 "Pour Soup",                   # Human pours ready soup into dish
-                "Serve Soup",                  # Human serves soup (goal action)
-                "NOOP"                         # No action needed (waiting/self-loop)
+                "Human Stage Soup",            # Human stages soup for serving
+                "Wait For Robot To Serve Soup", # Robot serves the soup (robot action)
+                # "NOOP"                       # TEMPORARILY REMOVED for testing
             ]
         
-        # Generate plan to goal
-        # TODO: Implement A* pathfinding for next_planned_action with new unified state graph
-        # next_planned_action = self._generate_plan_to_goal(self.last_summary)
-        # print(f"Next planned action: {next_planned_action}")
-        next_planned_action = None  # Temporarily disabled
-        
-        # NEW: Use filtered primary tasks only for LLM context
         plan_text = ""
         if hasattr(self, 'primary_tasks') and self.primary_tasks:
             plan_lines = []
@@ -938,6 +934,7 @@ class CoordinatedActionPredictorAgent(Agent):
                 
         # Call LLM to get predictions
         response = query_openai(prompt, self.selected_model)
+        print(f"LLM RESPONSE: {response}")
         
         # Parse the response - only need primary action now
         predicted_human_action = self._parse_primary_action(response)

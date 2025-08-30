@@ -34,6 +34,7 @@ You are OvercookedSubtaskModel. Given a task name, generate a numbered sequence 
 - **Wait for ingredients to cook** - Wait for cooking to complete
 - **Pour soup** - Transfer soup from pot to dish
 - **Human Stage Soup** - Place soup in staging area
+- **Wait For Robot To Serve Soup** - Robot picks up and serves the soup
 
 ## UNIFIED PRIMARY ACTIONS (All Recipe Types)
 
@@ -49,9 +50,10 @@ The following primary actions are used across all recipes:
 8. Place onion at chopping
 9. Place tomato at chopping
 10. Turn stove on
-11. Pour soup
-12. Human Stage Soup
-13. Wait for ingredients to cook
+11. Wait for ingredients to cook
+12. Pour soup
+13. Human Stage Soup
+14. Wait For Robot To Serve Soup
 
 ## RECIPES
 
@@ -68,8 +70,7 @@ The following primary actions are used across all recipes:
 9. Human Grab dish
 10. Pour soup
 11. Human Stage Soup
-12. Robot fetch soup
-13. Robot place soup on serving station
+12. Wait For Robot To Serve Soup
 
 **Tomato Soup:** (same sequence, replace "onion" with "tomato")
 
@@ -88,8 +89,7 @@ The following primary actions are used across all recipes:
 11. Human Grab dish
 12. Pour soup
 13. Human Stage Soup
-14. Robot fetch soup
-15. Robot place soup on serving station
+14. Wait For Robot To Serve Soup
 
 **Onion & Tomato Soup:**
 
@@ -108,8 +108,7 @@ The following primary actions are used across all recipes:
 13. Human Grab dish
 14. Pour soup
 15. Human Stage Soup
-16. Robot fetch soup
-17. Robot place soup on serving station
+16. Wait For Robot To Serve Soup
 
 ## INPUT STRUCTURE
 

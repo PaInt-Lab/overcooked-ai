@@ -412,7 +412,8 @@ class CompleteStateGraphGenerator:
             "Wait For Ingredients to Cook", # System state - cooking in progress
             "Human Grab Dish",             # Human grabs clean dish for serving
             "Pour Soup",                   # Human pours ready soup into dish
-            "Serve Soup",                  # Human serves soup (goal action)
+            "Human Stage Soup",            # Human stages soup for serving
+            "Wait For Robot To Serve Soup", # Robot serves the soup (robot action)
             "NOOP"                         # No action needed (waiting/self-loop)
         ]
         
@@ -609,9 +610,14 @@ class CompleteStateGraphGenerator:
             # Valid if: soup is ready, human holding dish
             return state.soup_ready and state.dish_hand == "partner"
             
-        elif action == "Serve Soup":
+        elif action == "Human Stage Soup":
             # Valid if: human holding soup
-            return state.soup_hand != "none"
+            return state.soup_hand == "partner"
+            
+        elif action == "Wait For Robot To Serve Soup":
+            # Valid if: soup is staged or robot can access soup
+            return (state.soup_staged or 
+                   state.soup_hand == "agent")
         
         # Unknown action
         return False

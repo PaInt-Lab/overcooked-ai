@@ -11,6 +11,7 @@ from openai import OpenAI
 from plan_session import PLAN_STORE
 from secondary_action_selector import select_secondary_action
 from complete_state_graph import CompleteStateGraphGenerator, CompleteRecipeState  # NEW: Complete state graph with washing
+from ..plan_adaptation import ActionTracker, PlanRepository  # NEW: Plan adaptation system
 
 # Use a simple vanilla model instead of fine-tuned ones
 DEFAULT_MODEL = "gpt-4o-mini"
@@ -140,6 +141,11 @@ class CoordinatedActionPredictorAgent(Agent):
         # Use simple vanilla model
         self.selected_model = DEFAULT_MODEL
         print(f"Using model: {self.selected_model}")
+        
+        # NEW: Plan adaptation system
+        self.action_tracker = ActionTracker()
+        self.plan_repository = PlanRepository()
+        print("Plan adaptation system initialized")
 
     def _initialize_complete_state_graph(self):
         """Initialize the complete state graph"""
@@ -902,6 +908,16 @@ class CoordinatedActionPredictorAgent(Agent):
         else:
             plan_text = "No primary tasks available"
 
+        # NEW: Include historical successful plans in the prompt
+        historical_plans_text = ""
+        if not self.plan_repository.is_empty():
+            historical_plans_text = "\nPREVIOUS SUCCESSFUL PLANS:\n"
+            all_plans = self.plan_repository.get_all_plans()
+            for i, plan in enumerate(all_plans):
+                actions_str = " → ".join(plan['actions'])
+                historical_plans_text += f"Plan {plan['sequence_id']}: {actions_str}\n"
+            historical_plans_text += "\nUse these successful plans as reference for effective action sequences.\n"
+        
         prompt = f"""
         You are helping a human cook soup. Follow the user's plan step-by-step in the correct sequence.
         IMPORTANT: SERVE THE CURRENT SOUP BEFORE STARTING WITH NEW INGREDIENTS.
@@ -915,11 +931,14 @@ class CoordinatedActionPredictorAgent(Agent):
         AVAILABLE ACTIONS:
         {available_primary_actions}
 
+        PREVIOUS SUCCESSFUL PLANS:
+        {historical_plans_text}
+
         **CRITICAL: Follow the plan sequence step-by-step!**
         - The plan is designed to be followed in order
         - Don't skip ahead to later steps
         - Only choose actions that are both AVAILABLE and the NEXT LOGICAL STEP in the user's plan
-        
+
         Select the action that best aligns with the user's plan and current state.
 
         Return only this line:
@@ -929,12 +948,40 @@ class CoordinatedActionPredictorAgent(Agent):
         # Display essential information for testing
         print(f"CURRENT STATE: {self.last_summary}")
         print(f"SUPPLYING {len(available_primary_actions)} ACTIONS TO LLM: {available_primary_actions}")
+        
+        # NEW: Show plan adaptation info
+        if not self.plan_repository.is_empty():
+            print(f"PLAN ADAPTATION: Including {self.plan_repository.get_plan_count()} historical plans in prompt")
+            print(f"PLAN ADAPTATION: Current sequence has {len(self.action_tracker.get_current_sequence())} actions")
+        else:
+            print("PLAN ADAPTATION: No historical plans yet, starting fresh")
         # Call LLM to get predictions
         response = query_openai(prompt, self.selected_model)
         print(f"LLM RESPONSE: {response}")
         
         # Parse the response - only need primary action now
         predicted_human_action = self._parse_primary_action(response)
+        
+        # NEW: Track primary action for plan adaptation
+        self.action_tracker.record_action(predicted_human_action)
+        print(f"PLAN TRACKING: Recorded action '{predicted_human_action}' (sequence length: {len(self.action_tracker.get_current_sequence())})")
+        
+        # NEW: Check if soup was served (success detection)
+        if self.last_summary and self.last_summary.get('soup_served', False):
+            # Finalize and store the successful sequence
+            if not self.action_tracker.is_empty():
+                successful_plan = {
+                    'actions': self.action_tracker.get_current_sequence(),
+                    'duration': self.action_tracker.get_sequence_duration(),
+                    'recipe_type': 'onion_washed_chopped_tomato_washed_chopped'  # Fixed recipe type for now
+                }
+                self.plan_repository.add_successful_plan(successful_plan)
+                print(f"PLAN SUCCESS: Stored successful plan with {len(successful_plan['actions'])} actions")
+                print(f"PLAN REPOSITORY: Now has {self.plan_repository.get_plan_count()} total plans")
+                
+                # Reset tracker for next sequence
+                self.action_tracker.reset()
+                print("PLAN TRACKING: Reset tracker for new sequence")
         
         # Get robot action using our smart coordination system
         try:

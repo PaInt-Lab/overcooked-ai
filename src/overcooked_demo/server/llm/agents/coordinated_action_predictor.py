@@ -145,6 +145,7 @@ class CoordinatedActionPredictorAgent(Agent):
         # NEW: Plan adaptation system
         self.action_tracker = ActionTracker()
         self.plan_repository = PlanRepository()
+        self.soup_served_flag = False
         print("Plan adaptation system initialized")
 
     def _initialize_complete_state_graph(self):
@@ -478,11 +479,16 @@ class CoordinatedActionPredictorAgent(Agent):
         )
 
         soup_served = False
-        if info:
-            soup_served = any(
-                info.get("event_infos", {})
-                    .get("soup_delivery", [False, False])
-            )
+        soup_delivered_by = "none"
+        
+        # Use the flag that was set in game.py when soup delivery was detected
+        if hasattr(self, 'soup_served_flag') and self.soup_served_flag:
+            soup_served = True
+            print(f"DEBUG: Using soup_served_flag=True for state summary")
+            
+            # Determine who delivered the soup from the flag context
+            # We'll set this when we detect the soup delivery in game.py
+            soup_delivered_by = getattr(self, 'soup_delivered_by', 'unknown')
 
         if soup_served:
             self.onion_chopped = False
@@ -531,7 +537,8 @@ class CoordinatedActionPredictorAgent(Agent):
             "dish_staged": dish_staged,
             "soup_hand": soup_hand,
             "soup_staged": soup_staged,
-            "soup_served": soup_served
+            "soup_served": soup_served,
+            "soup_delivered_by": soup_delivered_by
         }
 
 
@@ -867,14 +874,14 @@ class CoordinatedActionPredictorAgent(Agent):
         assert self.agent_index is not None, "agent_index is None in action!"
         
         # Get current state summary
-        self.last_summary = self.summarize_state(state, {})
+        self.last_summary = self.summarize_state(state, getattr(self, 'last_info', {}))
         
-        # NEW: Get available primary actions from our complete state graph with washing
+
+        
+        # Get available primary actions from our complete state graph with washing
         try:
             available_primary_actions = self.get_available_primary_actions(state, {})
-            print(f"STATE GRAPH ACTIONS: {available_primary_actions}")
         except Exception as e:
-            print(f"Error getting available actions from complete state graph: {e}")
             available_primary_actions = []
         
         # FALLBACK: If no actions available from complete state graph, provide basic actions
@@ -949,10 +956,9 @@ class CoordinatedActionPredictorAgent(Agent):
         print(f"CURRENT STATE: {self.last_summary}")
         print(f"SUPPLYING {len(available_primary_actions)} ACTIONS TO LLM: {available_primary_actions}")
         
-        # NEW: Show plan adaptation info
+        # Show plan adaptation info
         if not self.plan_repository.is_empty():
             print(f"PLAN ADAPTATION: Including {self.plan_repository.get_plan_count()} historical plans in prompt")
-            print(f"PLAN ADAPTATION: Current sequence has {len(self.action_tracker.get_current_sequence())} actions")
         else:
             print("PLAN ADAPTATION: No historical plans yet, starting fresh")
         # Call LLM to get predictions
@@ -962,12 +968,13 @@ class CoordinatedActionPredictorAgent(Agent):
         # Parse the response - only need primary action now
         predicted_human_action = self._parse_primary_action(response)
         
-        # NEW: Track primary action for plan adaptation
+        # Track primary action for plan adaptation
         self.action_tracker.record_action(predicted_human_action)
         print(f"PLAN TRACKING: Recorded action '{predicted_human_action}' (sequence length: {len(self.action_tracker.get_current_sequence())})")
         
-        # NEW: Check if soup was served (success detection)
+        # Check if soup was served (success detection)
         if self.last_summary and self.last_summary.get('soup_served', False):
+            print(f"DEBUG: SOUP SERVED DETECTED! Processing successful plan...")
             # Finalize and store the successful sequence
             if not self.action_tracker.is_empty():
                 successful_plan = {
@@ -982,6 +989,12 @@ class CoordinatedActionPredictorAgent(Agent):
                 # Reset tracker for next sequence
                 self.action_tracker.reset()
                 print("PLAN TRACKING: Reset tracker for new sequence")
+                
+                # Reset the soup served flag after processing
+                self.soup_served_flag = False
+                print("DEBUG: Reset soup_served_flag to False after processing")
+                
+
         
         # Get robot action using our smart coordination system
         try:
@@ -990,7 +1003,6 @@ class CoordinatedActionPredictorAgent(Agent):
             print(f"Error getting robot action: {e}")
             robot_action = "NOOP"
         
-        # Clean, essential debugging output
         print(f"LLM PREDICTION: {predicted_human_action}")
         print(f"ROBOT ACTION: {robot_action}")
         print(f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")

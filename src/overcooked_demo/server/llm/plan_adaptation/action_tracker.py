@@ -58,6 +58,10 @@ class ActionTracker:
             action: The predicted primary action string
             game_state: Current game state dictionary
         """
+        # Don't record actions when soup is already served
+        if game_state.get('soup_served', False):
+            return
+        
         # Check if we should switch to sequential mode
         if (game_state.get('onion_in_pot', False) and 
             game_state.get('tomato_in_pot', False)):

@@ -163,7 +163,8 @@ class OvercookedScene extends Phaser.Scene {
       S: "serve.png",
       G: "counter.png",  // Staging station
       C: "counter.png",  // Chopping station
-      W: "counter.png"   // Sink station
+      W: "counter.png",  // Sink station
+      R: "counter.png"   // Red tomato staging station
     };
     let pos_dict = this.terrain;
     for (let row in pos_dict) {
@@ -196,8 +197,8 @@ class OvercookedScene extends Phaser.Scene {
           this.add.text(
             this.tileSize * x + this.tileSize/2,
             this.tileSize * y + this.tileSize/2,
-            "STAGE",
-            { fontSize: '14px', fill: '#000000', fontWeight: 'bold' }
+            "ONION\nSTAGE",
+            { fontSize: '14px', fill: '#000000', fontWeight: 'bold', align: 'center' }
           ).setOrigin(0.5);
         } else if (ttype === 'C') {
           // Chopping station - Solid orange rectangle
@@ -212,7 +213,7 @@ class OvercookedScene extends Phaser.Scene {
             this.tileSize * x + this.tileSize/2,
             this.tileSize * y + this.tileSize/2,
             "CHOP",
-            { fontSize: '14px', fill: '#000000', fontWeight: 'bold' }
+            { fontSize: '14px', fill: '#000000', fontWeight: 'bold', align: 'center' }
           ).setOrigin(0.5);
         } else if (ttype === 'W') {
           // Sink station - Solid light blue rectangle
@@ -227,7 +228,22 @@ class OvercookedScene extends Phaser.Scene {
             this.tileSize * x + this.tileSize/2,
             this.tileSize * y + this.tileSize/2,
             "SINK",
-            { fontSize: '14px', fill: '#000000', fontWeight: 'bold' }
+            { fontSize: '14px', fill: '#000000', fontWeight: 'bold', align: 'center' }
+          ).setOrigin(0.5);
+        } else if (ttype === 'R') {
+          // Red tomato staging station - Solid pale red rectangle
+          this.add.rectangle(
+            this.tileSize * x + this.tileSize/2,
+            this.tileSize * y + this.tileSize/2,
+            this.tileSize,
+            this.tileSize,
+            0xFF6B6B  // Medium red color
+          );
+          this.add.text(
+            this.tileSize * x + this.tileSize/2,
+            this.tileSize * y + this.tileSize/2,
+            "TOMATO\nSTAGE",
+            { fontSize: '14px', fill: '#000000', fontWeight: 'bold', align: 'center' }
           ).setOrigin(0.5);
         }
       }

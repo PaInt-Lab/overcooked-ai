@@ -571,14 +571,16 @@ class OvercookedGame(Game):
             # Check for soup delivery and set flag if detected
             if info and info.get("event_infos", {}).get("soup_delivery", [False, False]):
                 soup_delivery = info.get("event_infos", {}).get("soup_delivery", [False, False])
+                print(f"DEBUG: Checking soup_delivery in game.py: {soup_delivery}")
                 if any(soup_delivery):
                     agent.soup_served_flag = True
                     # Determine who delivered the soup
                     if soup_delivery[0]:  # Agent (robot) delivered
                         agent.soup_delivered_by = "agent"
+                        print(f"DEBUG: Robot served soup! Setting flag.")
                     elif soup_delivery[1]:  # Partner (human) delivered
                         agent.soup_delivered_by = "partner"
-                    print(f"DEBUG: Soup delivery detected in game.py! Setting flag. soup_delivery={soup_delivery}, delivered_by={agent.soup_delivered_by}")
+                        print(f"DEBUG: Human served soup! Setting flag.")
         
         # Log the transition for trajectory
         transition = {
@@ -642,6 +644,20 @@ class OvercookedGame(Game):
 
             for agent in self.npc_policies.values():
                 agent.last_info = info
+                
+                # Check for soup delivery and set flag if detected (for robot actions)
+                if info and info.get("event_infos", {}).get("soup_delivery", [False, False]):
+                    soup_delivery = info.get("event_infos", {}).get("soup_delivery", [False, False])
+                    print(f"DEBUG: Checking soup_delivery in apply_actions: {soup_delivery}")
+                    if any(soup_delivery):
+                        agent.soup_served_flag = True
+                        # Determine who delivered the soup
+                        if soup_delivery[0]:  # Agent (robot) delivered
+                            agent.soup_delivered_by = "agent"
+                            print(f"DEBUG: Robot served soup! Setting flag.")
+                        elif soup_delivery[1]:  # Partner (human) delivered
+                            agent.soup_delivered_by = "partner"
+                            print(f"DEBUG: Human served soup! Setting flag.")
 
             if self.show_potential:
                 self.phi = self.mdp.potential_function(prev_state, self.mp, gamma=0.99)

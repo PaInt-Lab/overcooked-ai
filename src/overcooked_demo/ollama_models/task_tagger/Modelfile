@@ -18,7 +18,7 @@ Your job is to take an ordered list of subtasks and assign each one exactly one 
 
 - **Human Grab Actions**: "Human Grab Onion", "Human Grab Chopped Onion", "Human Grab Tomato", "Human Grab Chopped Tomato", "Human Grab dish"
 - **Cooking Actions**: "Place onion in pot", "Place tomato in pot", "Turn stove on", "Wait for ingredients to cook"
-- **Soup Actions**: "Pour soup", "Human Stage Soup"
+- **Soup Actions**: "Pour soup", "Human Stage Soup", "Wait For Robot To Serve Soup"
 - **Chopping Actions**: "Place onion at chopping", "Place tomato at chopping"
 - **Environmental Actions**: "cooking_start", "cooking_complete"
 - These require human skill, coordination, or critical decision-making
@@ -37,11 +37,10 @@ The following are ALWAYS primary tasks regardless of recipe:
 8. Place onion at chopping
 9. Place tomato at chopping
 10. Turn stove on
-11. Pour soup
-12. Human Stage Soup
-13. Wait for ingredients to cook
-14. cooking_start
-15. cooking_complete
+11. Wait for ingredients to cook
+12. Pour soup
+13. Human Stage Soup
+14. Wait For Robot To Serve Soup
 
 ## EXAMPLES
 
@@ -71,6 +70,7 @@ The following are ALWAYS primary tasks regardless of recipe:
 - Wait for ingredients to cook
 - Pour soup
 - Human Stage Soup
+- Wait For Robot To Serve Soup
 
 ## INPUT/OUTPUT FORMAT
 

@@ -969,7 +969,7 @@ class CoordinatedActionPredictorAgent(Agent):
         predicted_human_action = self._parse_primary_action(response)
         
         # Track primary action for plan adaptation
-        self.action_tracker.record_action(predicted_human_action)
+        self.action_tracker.record_action(predicted_human_action, self.last_summary)
         print(f"PLAN TRACKING: Recorded action '{predicted_human_action}' (sequence length: {len(self.action_tracker.get_current_sequence())})")
         
         # Check if soup was served (success detection)

@@ -12,12 +12,18 @@ from typing import List, Dict, Optional
 STATE_ACTION_MAP = {
     'onion_chopped': 'Chop Onion',
     'onion_washed': 'Wash Onion',
-    'onion_staged': 'Human Grab Onion',
+    'onion_staged': 'Stage Onion',
     'onion_in_pot': 'Place Onion in Pot',
     'tomato_chopped': 'Chop Tomato',
     'tomato_washed': 'Wash Tomato',
-    'tomato_staged': 'Human Grab Tomato',
+    'tomato_staged': 'Stage Tomato',
     'tomato_in_pot': 'Place Tomato in Pot'
+}
+
+# Additional action mappings for human grab actions (when human picks up staged items)
+HUMAN_GRAB_ACTION_MAP = {
+    'onion_hand': 'Human Grab Onion',  # When human picks up staged onion
+    'tomato_hand': 'Human Grab Tomato'  # When human picks up staged tomato
 }
 
 
@@ -49,6 +55,10 @@ class ActionTracker:
         self.tomato_washed_recorded: bool = False
         self.tomato_staged_recorded: bool = False
         self.tomato_in_pot_recorded: bool = False
+        
+        # Human grab action flags
+        self.human_grab_onion_recorded: bool = False
+        self.human_grab_tomato_recorded: bool = False
     
     def record_action(self, action: str, game_state: dict) -> None:
         """
@@ -90,6 +100,22 @@ class ActionTracker:
             if game_state.get(state_key, False):
                 # Check if we haven't recorded this state yet
                 recorded_flag = f"{state_key}_recorded"
+                if not getattr(self, recorded_flag, False):
+                    # Record the action with timestamp
+                    action_record = {
+                        'action': action_string,
+                        'timestamp': time.time()
+                    }
+                    
+                    self.current_sequence.append(action_record)
+                    setattr(self, recorded_flag, True)
+                    self.last_action = action_string
+        
+        # Check for human grab actions (when human picks up staged items)
+        for hand_key, action_string in HUMAN_GRAB_ACTION_MAP.items():
+            if game_state.get(hand_key) == "partner":  # Human is holding the item
+                # Check if we haven't recorded this grab action yet
+                recorded_flag = f"human_grab_{hand_key.split('_')[0]}_recorded"
                 if not getattr(self, recorded_flag, False):
                     # Record the action with timestamp
                     action_record = {
@@ -175,6 +201,10 @@ class ActionTracker:
         self.tomato_washed_recorded = False
         self.tomato_staged_recorded = False
         self.tomato_in_pot_recorded = False
+        
+        # Reset human grab action flags
+        self.human_grab_onion_recorded = False
+        self.human_grab_tomato_recorded = False
     
     def set_recipe_type(self, recipe_type: str) -> None:
         """Set the recipe type for the current sequence."""

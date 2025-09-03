@@ -512,6 +512,11 @@ class CompleteStateGraphGenerator:
         This is the core validation logic that defines which actions are possible.
         """
         
+        # CRITICAL: If robot has soup in hand, recipe is essentially done
+        # Human can only wait for robot to serve soup - no other actions contribute to the recipe
+        if state.soup_hand == "agent":
+            return action == "Wait For Robot To Serve Soup"
+        
         # CRITICAL: If human is holding an ingredient, they can only do actions related to that ingredient
         if state.onion_hand == "partner":
             # Human holding onion - can only do onion-related actions

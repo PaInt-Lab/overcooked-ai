@@ -922,7 +922,7 @@ class CoordinatedActionPredictorAgent(Agent):
         
         prompt = f"""
         You are helping a human cook soup. Follow the user's plan step-by-step in the correct sequence.
-        IMPORTANT: SERVE THE CURRENT SOUP BEFORE STARTING WITH NEW INGREDIENTS.
+        IMPORTANT: WHEN THE ROBOT HAS THE SOUP IN IT'S HAND (SOUP_HAND = 'AGENT'), HUMAN MUST WAIT FOR THE ROBOT TO SERVE THE SOUP.
 
         CURRENT STATE:
         {self.last_summary}
@@ -977,7 +977,11 @@ class CoordinatedActionPredictorAgent(Agent):
                     'recipe_type': 'onion_washed_chopped_tomato_washed_chopped'  # Fixed recipe type for now
                 }
                 self.plan_repository.add_successful_plan(successful_plan)
-                print(f"PLAN SUCCESS: Stored successful plan with {len(successful_plan['actions'])} actions")
+                
+                # Print detailed plan summary
+                print(f"PLAN SUCCESS: Soup served by {self.last_summary.get('soup_delivered_by', 'unknown')}!")
+                print(f"SAVED PLAN: {len(successful_plan['actions'])} actions over {successful_plan['duration']:.1f}s")
+                print(f"PLAN SEQUENCE: {' → '.join(successful_plan['actions'])}")
                 print(f"PLAN REPOSITORY: Now has {self.plan_repository.get_plan_count()} total plans")
                 
                 # Reset tracker for next sequence

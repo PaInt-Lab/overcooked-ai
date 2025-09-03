@@ -140,7 +140,7 @@ class CoordinatedActionPredictorAgent(Agent):
         
         # Use simple vanilla model
         self.selected_model = DEFAULT_MODEL
-        print(f"Using model: {self.selected_model}")
+
         
         # NEW: Plan adaptation system
         self.action_tracker = ActionTracker()
@@ -177,7 +177,7 @@ class CoordinatedActionPredictorAgent(Agent):
             return available_actions
         else:
             # Fallback to default actions if state not found
-            print(f"Warning: State not found in graph, using fallback action")
+
             return ["NOOP"]
     
     def set_agent_index(self, agent_index: int):
@@ -190,13 +190,12 @@ class CoordinatedActionPredictorAgent(Agent):
         
         # NEW: Filter plan to extract only primary tasks for LLM context
         self.primary_tasks = self._extract_primary_tasks_from_plan()
-        print(f"Full plan loaded with {len(self.plan.events)} total tasks")
-        print(f"Filtered to {len(self.primary_tasks)} primary tasks for LLM")
+
         
         # Set task title from plan for coordination
         if hasattr(self.plan, 'task_title'):
             self.task_title = self.plan.task_title
-            print(f"Task title set from plan: {self.task_title}")
+
     
     def _extract_primary_tasks_from_plan(self) -> List[str]:
         """
@@ -484,10 +483,6 @@ class CoordinatedActionPredictorAgent(Agent):
         # Use the flag that was set in game.py when soup delivery was detected
         if hasattr(self, 'soup_served_flag') and self.soup_served_flag:
             soup_served = True
-            print(f"DEBUG: Using soup_served_flag=True for state summary")
-            
-            # Determine who delivered the soup from the flag context
-            # We'll set this when we detect the soup delivery in game.py
             soup_delivered_by = getattr(self, 'soup_delivered_by', 'unknown')
 
         if soup_served:
@@ -963,7 +958,7 @@ class CoordinatedActionPredictorAgent(Agent):
             print("PLAN ADAPTATION: No historical plans yet, starting fresh")
         # Call LLM to get predictions
         response = query_openai(prompt, self.selected_model)
-        print(f"LLM RESPONSE: {response}")
+
         
         # Parse the response - only need primary action now
         predicted_human_action = self._parse_primary_action(response)
@@ -974,7 +969,6 @@ class CoordinatedActionPredictorAgent(Agent):
         
         # Check if soup was served (success detection)
         if self.last_summary and self.last_summary.get('soup_served', False):
-            print(f"DEBUG: SOUP SERVED DETECTED! Processing successful plan...")
             # Finalize and store the successful sequence
             if not self.action_tracker.is_empty():
                 successful_plan = {
@@ -992,7 +986,6 @@ class CoordinatedActionPredictorAgent(Agent):
                 
                 # Reset the soup served flag after processing
                 self.soup_served_flag = False
-                print("DEBUG: Reset soup_served_flag to False after processing")
                 
 
         
@@ -1000,7 +993,7 @@ class CoordinatedActionPredictorAgent(Agent):
         try:
             robot_action = select_secondary_action(self.last_summary, self.task_title, predicted_human_action)
         except Exception as e:
-            print(f"Error getting robot action: {e}")
+
             robot_action = "NOOP"
         
         print(f"LLM PREDICTION: {predicted_human_action}")
@@ -1019,7 +1012,7 @@ class CoordinatedActionPredictorAgent(Agent):
             # This ensures we respond to changing game states and predictions
             # We no longer reuse old plans - each prediction gets a fresh action plan
             func_name, item_info = self._parse_robot_action(robot_action, self.last_summary)
-            print(f"Parsed robot action: {func_name}({item_info})")
+
             
             if func_name == "NOOP":
                 # Check if the agent is blocking important tiles
@@ -1099,7 +1092,7 @@ class CoordinatedActionPredictorAgent(Agent):
                 }
         
         except Exception as e:
-            print(f"Error executing robot action: {e}")
+
             return Action.STAY, {
                 "predicted_human_action": predicted_human_action,
                 "robot_action": robot_action,

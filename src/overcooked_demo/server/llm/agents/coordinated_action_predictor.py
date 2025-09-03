@@ -278,12 +278,18 @@ class CoordinatedActionPredictorAgent(Agent):
             # elif top_stations:
             #     self.dish_staging_tiles.extend(top_stations)
 
+            # Default: tomato staging same as onion staging
             self.tomato_staging_tiles = self.onion_staging_tiles.copy()
             self.dish_staging_tiles = self.onion_staging_tiles.copy() # Moving the dish staging tile to agent side
             self.soup_staging_tiles = self.dish_staging_tiles
 
         # Get layout name for special handling
         layout_name = getattr(mdp, 'layout_name', 'unknown')
+        
+        # Special handling for counter_circuit layout
+        if layout_name == 'counter_circuit':
+            # Override tomato staging tile to be at (2,2) for counter_circuit
+            self.tomato_staging_tiles = [(2, 2)]
         
         # Create chopping stations
         self.onion_chopping_stations = []

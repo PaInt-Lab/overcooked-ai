@@ -853,6 +853,12 @@ class OvercookedGame(Game):
                 if 0 <= y < H and 0 <= x < W:
                     graphics_terrain[y][x] = 'W'
             
+            # Add red tomato staging tile for counter_circuit layout at position (2,2)
+            layout_name = getattr(self.mdp, 'layout_name', 'unknown')
+            if layout_name == 'counter_circuit':
+                if 0 <= 2 < H and 0 <= 2 < W:
+                    graphics_terrain[2][2] = 'R'
+            
             # Send the MODIFIED terrain copy to graphics
             obj_dict["terrain"] = graphics_terrain
         else:

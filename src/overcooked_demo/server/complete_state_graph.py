@@ -396,16 +396,18 @@ class CompleteStateGraphGenerator:
     def __init__(self):
         self.graph = CompleteRecipeGraph()
         
-        # All 14 primary actions for the complete recipe
+        # All 16 primary actions for the complete recipe
         self.primary_actions = [
             "Wash Onion",                  # Robot washes raw onion at sink
             "Chop Onion",                  # Robot chops washed onion at chopping station
-            "Human Grab Onion",            # Human grabs processed onion
+            "Stage Onion",                 # Robot stages processed onion for human
+            "Human Grab Onion",            # Human grabs staged onion
             "Place Onion in Pot",          # Human places onion in cooking pot
             
             "Wash Tomato",                 # Robot washes raw tomato at sink
             "Chop Tomato",                 # Robot chops washed tomato at chopping station
-            "Human Grab Tomato",           # Human grabs processed tomato
+            "Stage Tomato",                # Robot stages processed tomato for human
+            "Human Grab Tomato",           # Human grabs staged tomato
             "Place Tomato in Pot",         # Human places tomato in cooking pot
             
             "Turn Stove On",               # Human starts cooking when both ingredients in pot
@@ -518,7 +520,6 @@ class CompleteStateGraphGenerator:
             return (not state.onion_at_sink and not state.tomato_at_sink and  # Sink available
                     not state.onion_washed and  # Onion not already washed
                     not state.onion_in_pot and  # Onion not already used
-                    not state.tomato_hand == "partner" and
                     not state.soup_staged and
                     state.soup_hand == "none")     # No soup in progress
             
@@ -528,16 +529,21 @@ class CompleteStateGraphGenerator:
             return (not state.onion_at_chopping and not state.tomato_at_chopping and  # Station available
                     not state.onion_chopped and  # Onion not already chopped
                     not state.onion_in_pot and   # Onion not already used
-                    not state.tomato_hand == "partner" and
                     not state.soup_staged and
                     state.soup_hand == "none")  # No soup in progress
             
-        elif action == "Human Grab Onion":
-            # Valid if: human has empty hands AND onion not already in pot AND agent not holding onion
-            # Locations: dispenser (raw), sink (washed), chopping station (chopped), staging (processed)
-            return (self._human_hands_empty(state) and 
+        elif action == "Stage Onion":
+            # Valid if: agent has onion (raw, washed, or chopped) and onion not already staged
+            return (not state.onion_staged and
                     not state.onion_in_pot and
-                    not state.onion_hand == "partner" and
+                    not state.soup_staged and
+                    state.soup_hand == "none")
+            
+        elif action == "Human Grab Onion":
+            # Valid if: human has empty hands AND onion is staged AND onion not already in pot
+            return (self._human_hands_empty(state) and 
+                    state.onion_staged and
+                    not state.onion_in_pot and
                     not state.soup_staged and
                     state.soup_hand == "none")
             
@@ -550,7 +556,6 @@ class CompleteStateGraphGenerator:
             return (not state.onion_at_sink and not state.tomato_at_sink and  # Sink available
                     not state.tomato_washed and  # Tomato not already washed
                     not state.tomato_in_pot and  # Tomato not already used
-                    not state.onion_hand == "partner" and
                     not state.soup_staged and
                     state.soup_hand == "none")  # Human not holding tomato (human should process what they have)
             
@@ -560,19 +565,23 @@ class CompleteStateGraphGenerator:
             return (not state.onion_at_chopping and not state.tomato_at_chopping and  # Station available
                     not state.tomato_chopped and  # Tomato not already chopped
                     not state.tomato_in_pot and   # Tomato not already used
-                    not state.onion_hand == "partner" and
                     not state.soup_staged and
                     state.soup_hand == "none")  # Human not holding tomato (human should process what they have)
             
-        elif action == "Human Grab Tomato":
-            # Valid if: human has empty hands AND tomato not already in pot AND agent not holding tomato
-            # Locations: dispenser (raw), sink (washed), chopping station (chopped), staging (processed)
-            return (self._human_hands_empty(state) and 
+        elif action == "Stage Tomato":
+            # Valid if: agent has tomato (raw, washed, or chopped) and tomato not already staged
+            return (not state.tomato_staged and
                     not state.tomato_in_pot and
-                    not state.tomato_hand == "partner" and
                     not state.soup_staged and
-                    state.soup_hand == "none"
-                    )  # Agent not holding tomato (agent should process what they have)
+                    state.soup_hand == "none")
+            
+        elif action == "Human Grab Tomato":
+            # Valid if: human has empty hands AND tomato is staged AND tomato not already in pot
+            return (self._human_hands_empty(state) and 
+                    state.tomato_staged and
+                    not state.tomato_in_pot and
+                    not state.soup_staged and
+                    state.soup_hand == "none")
             
         elif action == "Place Tomato in Pot":
             # Valid if: human is holding tomato, pot available

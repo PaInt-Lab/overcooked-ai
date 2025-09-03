@@ -922,7 +922,6 @@ class CoordinatedActionPredictorAgent(Agent):
         
         prompt = f"""
         You are helping a human cook soup. Follow the user's plan step-by-step in the correct sequence.
-        IMPORTANT: WHEN THE ROBOT HAS THE SOUP IN IT'S HAND (SOUP_HAND = 'AGENT'), HUMAN MUST WAIT FOR THE ROBOT TO SERVE THE SOUP.
 
         CURRENT STATE:
         {self.last_summary}

@@ -151,7 +151,7 @@
             id="taskTitle"
             class="form-control"
             placeholder="e.g. Serving Onion Soup"
-            value="Serving Chopped Onion and Chopped Tomato Soup"
+            value="Serving Washed and Chopped Onion and Washed and Chopped Tomato Soup"
           />
         </div>
         <!-- Predefine Subtasks -->
@@ -197,6 +197,9 @@
                </button>
                <button id="testChoppedBtn" class="btn btn-light-purple btn-block mt-2">
                  Chopped Onion and Chopped Tomato Soup (Testing)
+               </button>
+               <button id="testWashingBtn" class="btn btn-light-teal btn-block mt-2">
+                 Ingredient Washing (Testing)
                </button>
              </div>
           </div>
@@ -459,6 +462,18 @@
         background-color: #c5cae9;
         border-color: #9fa8da;
         color: #0d47a1;
+      }
+
+      /* Light teal button for Ingredient Washing */
+      .btn-light-teal {
+        background-color: #e0f2f1;
+        border-color: #b2dfdb;
+        color: #004d40;
+      }
+      .btn-light-teal:hover {
+        background-color: #b2dfdb;
+        border-color: #80cbc4;
+        color: #00251a;
       }
 
       .subtask-edit {
@@ -858,6 +873,7 @@
               "Human Grab dish",
               "Pour soup",
               "Human Stage Soup",
+              "Wait For Robot To Serve Soup",
               "Robot place soup on serving station"
             ];
 
@@ -894,6 +910,7 @@
               "Human Grab dish",
               "Pour soup",
               "Human Stage Soup",
+              "Wait For Robot To Serve Soup",
               "Robot place soup on serving station"
             ];
 
@@ -934,6 +951,7 @@
               "Human Grab dish",
               "Pour soup",
               "Human Stage Soup",
+              "Wait For Robot To Serve Soup",
               "Robot fetch soup",
               "Robot place soup on serving station"
             ];
@@ -975,6 +993,7 @@
               "Human Grab dish",
               "Pour soup",
               "Human Stage Soup",
+              "Wait For Robot To Serve Soup",
               "Robot fetch soup",
               "Robot place soup on serving station"
             ];
@@ -1012,6 +1031,7 @@
               "Human Grab dish",
               "Pour soup",
               "Human Stage Soup",
+              "Wait For Robot To Serve Soup",
               "Robot place soup on serving station"
             ];
 
@@ -1048,6 +1068,7 @@
               "Human Grab dish",
               "Pour soup",
               "Human Stage Soup",
+              "Wait For Robot To Serve Soup",
               "Robot place soup on serving station"
             ];
 
@@ -1088,6 +1109,7 @@
               "Human Grab dish",
               "Pour soup",
               "Human Stage Soup",
+              "Wait For Robot To Serve Soup",
               "Robot fetch soup",
               "Robot place soup on serving station"
             ];
@@ -1129,12 +1151,58 @@
               "Human Grab dish",
               "Pour soup",
               "Human Stage Soup",
+              "Wait For Robot To Serve Soup",
               "Robot fetch soup",
               "Robot place soup on serving station"
             ];
 
             // Create cards for each onion and chopped tomato subtask
             onionChoppedTomatoSubtasks.forEach((subtask) => {
+              createSubtaskCard(subtask);
+            });
+          });
+
+        // Ingredient Washing test functionality
+        document
+          .getElementById("testWashingBtn")
+          .addEventListener("click", function (e) {
+            e.preventDefault();
+            
+            // Clear existing subtasks
+            const container = document.getElementById("subtaskContainer");
+            const empty = document.getElementById("emptyMessage");
+            if (empty) {
+              empty.style.display = "none";
+            }
+            container.innerHTML = "";
+
+            // Ingredient Washing subtasks
+            const washingSubtasks = [
+              "Robot Fetch onion",
+              "Wash Onion",
+              "Chop Onion",
+              "Stage onion",
+              "Human Grab Onion",
+              "Robot Fetch tomato",
+              "Wash Tomato",
+              "Chop Tomato",
+              "Stage tomato",
+              "Human Grab Tomato",
+              "Place tomato in pot",
+              "Turn stove on",
+              "Wait for ingredients to cook",
+              "Robot Fetch dish",
+              "Stage dish",
+              "Human Grab dish",
+              "Pour soup",
+              "Human Stage Soup",
+              "Wait For Robot To Serve Soup",
+              "Robot fetch soup",
+              "Robot place soup on serving station"
+            ];
+
+            // Create cards for each washing subtask
+            washingSubtasks.forEach((subtask) => {
               createSubtaskCard(subtask);
             });
           });

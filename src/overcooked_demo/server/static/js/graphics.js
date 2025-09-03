@@ -95,6 +95,8 @@ class OvercookedScene extends Phaser.Scene {
       bonus_orders: config.start_state.state.bonus_orders,
       all_orders: config.start_state.state.all_orders,
     };
+    
+
   }
 
   set_state(state) {
@@ -146,6 +148,7 @@ class OvercookedScene extends Phaser.Scene {
     }
   }
   drawLevel() {
+    
     // Fill canvas with white
     this.cameras.main.setBackgroundColor("#e6b453");
 
@@ -158,6 +161,10 @@ class OvercookedScene extends Phaser.Scene {
       T: "tomatoes.png",
       D: "dishes.png",
       S: "serve.png",
+      G: "counter.png",  // Staging station
+      C: "counter.png",  // Chopping station
+      W: "counter.png",  // Sink station
+      R: "counter.png"   // Red tomato staging station
     };
     let pos_dict = this.terrain;
     for (let row in pos_dict) {
@@ -167,6 +174,7 @@ class OvercookedScene extends Phaser.Scene {
       for (let col = 0; col < pos_dict[row].length; col++) {
         let [x, y] = [col, row];
         let ttype = pos_dict[row][col];
+        
         let tile = this.add.sprite(
           this.tileSize * x,
           this.tileSize * y,
@@ -175,6 +183,69 @@ class OvercookedScene extends Phaser.Scene {
         );
         tile.setDisplaySize(this.tileSize, this.tileSize);
         tile.setOrigin(0);
+        
+        // Apply solid colors for special tiles instead of tinting
+        if (ttype === 'G') {
+          // Staging station - Solid yellow rectangle
+          this.add.rectangle(
+            this.tileSize * x + this.tileSize/2,
+            this.tileSize * y + this.tileSize/2,
+            this.tileSize,
+            this.tileSize,
+            0xFFD700  // Gold/yellow color
+          );
+          this.add.text(
+            this.tileSize * x + this.tileSize/2,
+            this.tileSize * y + this.tileSize/2,
+            "DISH /\nONION\nSTAGE",
+            { fontSize: '14px', fill: '#000000', fontWeight: 'bold', align: 'center' }
+          ).setOrigin(0.5);
+        } else if (ttype === 'C') {
+          // Chopping station - Solid orange rectangle
+          this.add.rectangle(
+            this.tileSize * x + this.tileSize/2,
+            this.tileSize * y + this.tileSize/2,
+            this.tileSize,
+            this.tileSize,
+            0xFF8C00  // Dark orange color
+          );
+          this.add.text(
+            this.tileSize * x + this.tileSize/2,
+            this.tileSize * y + this.tileSize/2,
+            "CHOP",
+            { fontSize: '14px', fill: '#000000', fontWeight: 'bold', align: 'center' }
+          ).setOrigin(0.5);
+        } else if (ttype === 'W') {
+          // Sink station - Solid light blue rectangle
+          this.add.rectangle(
+            this.tileSize * x + this.tileSize/2,
+            this.tileSize * y + this.tileSize/2,
+            this.tileSize,
+            this.tileSize,
+            0x87CEEB  // Light blue color
+          );
+          this.add.text(
+            this.tileSize * x + this.tileSize/2,
+            this.tileSize * y + this.tileSize/2,
+            "SINK",
+            { fontSize: '14px', fill: '#000000', fontWeight: 'bold', align: 'center' }
+          ).setOrigin(0.5);
+        } else if (ttype === 'R') {
+          // Red tomato staging station - Solid pale red rectangle
+          this.add.rectangle(
+            this.tileSize * x + this.tileSize/2,
+            this.tileSize * y + this.tileSize/2,
+            this.tileSize,
+            this.tileSize,
+            0xFF6B6B  // Medium red color
+          );
+          this.add.text(
+            this.tileSize * x + this.tileSize/2,
+            this.tileSize * y + this.tileSize/2,
+            "TOMATO\nSTAGE",
+            { fontSize: '14px', fill: '#000000', fontWeight: 'bold', align: 'center' }
+          ).setOrigin(0.5);
+        }
       }
     }
   }

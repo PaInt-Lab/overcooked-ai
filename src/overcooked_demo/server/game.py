@@ -564,6 +564,21 @@ class OvercookedGame(Game):
         curr_reward = sum(info["sparse_reward_by_agent"])
         self.score += curr_reward
         
+        # Pass info to agents so they can detect soup delivery events
+        for agent in self.npc_policies.values():
+            agent.last_info = info
+            
+            # Check for soup delivery and set flag if detected
+            if info and info.get("event_infos", {}).get("soup_delivery", [False, False]):
+                soup_delivery = info.get("event_infos", {}).get("soup_delivery", [False, False])
+                if any(soup_delivery):
+                    agent.soup_served_flag = True
+                    # Determine who delivered the soup
+                    if soup_delivery[0]:  # Agent (robot) delivered
+                        agent.soup_delivered_by = "agent"
+                    elif soup_delivery[1]:  # Partner (human) delivered
+                        agent.soup_delivered_by = "partner"
+        
         # Log the transition for trajectory
         transition = {
             "state": json.dumps(prev_state.to_dict()),
@@ -626,6 +641,17 @@ class OvercookedGame(Game):
 
             for agent in self.npc_policies.values():
                 agent.last_info = info
+                
+                # Check for soup delivery and set flag if detected (for robot actions)
+                if info and info.get("event_infos", {}).get("soup_delivery", [False, False]):
+                    soup_delivery = info.get("event_infos", {}).get("soup_delivery", [False, False])
+                    if any(soup_delivery):
+                        agent.soup_served_flag = True
+                        # Determine who delivered the soup
+                        if soup_delivery[0]:  # Agent (robot) delivered
+                            agent.soup_delivered_by = "agent"
+                        elif soup_delivery[1]:  # Partner (human) delivered
+                            agent.soup_delivered_by = "partner"
 
             if self.show_potential:
                 self.phi = self.mdp.potential_function(prev_state, self.mp, gamma=0.99)
@@ -694,6 +720,10 @@ class OvercookedGame(Game):
         self.mdp = OvercookedGridworld.from_layout_name(
             self.curr_layout, **self.mdp_params
         )
+        # Set layout name on MDP for agent access
+        self.mdp.layout_name = self.curr_layout
+        
+
         if self.show_potential:
             self.mp = MotionPlanner.from_pickle_or_compute(
                 self.mdp, counter_goals=NO_COUNTERS_PARAMS
@@ -749,8 +779,91 @@ class OvercookedGame(Game):
 
     def to_json(self):
         obj_dict = {}
-        obj_dict["terrain"] = self.mdp.terrain_mtx if self._is_active else None
         obj_dict["state"] = self.get_state() if self._is_active else None
+        
+        # Create a COPY of terrain for graphics with special tile markers
+        if self._is_active and self.mdp:
+            # Start with original terrain (keeps game logic intact)
+            original_terrain = self.mdp.terrain_mtx
+            graphics_terrain = [row[:] for row in original_terrain]  # Deep copy
+            H, W = len(graphics_terrain), len(graphics_terrain[0])
+            
+            # Find stove tiles to identify staging and chopping positions
+            stove_tiles = [(j, i) for i, row in enumerate(graphics_terrain) for j, c in enumerate(row) if c == 'P']
+            
+            # For each stove, find adjacent counter tiles that can be staging areas
+            staging_positions = []
+            for (stove_c, stove_r) in stove_tiles:
+                adjacent_counters = []
+                for dc, dr in [(1,0), (-1,0), (0,1), (0,-1)]:
+                    nc, nr = stove_c + dc, stove_r + dr
+                    if 0 <= nr < H and 0 <= nc < W and graphics_terrain[nr][nc] == 'X':
+                        adjacent_counters.append((nc, nr, dc, dr))
+                
+                # Prioritize left tiles, then bottom tiles as staging areas
+                left_stations = [(c, r) for c, r, dc, dr in adjacent_counters if dc == -1]
+                bottom_stations = [(c, r) for c, r, dc, dr in adjacent_counters if dr == 1]
+                
+                if left_stations:
+                    staging_positions.extend(left_stations)
+                elif bottom_stations:
+                    staging_positions.extend(bottom_stations)
+            
+            # Mark staging tiles as 'G' in the COPY
+            for (x, y) in staging_positions:
+                graphics_terrain[y][x] = 'G'
+            
+            # Get chopping stations from agent (for layouts with hardcoded positions) or use dynamic detection
+            chopping_positions = []
+            agent_chopping_positions = []
+            for npc_policy in self.npc_policies.values():
+                if hasattr(npc_policy, 'onion_chopping_stations') and npc_policy.onion_chopping_stations:
+                    agent_chopping_positions.extend(npc_policy.onion_chopping_stations)
+                    break  # Only need one agent's chopping positions
+            
+            if agent_chopping_positions:
+                # Use agent's hardcoded positions
+                chopping_positions = agent_chopping_positions
+            else:
+                # Use dynamic detection for layouts without hardcoded positions
+                for staging_pos in staging_positions:
+                    staging_c, staging_r = staging_pos
+                    for dc, dr in [(-1, 0), (0, -1)]:  # Check left and up from staging
+                        chopping_c, chopping_r = staging_c + dc, staging_r + dr
+                        if (0 <= chopping_r < H and 0 <= chopping_c < W and 
+                            graphics_terrain[chopping_r][chopping_c] == 'X' and
+                            (chopping_c, chopping_r) not in chopping_positions and
+                            (chopping_c, chopping_r) not in staging_positions):
+                            chopping_positions.append((chopping_c, chopping_r))
+                            break
+            
+            # Mark chopping tiles as 'C' in the COPY
+            for (x, y) in chopping_positions:
+                graphics_terrain[y][x] = 'C'
+            
+            # Add sink stations if using LLM agent with sink support
+            sink_positions = []
+            for npc_policy in self.npc_policies.values():
+                if hasattr(npc_policy, 'sink_stations') and npc_policy.sink_stations:
+                    sink_positions.extend(npc_policy.sink_stations)
+                    break  # Only need one agent's sink positions
+            
+            # Mark sink tiles as 'W' in the COPY
+            for (x, y) in sink_positions:
+                if 0 <= y < H and 0 <= x < W:
+                    graphics_terrain[y][x] = 'W'
+            
+            # Add red tomato staging tile for counter_circuit layout at position (2,2)
+            layout_name = getattr(self.mdp, 'layout_name', 'unknown')
+            if layout_name == 'counter_circuit':
+                if 0 <= 2 < H and 0 <= 2 < W:
+                    graphics_terrain[2][2] = 'R'
+            
+            # Send the MODIFIED terrain copy to graphics
+            obj_dict["terrain"] = graphics_terrain
+        else:
+            obj_dict["terrain"] = None
+        
         return obj_dict
 
     def get_policy(self, npc_id, idx=0):

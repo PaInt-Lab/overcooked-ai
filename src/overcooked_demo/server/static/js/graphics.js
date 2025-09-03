@@ -197,7 +197,7 @@ class OvercookedScene extends Phaser.Scene {
           this.add.text(
             this.tileSize * x + this.tileSize/2,
             this.tileSize * y + this.tileSize/2,
-            "ONION\nSTAGE",
+            "DISH /\nONION\nSTAGE",
             { fontSize: '14px', fill: '#000000', fontWeight: 'bold', align: 'center' }
           ).setOrigin(0.5);
         } else if (ttype === 'C') {

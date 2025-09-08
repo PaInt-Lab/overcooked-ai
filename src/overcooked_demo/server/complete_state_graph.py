@@ -513,6 +513,8 @@ class CompleteStateGraphGenerator:
         
         This is the core validation logic that defines which actions are possible.
         """
+
+        soup_not_in_play = not state.soup_cooking and not state.soup_ready and not state.soup_staged and state.soup_hand == "none"
         
         # Implement validation logic for each primary action
         if action == "Wash Onion":
@@ -520,8 +522,7 @@ class CompleteStateGraphGenerator:
             return (not state.onion_at_sink and not state.tomato_at_sink and  # Sink available
                     not state.onion_washed and  # Onion not already washed
                     not state.onion_in_pot and  # Onion not already used
-                    not state.soup_staged and
-                    state.soup_hand == "none")     # No soup in progress
+                    soup_not_in_play)     # No soup in progress
             
         elif action == "Chop Onion":
             # Valid if: chopping station available, onion not already chopped, onion not in pot
@@ -529,23 +530,20 @@ class CompleteStateGraphGenerator:
             return (not state.onion_at_chopping and not state.tomato_at_chopping and  # Station available
                     not state.onion_chopped and  # Onion not already chopped
                     not state.onion_in_pot and   # Onion not already used
-                    not state.soup_staged and
-                    state.soup_hand == "none")  # No soup in progress
+                    soup_not_in_play)  # No soup in progress
             
         elif action == "Stage Onion":
             # Valid if: agent has onion (raw, washed, or chopped) and onion not already staged
             return (not state.onion_staged and
                     not state.onion_in_pot and
-                    not state.soup_staged and
-                    state.soup_hand == "none")
+                    soup_not_in_play)
             
         elif action == "Human Grab Onion":
             # Valid if: human has empty hands AND onion is staged AND onion not already in pot
             return (self._human_hands_empty(state) and 
-                    state.onion_staged and
+                    not state.onion_hand == "agent" and
                     not state.onion_in_pot and
-                    not state.soup_staged and
-                    state.soup_hand == "none")
+                    soup_not_in_play)
             
         elif action == "Place Onion in Pot":
             # Valid if: human is holding onion, pot available
@@ -556,8 +554,7 @@ class CompleteStateGraphGenerator:
             return (not state.onion_at_sink and not state.tomato_at_sink and  # Sink available
                     not state.tomato_washed and  # Tomato not already washed
                     not state.tomato_in_pot and  # Tomato not already used
-                    not state.soup_staged and
-                    state.soup_hand == "none")  # Human not holding tomato (human should process what they have)
+                    soup_not_in_play)  # Human not holding tomato (human should process what they have)
             
         elif action == "Chop Tomato":
             # Valid if: chopping station available, tomato not already chopped, tomato not in pot
@@ -565,23 +562,22 @@ class CompleteStateGraphGenerator:
             return (not state.onion_at_chopping and not state.tomato_at_chopping and  # Station available
                     not state.tomato_chopped and  # Tomato not already chopped
                     not state.tomato_in_pot and   # Tomato not already used
-                    not state.soup_staged and
-                    state.soup_hand == "none")  # Human not holding tomato (human should process what they have)
+                    soup_not_in_play)  # Human not holding tomato (human should process what they have)
             
         elif action == "Stage Tomato":
             # Valid if: agent has tomato (raw, washed, or chopped) and tomato not already staged
             return (not state.tomato_staged and
                     not state.tomato_in_pot and
-                    not state.soup_staged and
-                    state.soup_hand == "none")
+                    not state.soup_cooking and
+                    not state.soup_ready and
+                    soup_not_in_play)
             
         elif action == "Human Grab Tomato":
             # Valid if: human has empty hands AND tomato is staged AND tomato not already in pot
             return (self._human_hands_empty(state) and 
-                    state.tomato_staged and
+                    not state.tomato_hand == "agent" and
                     not state.tomato_in_pot and
-                    not state.soup_staged and
-                    state.soup_hand == "none")
+                    soup_not_in_play)
             
         elif action == "Place Tomato in Pot":
             # Valid if: human is holding tomato, pot available

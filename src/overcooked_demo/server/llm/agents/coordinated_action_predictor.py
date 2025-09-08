@@ -1,7 +1,6 @@
 from collections import deque
-import json
 import re
-from typing import List
+from typing import List, Dict, Optional
 from overcooked_ai_py.agents.agent import Agent
 from overcooked_ai_py.mdp.overcooked_mdp import OvercookedGridworld
 from overcooked_ai_py.planning.planners import MotionPlanner
@@ -116,7 +115,6 @@ class CoordinatedActionPredictorAgent(Agent):
         self.stove_tiles = []
         self.dish_spawns = []
         self.delivery_tiles = []
-        self.staging_tiles = []
         self.onion_chopping_stations = []
         self.tomato_chopping_stations = []
 
@@ -338,6 +336,10 @@ class CoordinatedActionPredictorAgent(Agent):
         self.tomato_chopping_frontier = self._compute_frontier(self.tomato_chopping_stations, terrain)
         self.sink_frontier = self._compute_frontier(self.sink_stations, terrain)
         
+        # NEW: Compute counter tile frontier for dropping wrong objects
+        self.counter_tiles = self._find_counter_tiles(terrain)
+        self.counter_frontier = self._compute_frontier(self.counter_tiles, terrain)
+        
         my_goals = {
             'ingredient': self.ingredient_spawns,
             'pot': self.stove_tiles,
@@ -346,6 +348,96 @@ class CoordinatedActionPredictorAgent(Agent):
         } 
 
         self.planner = MotionPlanner(mdp, counter_goals=my_goals)
+
+    def _find_counter_tiles(self, terrain):
+        """
+        Find all counter tiles (X) that are available for dropping objects.
+        Excludes important counter tiles used for staging, chopping, and washing stations.
+        """
+        H, W = len(terrain), len(terrain[0])
+        counter_tiles = []
+        
+        # Get all important counter tile positions to exclude
+        important_tiles = set()
+        important_tiles.update(self.onion_staging_tiles)
+        important_tiles.update(self.tomato_staging_tiles)
+        important_tiles.update(self.dish_staging_tiles)
+        important_tiles.update(self.soup_staging_tiles)
+        important_tiles.update(self.onion_chopping_stations)
+        important_tiles.update(self.tomato_chopping_stations)
+        important_tiles.update(self.sink_stations)
+        
+        for row in range(H):
+            for col in range(W):
+                if terrain[row][col] == 'X':  # Counter tile
+                    pos = (col, row)
+                    # Only include if it's not an important counter tile
+                    if pos not in important_tiles:
+                        counter_tiles.append(pos)
+        
+        return counter_tiles
+
+    def _is_ingredient_on_counter_from_state(self, state, ingredient: str) -> bool:
+        """
+        Check if the specified ingredient is available on a counter tile using the full state.
+        Excludes important counter tiles (staging, chopping, washing, stove stations).
+        
+        Args:
+            state: Full game state object
+            ingredient: The ingredient to check for ('onion' or 'tomato')
+            
+        Returns:
+            True if ingredient is on a safe counter tile, False otherwise
+        """
+        # Get all safe counter tiles (excluding important stations)
+        safe_counter_tiles = self.counter_tiles
+        
+        # Parse the state to get object positions
+        sd = state.to_dict()
+        tile_contents = {}
+        
+        for obj in sd["objects"]:
+            p = tuple(obj["position"])
+            name = obj.get("ingredient") or obj.get("name")
+            tile_contents.setdefault(p, []).append(name)
+        
+        # Check if any safe counter tile has the ingredient
+        for counter_pos in safe_counter_tiles:
+            if ingredient in tile_contents.get(counter_pos, []):
+                return True
+        
+        return False
+
+    def _find_ingredient_on_counter_from_state(self, state, ingredient: str) -> Optional[tuple]:
+        """
+        Find the specific counter tile position where the ingredient is located.
+        Excludes important counter tiles (staging, chopping, washing, stove stations).
+        
+        Args:
+            state: Full game state object
+            ingredient: The ingredient to check for ('onion' or 'tomato')
+            
+        Returns:
+            (col, row) of counter tile with ingredient, or None if not found
+        """
+        # Get all safe counter tiles (excluding important stations)
+        safe_counter_tiles = self.counter_tiles
+        
+        # Parse the state to get object positions
+        sd = state.to_dict()
+        tile_contents = {}
+        
+        for obj in sd["objects"]:
+            p = tuple(obj["position"])
+            name = obj.get("ingredient") or obj.get("name")
+            tile_contents.setdefault(p, []).append(name)
+        
+        # Find the specific counter tile with the ingredient
+        for counter_pos in safe_counter_tiles:
+            if ingredient in tile_contents.get(counter_pos, []):
+                return counter_pos
+        
+        return None
 
     def _compute_frontier(self, tiles, terrain):
         """Return the set of walkable tiles adjacent to any tile in 'tiles'."""
@@ -706,29 +798,15 @@ class CoordinatedActionPredictorAgent(Agent):
 
 
 
-    def _find_nearest_goal(self, choices, my_pos: tuple, my_ori: tuple) -> tuple:
-        """Find the nearest goal from a list of choices."""
-        if not choices:
-            return (my_pos, tuple(my_ori))
 
-        def sort_key(mo):
-            (c, r), _ = mo
-            # primary: Manhattan distance
-            dist = abs(c - my_pos[0]) + abs(r - my_pos[1])
-            # secondary: prefer smaller col, then smaller row
-            return (dist, c, r)
-
-        goal_pos, goal_orient = min(choices, key=sort_key)
-        return (goal_pos, goal_orient)
-
-    def _parse_robot_action(self, robot_action, game_state=None):
+    def _parse_robot_action(self, robot_action, game_state=None, state=None):
         """
         Parse the robot action to get function name and item with state-aware location detection.
         Expected format: pickup(onion) or place(onion, chopping_station) or NOOP
         
         For pickup actions, uses game state to determine the appropriate location:
-        - pickup(onion) checks onion_at_chopping, onion_at_sink, or defaults to dispenser
-        - pickup(tomato) checks tomato_at_chopping, tomato_at_sink, or defaults to dispenser
+        - pickup(onion) checks onion_at_chopping, onion_at_sink, counter_tile, or defaults to dispenser
+        - pickup(tomato) checks tomato_at_chopping, tomato_at_sink, counter_tile, or defaults to dispenser
         """
         # Check for explicit NOOP
         if robot_action == "NOOP":
@@ -745,6 +823,13 @@ class CoordinatedActionPredictorAgent(Agent):
                     location = "chopping_station"
                 elif game_state.get('onion_at_sink', False):
                     location = "sink"
+                elif state and self._is_ingredient_on_counter_from_state(state, "onion"):
+                    # Find the specific counter tile with the onion
+                    counter_pos = self._find_ingredient_on_counter_from_state(state, "onion")
+                    if counter_pos:
+                        location = f"counter_tile_{counter_pos[0]}_{counter_pos[1]}"  # Specific position
+                    else:
+                        location = "counter_tile"  # Fallback to generic
                 else:
                     location = "dispenser"
                 return "pickup", (item, location)
@@ -754,6 +839,13 @@ class CoordinatedActionPredictorAgent(Agent):
                     location = "chopping_station"
                 elif game_state.get('tomato_at_sink', False):
                     location = "sink"
+                elif state and self._is_ingredient_on_counter_from_state(state, "tomato"):
+                    # Find the specific counter tile with the tomato
+                    counter_pos = self._find_ingredient_on_counter_from_state(state, "tomato")
+                    if counter_pos:
+                        location = f"counter_tile_{counter_pos[0]}_{counter_pos[1]}"  # Specific position
+                    else:
+                        location = "counter_tile"  # Fallback to generic
                 else:
                     location = "dispenser"
                 return "pickup", (item, location)
@@ -794,6 +886,23 @@ class CoordinatedActionPredictorAgent(Agent):
                     choices = self.onion_chopping_frontier if item == "onion" else self.tomato_chopping_frontier
                 elif location == "sink":
                     choices = self.sink_frontier
+                elif location == "counter_tile":
+                    # NEW: Use counter tiles for picking up ingredients
+                    choices = self.counter_frontier
+                elif location.startswith("counter_tile_"):
+                    # NEW: Use specific counter tile position
+                    try:
+                        # Parse position from location string (e.g., "counter_tile_3_4")
+                        parts = location.split("_")
+                        if len(parts) == 4 and parts[0] == "counter" and parts[1] == "tile":
+                            x, y = int(parts[2]), int(parts[3])
+                            specific_pos = (x, y)
+                            # Find frontier tiles adjacent to this specific counter tile
+                            choices = self._compute_frontier([specific_pos], self.mdp.terrain_mtx)
+                        else:
+                            choices = self.counter_frontier  # Fallback
+                    except (ValueError, IndexError):
+                        choices = self.counter_frontier  # Fallback
                 elif location == "dispenser":
                     choices = self.onion_frontier if item == "onion" else self.tomato_frontier
                 else:
@@ -834,6 +943,9 @@ class CoordinatedActionPredictorAgent(Agent):
                     "tomato": self.sink_frontier,
                 }
                 choices = frontier_map.get(item)
+            elif destination == "counter_tile":
+                # NEW: Use counter tiles for dropping wrong objects
+                choices = self.counter_frontier
             else:
                 frontier_map = {
                     "dish": self.dish_staging_frontier,
@@ -1057,7 +1169,7 @@ class CoordinatedActionPredictorAgent(Agent):
             # ALWAYS create a new action plan based on the current robot action
             # This ensures we respond to changing game states and predictions
             # We no longer reuse old plans - each prediction gets a fresh action plan
-            func_name, item_info = self._parse_robot_action(robot_action, self.last_summary)
+            func_name, item_info = self._parse_robot_action(robot_action, self.last_summary, state)
 
             
             if func_name == "NOOP":

@@ -891,11 +891,13 @@ class CoordinatedActionPredictorAgent(Agent):
             available_primary_actions = [
                 "Wash Onion",                  # Robot washes raw onion at sink
                 "Chop Onion",                  # Robot chops washed onion at chopping station
+                "Stage Onion",                 # Robot stages processed onion for human
                 "Human Grab Onion",            # Human grabs processed onion
                 "Place Onion in Pot",          # Human places onion in cooking pot
                 
                 "Wash Tomato",                 # Robot washes raw tomato at sink
                 "Chop Tomato",                 # Robot chops washed tomato at chopping station
+                "Stage Tomato",                # Robot stages processed tomato for human
                 "Human Grab Tomato",           # Human grabs processed tomato
                 "Place Tomato in Pot",         # Human places tomato in cooking pot
                 

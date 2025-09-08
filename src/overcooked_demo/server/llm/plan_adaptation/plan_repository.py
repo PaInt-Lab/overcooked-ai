@@ -76,6 +76,15 @@ class PlanRepository:
         """
         return self.successful_plans[-count:] if self.successful_plans else []
     
+    def get_most_recent_plan(self) -> Optional[Dict]:
+        """
+        Get the most recent successful plan.
+        
+        Returns:
+            Most recent plan dictionary, or None if no plans exist
+        """
+        return self.successful_plans[-1] if self.successful_plans else None
+    
     def get_plan_count(self) -> int:
         """Get the total number of successful plans stored."""
         return len(self.successful_plans)

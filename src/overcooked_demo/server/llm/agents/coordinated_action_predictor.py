@@ -891,11 +891,13 @@ class CoordinatedActionPredictorAgent(Agent):
             available_primary_actions = [
                 "Wash Onion",                  # Robot washes raw onion at sink
                 "Chop Onion",                  # Robot chops washed onion at chopping station
+                "Stage Onion",                 # Robot stages processed onion for human
                 "Human Grab Onion",            # Human grabs processed onion
                 "Place Onion in Pot",          # Human places onion in cooking pot
                 
                 "Wash Tomato",                 # Robot washes raw tomato at sink
                 "Chop Tomato",                 # Robot chops washed tomato at chopping station
+                "Stage Tomato",                # Robot stages processed tomato for human
                 "Human Grab Tomato",           # Human grabs processed tomato
                 "Place Tomato in Pot",         # Human places tomato in cooking pot
                 
@@ -916,30 +918,65 @@ class CoordinatedActionPredictorAgent(Agent):
         else:
             plan_text = "No primary tasks available"
 
-        # NEW: Include historical successful plans in the prompt
-        historical_plans_text = ""
+        # Determine which plan to use: original plan first, then most recent successful plan
+        plan_to_use = ""
         if not self.plan_repository.is_empty():
-            historical_plans_text = "\nPREVIOUS SUCCESSFUL PLANS:\n"
-            all_plans = self.plan_repository.get_all_plans()
-            for i, plan in enumerate(all_plans):
-                actions_str = " → ".join(plan['actions'])
-                historical_plans_text += f"Plan {plan['sequence_id']}: {actions_str}\n"
-            historical_plans_text += "\nUse these successful plans as reference for effective action sequences.\n"
+            # Use most recent successful plan after first soup is served
+            recent_plan = self.plan_repository.get_most_recent_plan()
+            if recent_plan:
+                actions_str = " → ".join(recent_plan['actions'])
+                plan_to_use = f"MOST RECENT SUCCESSFUL PLAN (follow in order):\n{actions_str}"
+        else:
+            # Use original user plan for first time
+            plan_to_use = f"USER PLAN (follow in order):\n{plan_text}"
         
+        # OLD: Include historical successful plans in the prompt (commented out for testing)
+        # historical_plans_text = ""
+        # if not self.plan_repository.is_empty():
+        #     historical_plans_text = "\nPREVIOUS SUCCESSFUL PLANS:\n"
+        #     all_plans = self.plan_repository.get_all_plans()
+        #     for i, plan in enumerate(all_plans):
+        #         actions_str = " → ".join(plan['actions'])
+        #         historical_plans_text += f"Plan {plan['sequence_id']}: {actions_str}\n"
+        #     historical_plans_text += "\nUse these successful plans as reference for effective action sequences.\n"
+        
+        # prompt = f"""
+        # You are helping a human cook soup. Follow the user's plan step-by-step in the correct sequence.
+
+        # CURRENT STATE:
+        # {self.last_summary}
+
+        # USER PLAN (follow in order):
+        # {plan_text}
+
+        # AVAILABLE ACTIONS:
+        # {available_primary_actions}
+
+        # PREVIOUS SUCCESSFUL PLANS:
+        # {historical_plans_text}
+
+        # **CRITICAL: Follow the plan sequence step-by-step!**
+        # - The plan is designed to be followed in order
+        # - Don't skip ahead to later steps
+        # - Only choose actions that are both AVAILABLE and the NEXT LOGICAL STEP in the user's plan
+
+        # Select the action that best aligns with the user's plan and current state.
+
+        # Return only this line:
+        # Primary: <action_name>
+        # """
+
         prompt = f"""
         You are helping a human cook soup. Follow the user's plan step-by-step in the correct sequence.
 
         CURRENT STATE:
         {self.last_summary}
 
-        USER PLAN (follow in order):
-        {plan_text}
+        MOST RECENT USER PLAN (follow in order):
+        {plan_to_use}
 
         AVAILABLE ACTIONS:
         {available_primary_actions}
-
-        PREVIOUS SUCCESSFUL PLANS:
-        {historical_plans_text}
 
         **CRITICAL: Follow the plan sequence step-by-step!**
         - The plan is designed to be followed in order
@@ -958,9 +995,9 @@ class CoordinatedActionPredictorAgent(Agent):
         
         # Show plan adaptation info
         if not self.plan_repository.is_empty():
-            print(f"PLAN ADAPTATION: Including {self.plan_repository.get_plan_count()} historical plans in prompt")
+            print(f"PLAN ADAPTATION: Using most recent successful plan (total plans: {self.plan_repository.get_plan_count()})")
         else:
-            print("PLAN ADAPTATION: No historical plans yet, starting fresh")
+            print("PLAN ADAPTATION: Using original user plan (no successful plans yet)")
         # Call LLM to get predictions
         response = query_openai(prompt, self.selected_model)
 

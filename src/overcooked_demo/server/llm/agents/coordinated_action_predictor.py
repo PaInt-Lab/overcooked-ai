@@ -934,7 +934,7 @@ class CoordinatedActionPredictorAgent(Agent):
         if place_match:
             item = place_match.group(1).strip()
             destination = place_match.group(2).strip()
-            if item in ["onion", "tomato", "dish"] and destination in ["chopping_station", "staging_station", "sink"]:
+            if item in ["onion", "tomato", "dish"] and destination in ["chopping_station", "staging_station", "sink", "counter_tile"]:
                 return "place", (item, destination)
 
         # Parse place actions without destination (for items with fixed destinations)

@@ -201,14 +201,6 @@ def _smart_select_secondary_action(game_state: Dict, predicted_primary_action: s
     This fixes the issue where robot keeps trying to pickup when it should place.
     Now also considers what's already in the pot to avoid redundant actions.
     """
-    # Prioritize soup handling - No Primary Action Expected - So when soup is ready, Robot should serve it
-    if game_state.get('soup_hand') == 'agent':
-        # Robot has soup, place it (staging or serving station)
-        return "place(soup)"
-    if game_state.get('soup_staged', False) and game_state.get('soup_hand') == 'none':
-        # Soup is staged and ready, robot should pick it up for serving
-        return "pickup(soup)"
-    
     # NEW: Check for object mismatch first (before handling specific actions)
     object_to_drop = _detect_object_mismatch(game_state, predicted_primary_action)
     if object_to_drop:
@@ -218,6 +210,14 @@ def _smart_select_secondary_action(game_state: Dict, predicted_primary_action: s
             # Human doesn't have it, so we need to drop our wrong object first
             print(f"OBJECT MISMATCH DETECTED: Agent has {object_to_drop} but needs {required_object} for {predicted_primary_action}")
             return _handle_object_mismatch(game_state, object_to_drop)
+    
+    # Prioritize soup handling - No Primary Action Expected - So when soup is ready, Robot should serve it
+    if game_state.get('soup_hand') == 'agent':
+        # Robot has soup, place it (staging or serving station)
+        return "place(soup)"
+    if game_state.get('soup_staged', False) and game_state.get('soup_hand') == 'none':
+        # Soup is staged and ready, robot should pick it up for serving
+        return "pickup(soup)"
     
     # Handle NOOP case (when no primary action predicted)
     if predicted_primary_action == "NOOP":

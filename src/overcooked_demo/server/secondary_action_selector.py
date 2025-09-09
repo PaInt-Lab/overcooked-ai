@@ -177,136 +177,6 @@ PRIMARY_TO_SECONDARY_SEQUENCES = {
     ]
 }
 
-# Can replace all of this with a basic llm call one day
-def parse_recipe_components(task_title: str) -> str:
-    """
-    Parse task title to determine recipe key (same logic as coordinated_action_predictor.py)
-    
-    Args:
-        task_title: Task title (e.g., "Serving Onion Soup", "Serving Chopped Onion & Tomato Soup")
-        
-    Returns:
-        Recipe key (e.g., "onion_raw", "onion_chopped_tomato_chopped")
-    """
-    task_title = task_title.lower()
-    
-    # Check for single ingredient recipes
-    if "onion" in task_title and "tomato" not in task_title:
-        if "chopped" in task_title:
-            if "washed" in task_title:
-                return "onion_washed_chopped"
-            else:
-                return "onion_chopped"
-        elif "washed" in task_title:
-            return "onion_washed"
-        else:
-            return "onion_raw"
-    
-    elif "tomato" in task_title and "onion" not in task_title:
-        if "chopped" in task_title:
-            if "washed" in task_title:
-                return "tomato_washed_chopped"
-            else:
-                return "tomato_chopped"
-        elif "washed" in task_title:
-            return "tomato_washed"
-        else:
-            return "tomato_raw"
-    
-    # Check for dual ingredient recipes
-    elif "onion" in task_title and "tomato" in task_title:
-        # Find positions of key words
-        onion_pos = task_title.find("onion")
-        tomato_pos = task_title.find("tomato")
-        
-        # Determine which ingredient comes first
-        first_ingredient_pos = min(onion_pos, tomato_pos)
-        second_ingredient_pos = max(onion_pos, tomato_pos)
-        first_is_onion = onion_pos < tomato_pos
-        
-        # Search for "chopped" specifically where it should be
-        # For first ingredient: before first ingredient
-        first_chopped_pos = -1
-        pos = 0
-        while pos < first_ingredient_pos:
-            pos = task_title.find("chopped", pos)
-            if pos == -1 or pos >= first_ingredient_pos:
-                break
-            first_chopped_pos = pos
-            pos += 1
-        
-        # For second ingredient: between first and second ingredient
-        second_chopped_pos = -1
-        pos = first_ingredient_pos + 1
-        while pos < second_ingredient_pos:
-            pos = task_title.find("chopped", pos)
-            if pos == -1 or pos >= second_ingredient_pos:
-                break
-            second_chopped_pos = pos
-            pos += 1
-        
-        # Search for "washed" specifically where it should be
-        # For first ingredient: before first ingredient
-        first_washed_pos = -1
-        pos = 0
-        while pos < first_ingredient_pos:
-            pos = task_title.find("washed", pos)
-            if pos == -1 or pos >= first_ingredient_pos:
-                break
-            first_washed_pos = pos
-            pos += 1
-        
-        # For second ingredient: between first and second ingredient
-        second_washed_pos = -1
-        pos = first_ingredient_pos + 1
-        while pos < second_ingredient_pos:
-            pos = task_title.find("washed", pos)
-            if pos == -1 or pos >= second_ingredient_pos:
-                break
-            second_washed_pos = pos
-            pos += 1
-        
-        # Check if processing applies to ingredients
-        first_chopped = first_chopped_pos != -1
-        second_chopped = second_chopped_pos != -1
-        first_washed = first_washed_pos != -1
-        second_washed = second_washed_pos != -1
-        
-        # Map first/second to onion/tomato based on order
-        if first_is_onion:
-            onion_chopped = first_chopped
-            tomato_chopped = second_chopped
-            onion_washed = first_washed
-            tomato_washed = second_washed
-        else:
-            tomato_chopped = first_chopped
-            onion_chopped = second_chopped
-            tomato_washed = first_washed
-            onion_washed = second_washed
-        
-        # Determine recipe type based on processing requirements
-        if onion_chopped and tomato_chopped:
-            if onion_washed and tomato_washed:
-                return "onion_washed_chopped_tomato_washed_chopped"
-            else:
-                return "onion_chopped_tomato_chopped"
-        elif onion_chopped and not tomato_chopped:
-            if onion_washed and tomato_washed:
-                return "onion_washed_chopped_tomato_washed"
-            else:
-                return "onion_chopped_tomato_raw"
-        elif not onion_chopped and tomato_chopped:
-            if onion_washed and tomato_washed:
-                return "onion_washed_tomato_washed_chopped"
-            else:
-                return "onion_raw_tomato_chopped"
-        elif onion_washed and tomato_washed:
-            return "onion_washed_tomato_washed"
-        else:
-            return "onion_raw_tomato_raw"
-    
-    # Fallback for unknown recipes
-    return "onion_raw"
 
 def select_secondary_action(game_state: Dict, task_title: str, 
                           predicted_primary_action: Optional[str] = None) -> str:
@@ -338,6 +208,16 @@ def _smart_select_secondary_action(game_state: Dict, predicted_primary_action: s
     if game_state.get('soup_staged', False) and game_state.get('soup_hand') == 'none':
         # Soup is staged and ready, robot should pick it up for serving
         return "pickup(soup)"
+    
+    # NEW: Check for object mismatch first (before handling specific actions)
+    object_to_drop = _detect_object_mismatch(game_state, predicted_primary_action)
+    if object_to_drop:
+        # Check if human already has the required object
+        required_object = _get_required_object(predicted_primary_action)
+        if required_object and game_state.get(f'{required_object}_hand') != 'partner':
+            # Human doesn't have it, so we need to drop our wrong object first
+            print(f"OBJECT MISMATCH DETECTED: Agent has {object_to_drop} but needs {required_object} for {predicted_primary_action}")
+            return _handle_object_mismatch(game_state, object_to_drop)
     
     # Handle NOOP case (when no primary action predicted)
     if predicted_primary_action == "NOOP":
@@ -506,31 +386,91 @@ def _smart_select_secondary_action(game_state: Dict, predicted_primary_action: s
     # Default fallback
     return "NOOP"
 
+def get_all_primary_actions() -> list:
+    """Get all available primary actions"""
+    return [action.value for action in PrimaryAction]
 
-def get_relevant_secondary_actions(predicted_primary_action: str) -> List[str]:
+def _detect_object_mismatch(game_state: Dict, predicted_primary_action: str) -> Optional[str]:
     """
-    Get the relevant secondary actions for a predicted primary action.
+    Detect if agent is holding the wrong object for the predicted action.
+    Only considers it a mismatch if the human is NOT handling the required object.
+    
+    Args:
+        game_state: Current game state dict
+        predicted_primary_action: The predicted human primary action
+        
+    Returns:
+        - None if no mismatch
+        - Object name if agent should drop it (onion, tomato, dish, soup)
+    """
+    # Get the required object for the predicted action
+    required_object = _get_required_object(predicted_primary_action)
+    if not required_object:
+        return None
+    
+    # If human already has the required object, no mismatch - they're handling it
+    if game_state.get(f'{required_object}_hand') == 'partner':
+        return None
+    
+    # Define all possible objects the agent can hold
+    possible_objects = ['onion', 'tomato', 'dish', 'soup']
+    
+    # Check if agent is holding any object other than the required one
+    for obj in possible_objects:
+        if obj != required_object and game_state.get(f'{obj}_hand') == 'agent':
+            return obj  # Agent has wrong object, should drop it
+    
+    return None
+
+def _get_required_object(predicted_primary_action: str) -> Optional[str]:
+    """
+    Get the object required for the predicted primary action.
     
     Args:
         predicted_primary_action: The predicted human primary action
         
     Returns:
-        List of relevant secondary action strings
+        The required object name or None if not applicable
     """
-    try:
-        primary_enum = PrimaryAction(predicted_primary_action)
-        return PRIMARY_TO_SECONDARY_SEQUENCES.get(primary_enum, 
-                                               PRIMARY_TO_SECONDARY_SEQUENCES[PrimaryAction.HUMAN_NOOP])
-    except ValueError:
-        return PRIMARY_TO_SECONDARY_SEQUENCES[PrimaryAction.HUMAN_NOOP]
+    action_to_object = {
+        "Chop Onion": "onion",
+        "Wash Onion": "onion", 
+        "Stage Onion": "onion",
+        "Human Grab Onion": "onion",
+        "Place Onion in Pot": "onion",
+        "Chop Tomato": "tomato",
+        "Wash Tomato": "tomato",
+        "Stage Tomato": "tomato", 
+        "Human Grab Tomato": "tomato",
+        "Place Tomato in Pot": "tomato",
+        "Human Grab Dish": "dish",
+        "Wait For Ingredients to Cook": "dish",
+        "Wait For Robot To Serve Soup": "soup",
+        "Pour Soup": "soup"
+    }
+    
+    return action_to_object.get(predicted_primary_action)
 
-def get_all_recipe_types() -> list:
-    """Get all available recipe types"""
-    return [recipe_type.value for recipe_type in RecipeType]
-
-
-def get_all_primary_actions() -> list:
-    """Get all available primary actions"""
-    return [action.value for action in PrimaryAction]
+def _handle_object_mismatch(game_state: Dict, object_to_drop: str, agent_pos: tuple = None) -> str:
+    """
+    Handle dropping the wrong object to free up hands.
+    Now drops on counter tiles instead of staging stations.
+    
+    Args:
+        game_state: Current game state dict
+        object_to_drop: The object that needs to be dropped
+        agent_pos: Current agent position for finding nearby counter tiles
+        
+    Returns:
+        The action to drop the object
+    """
+    if object_to_drop == "onion":
+        return "place(onion, counter_tile)"
+    elif object_to_drop == "tomato":
+        return "place(tomato, counter_tile)"
+    elif object_to_drop == "dish":
+        return "place(dish, counter_tile)"
+    
+    return "NOOP"
 
 

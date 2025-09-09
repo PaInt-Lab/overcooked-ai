@@ -1,6 +1,9 @@
 """
 Base game mechanics for all Overcooked recipe types.
 Contains common functionality and defines the interface for recipe-specific mechanics.
+
+NOT USED ANYMORE BUT KEPT IN CASE WE WANT TO REUSE IT LATER
+
 """
 
 from abc import ABC, abstractmethod

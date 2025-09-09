@@ -6,114 +6,258 @@
 
 ## 🚀 Overview
 
-**Overcooked-AI** is a research platform for human-AI coordination, now supercharged with a modular, extensible **LLM Agent** pipeline. Instead of relying solely on traditional reinforcement learning, this project introduces a novel agent that leverages large language models (LLMs) for action planning, subtask decomposition, and context-aware decision making in the Overcooked environment.
+**Overcooked-AI** is a research platform for human-AI coordination, now supercharged with a sophisticated **LLM Agent** system that uses coordinated navigation, plan adaptation, and state graph-based decision making. This project introduces a novel approach to human-AI collaboration that combines large language models with graph-based state navigation for intelligent coordination in the Overcooked environment.
 
-- **Play with or against LLM-powered agents**
-- **Natural language planning and action prediction**
-- **Memory-augmented context for smarter coordination**
-- **Easy to extend with your own LLMs or prompts**
+- **🤖 LLM-powered coordination**: Uses OpenAI's GPT-4o-mini for intelligent action prediction and planning
+- **🧠 Plan adaptation**: Learns from successful action sequences and adapts future behavior
+- **🗺️ State graph navigation**: Goal-directed navigation through complete state space
+- **🔄 Real-time coordination**: Dynamic human-robot collaboration with WebSocket communication
+- **🧽 Advanced workflows**: Supports ingredient washing, chopping, and complex cooking sequences
 
-> **Note:** RL/BC agents are still supported, but this README focuses on the new LLM-based agent system.
-
----
-
-## 🧠 The Overcooked LLM Agent Pipeline
-
-The Overcooked LLM Agent is a modular pipeline that breaks down high-level tasks into actionable steps using a series of specialized LLMs:
-
-1. **State Summarizer**  
-   Converts the raw Overcooked game state into a concise, human-readable summary (using a Gemma LLM).
-
-2. **Subtask Creator**  
-   Given a goal (e.g., "Serve Onion Soup"), generates a numbered list of atomic subtasks using a Llama3-based LLM and prompt engineering.
-
-3. **Task Tagger**  
-   Classifies each subtask as "primary" (requires coordination) or "secondary" (supportive), again using a Llama3 LLM.
-
-4. **Action Predictor**  
-   Given the current state summary and the plan, predicts the next primary and secondary actions to execute (Gemma LLM).
-
-5. **Vector Memory**  
-   Stores and retrieves context from past interactions using FAISS and HuggingFace embeddings, enabling context-aware planning and adaptation.
-
-All LLMs are served locally via [Ollama](https://ollama.com/) for fast, private inference.
+> **Note:** This system represents a significant advancement over traditional RL/BC approaches, focusing on natural language understanding and adaptive coordination.
 
 ---
 
-## ✨ Features
+## 🧠 System Architecture
 
-- **LLM-driven agent**: Plans and acts using natural language, not just hardcoded policies.
-- **Contextual memory**: Remembers past plans and adapts to user preferences.
-- **Modular pipeline**: Swap out or extend any LLM component (state summarizer, subtask creator, etc.).
-- **Web demo**: Play Overcooked with the LLM agent in your browser.
-- **Easy extensibility**: Add new recipes, layouts, or LLM models with minimal code changes.
+The system consists of three main layers:
+
+### **Web Layer** (Flask + WebSocket)
+- Real-time communication between humans and AI agents
+- Task definition and plan management interface
+- Live game visualization with Phaser.js
+
+### **Game Engine** (Overcooked Environment)
+- Core game mechanics and state management
+- Agent coordination and action processing
+- Real-time game loop and scoring
+
+### **AI Layer** (LLM Agents + State Navigation)
+- **Coordinated Action Predictor**: Main LLM agent using OpenAI GPT-4o-mini
+- **Complete State Graph**: Pre-computed state space for washing+chopping recipes
+- **Plan Adaptation**: Learning system that stores and adapts from successful sequences
+- **Secondary Action Selector**: Smart robot action coordination
 
 ---
 
-## 🖥️ Demo: Play with the LLM Agent
+## ✨ Key Features
 
-### 1. Prerequisites
-- Python 3.10
-- [Docker](https://docs.docker.com/get-docker/) (for the web demo and Ollama models)
-- [Ollama](https://ollama.com/) (for local LLM inference)
+### **🧠 Intelligent Coordination**
+- **Human Action Prediction**: LLM predicts what humans will do next
+- **Smart Robot Actions**: Robot selects complementary actions based on predictions
+- **Conflict Resolution**: Handles object mismatches and blocking situations
+- **State-Aware Decisions**: Considers complete game state for optimal coordination
 
-### 2. Quickstart (Web Demo)
+### **📚 Plan Learning & Adaptation**
+- **Success Tracking**: Records successful action sequences automatically
+- **Plan Repository**: Stores and retrieves effective coordination patterns
+- **Adaptive Behavior**: Uses learned patterns to improve future performance
+- **Two-Phase Learning**: State-based and sequential action recording
+
+### **🗺️ Advanced State Navigation**
+- **Complete State Graph**: Pre-computed navigation for washing+chopping workflows
+- **Flexible Processing**: Supports any order of ingredient preparation
+- **Goal-Directed Navigation**: A* pathfinding through state space
+- **Caching System**: Fast state lookup and action prediction
+
+### **🎮 Rich User Experience**
+- **Drag & Drop Interface**: Visual subtask creation and reordering
+- **LLM Task Generation**: "Ask LLM" button for automatic subtask creation
+- **Real-time Visualization**: Live game rendering with special station indicators
+- **Plan Confirmation**: Interactive plan review before game execution
+
+---
+
+## 🖥️ Quick Start
+
+### Prerequisites
+- Python 3.10+
+- [Docker](https://docs.docker.com/get-docker/) (for Ollama models)
+- OpenAI API key (for GPT-4o-mini)
+
+### 1. Environment Setup
 
 ```bash
-# From the project root
+# Clone the repository
+git clone <your-repo-url>
+cd Overcooked-AI
+
+# Set up environment
+export OPENAI_API_KEY="your-openai-api-key-here"
+
+# Install dependencies
 cd src/overcooked_demo
-./up.sh  # or ./up.sh production for production mode
+pip install -r server/requirements.txt
 ```
 
-- Open your browser to [http://localhost](http://localhost)
-- Select the **Overcooked LLM Agent** as your partner or opponent
-- Play and watch the LLM agent plan, adapt, and act in real time!
+### 2. Configuration
+
+The system uses several configuration files:
+
+#### **Game Configuration** (`server/config.json`)
+- **Layouts**: Available game layouts (cramped_room, counter_circuit, etc.)
+- **Game Parameters**: Max games, game length, scoring values
+- **Agent Settings**: Agent directory and configuration
+
+#### **Docker Configuration** (`docker-compose.yml`)
+- **Ollama Service**: Local LLM models for task classification
+- **App Service**: Main Overcooked game server
+- **Networking**: Internal communication between services
+
+### 3. Start the System
+
+#### **Option A: Docker Compose (Recommended)**
+```bash
+# Start all services (Ollama + Overcooked server)
+cd src/overcooked_demo
+./up.sh  # Development mode
+# or
+./up.sh production  # Production mode
+```
+
+### 4. Play with the LLM Agent
+
+1. Open your browser to [http://localhost](http://localhost)
+2. **Define Your Task**: Enter a task like "Serving Washed and Chopped Onion and Tomato Soup"
+3. **Create Subtasks**: Use "Ask LLM" or create subtasks manually with drag & drop
+4. **Confirm Sequence**: Review and confirm your subtask sequence
+5. **Start Game**: Select "overcooked_llm" as your partner and begin playing!
 
 To stop the server:
 ```bash
 ./down.sh
 ```
 
-### 3. Using the LLM Agent in Python
+---
 
-You can also use the LLM agent directly in your own scripts:
+## 🧩 How It Works
 
-```python
-from overcooked_demo.server.llm.agents.action_predictor import ActionPredictorAgent
-agent = ActionPredictorAgent()
-# ... set up your Overcooked environment and use agent.action(state)
+### **Task Definition & Planning**
+1. **User Input**: Define high-level cooking tasks through the web interface
+2. **Subtask Generation**: LLM breaks down tasks into atomic subtasks
+3. **Task Classification**: Subtasks classified as "primary" (human) or "secondary" (robot)
+4. **Event Sequencing**: Tasks grouped into coordinated action sequences
+
+### **Real-Time Coordination**
+1. **State Analysis**: Agent analyzes current game state and available actions
+2. **Human Prediction**: LLM predicts what the human will do next
+3. **Robot Action**: Secondary action selector chooses complementary robot action
+4. **Execution**: Both agents execute coordinated actions simultaneously
+5. **Learning**: Successful sequences are recorded for future adaptation
+
+### **Plan Adaptation**
+1. **Success Detection**: System detects when soup is successfully served
+2. **Sequence Recording**: Complete action sequence is stored with metadata
+3. **Pattern Learning**: Future predictions can reference successful patterns
+4. **Adaptive Behavior**: Agent behavior improves over multiple interactions
+
+---
+
+## 🛠️ System Components (Major)
+
+### **Core LLM Agent** (`coordinated_action_predictor.py`)
+- **Model**: OpenAI GPT-4o-mini
+- **Features**: State graph navigation, plan adaptation, human coordination
+- **Integration**: Connects to state graph, plan repository, and action selector
+
+### **State Navigation** (`complete_state_graph.py`)
+- **Purpose**: Complete state space for washing+chopping recipes
+- **Features**: Flexible processing order, state validation, action mapping
+- **Performance**: Pre-computed and cached for fast lookup
+
+### **Plan Learning** (`action_tracker.py` + `plan_repository.py`)
+- **Tracking**: Records successful action sequences with timestamps
+- **Storage**: Manages plan repository with metadata and retrieval
+- **Adaptation**: Enables learning from past successful interactions
+
+### **Robot Coordination** (`secondary_action_selector.py`)
+- **Smart Selection**: Chooses robot actions that complement human actions
+- **Object Management**: Handles ingredient fetching, staging, and cleanup
+- **Conflict Resolution**: Manages blocking and object mismatch situations
+
+### **Web Interface** (`index.html` + `graphics.js`)
+- **Task Management**: Drag & drop subtask creation and reordering
+- **LLM Integration**: "Ask LLM" button for automatic task decomposition
+- **Game Visualization**: Real-time rendering with Phaser.js
+- **Plan Confirmation**: Interactive plan review and confirmation
+
+---
+
+## 📁 Project Structure
+
+```
+src/overcooked_demo/
+├── .env                                # Environment variables (OPENAI_API_KEY)
+├── docker-compose.yml                  # Docker orchestration
+├── up.sh / down.sh                     # Deployment scripts
+├── server/
+│   ├── Dockerfile                      # Game server container
+│   ├── requirements.txt                # Python dependencies
+│   ├── app.py                          # Flask web server & API
+│   ├── game.py                         # Core game engine
+│   ├── config.json                     # Game configuration
+│   ├── plan_session.py                 # Session management
+│   ├── complete_state_graph.py         # State space navigation
+│   ├── secondary_action_selector.py    # Robot action selection
+│   └── llm/
+│       ├── agents/
+│       │   ├── coordinated_action_predictor.py  # Main LLM agent
+│       │   ├── subtask_creator.py              # Task decomposition
+│       │   └── subtask_to_event_sequence.py    # Task classification
+│       ├── plan_adaptation/
+│       │   ├── action_tracker.py               # Plan learning
+│       │   └── plan_repository.py             # Plan storage
+│       └── ollama/
+│           └── ollama_client.py               # LLM communication
+├── ollama_models/                      # LLM model configurations
+│   ├── Dockerfile                      # Ollama container
+│   ├── subtask_creator/Modelfile
+│   └── task_tagger/Modelfile
+└── static/
+    ├── templates/index.html            # Web interface
+    └── js/graphics.js                  # Game visualization
 ```
 
 ---
 
-## 🧩 How the LLM Agent Works
+## 🔧 Customization & Extension
 
-- **State summarization**: Converts game state to a natural language summary for the LLM.
-- **Subtask planning**: LLM generates a step-by-step plan for the current goal.
-- **Task tagging**: LLM classifies subtasks for better coordination.
-- **Action prediction**: LLM selects the next best action based on the plan and current state.
-- **Memory/context**: Vector memory enables the agent to remember and adapt to past strategies and user preferences.
+### **Modify LLM Behavior**
+- **Prompts**: Edit `ollama_models/*/Modelfile` for custom prompts
+- **Models**: Switch between different LLM models in `coordinated_action_predictor.py`
+- **API**: Change OpenAI model or add other LLM providers
 
-All LLM prompts and models are fully customizable—see the `src/overcooked_demo/ollama_models/` directory for prompt templates and model configs.
+### **Add New Recipes**
+- **State Graph**: Extend `complete_state_graph.py` for new ingredient workflows
+- **Action Mapping**: Update `secondary_action_selector.py` for new actions
+- **UI**: Add new recipe templates in `index.html`
 
----
-
-## 🛠️ Extending & Customizing the LLM Agent
-
-- **Swap LLMs**: Edit the `Modelfile` in `src/overcooked_demo/ollama_models/` to use your own models or prompts.
-- **Add new recipes/tasks**: Update the subtask creator prompt and logic.
-- **Change memory behavior**: Modify `vector_memory.py` for different context retrieval strategies.
-- **Integrate new LLM endpoints**: Update the agent pipeline to call your own APIs or local models.
+### **Customize Coordination**
+- **Learning**: Modify `action_tracker.py` for different learning strategies
+- **Planning**: Adjust plan adaptation logic in `plan_repository.py`
+- **Selection**: Customize robot action selection in `secondary_action_selector.py`
 
 ---
 
-## 📁 Project Structure (Key Parts)
+## 🚀 Research Applications
 
-- `src/overcooked_demo/server/llm/agents/` — LLM agent modules (action predictor, subtask creator, etc.)
-- `src/overcooked_demo/ollama_models/` — LLM model configs and prompt templates
-- `src/overcooked_demo/server/llm/memory/` — Vector memory for context
-- `src/overcooked_demo/server/llm/orchestrator/` — Pipeline/router logic
-- `src/overcooked_demo/server/app.py` — Web server entry point
+This system enables research in:
+
+- **Human-AI Coordination**: How can LLMs improve human-robot collaboration?
+- **Plan Adaptation**: Can agents learn effective coordination patterns?
+- **State Space Navigation**: How does graph-based navigation compare to RL?
+- **Natural Language Planning**: Can LLMs understand and execute cooking tasks?
+- **Real-time Coordination**: How do agents coordinate in dynamic environments?
+
+---
+
+## 📊 Performance & Capabilities
+
+- **Real-time Processing**: 30 FPS game updates with LLM inference
+- **State Space**: Complete navigation for washing+chopping workflows
+- **Learning**: Automatic adaptation from successful interaction patterns
+- **Coordination**: Intelligent human-robot action prediction and selection
+- **Scalability**: Modular architecture supports easy extension
 
 ---
 
@@ -121,7 +265,7 @@ All LLM prompts and models are fully customizable—see the `src/overcooked_demo
 
 - **Lead LLM Agent Developer:** Vito Rizzuto  
 - **Original Overcooked-AI:** Micah Carroll (mdc@berkeley.edu), Center for Human-Compatible AI
-- Special thanks to the open-source LLM and RL communities.
+- **Special Thanks:** OpenAI, Ollama, and the open-source LLM communities
 
 ---
 
@@ -133,6 +277,16 @@ This project is licensed under the MIT License. See [LICENSE](LICENSE) for detai
 
 ## 🔗 References & Further Reading
 
+- [OpenAI API Documentation](https://platform.openai.com/docs)
 - [Ollama: Run open LLMs locally](https://ollama.com/)
 - [Overcooked-AI (original)](https://github.com/HumanCompatibleAI/overcooked_ai)
 - [On the Utility of Learning about Humans for Human-AI Coordination (NeurIPS 2019)](https://arxiv.org/abs/1910.05789)
+- [Phaser.js Game Framework](https://phaser.io/)
+
+---
+
+## 🤝 Contributing
+
+This is a research project focused on human-AI coordination. Contributions that advance the state of LLM-based agent coordination are welcome!
+
+For questions or collaboration opportunities, please reach out to the project maintainers.

@@ -595,7 +595,7 @@ class CompleteStateGraphGenerator:
         elif action == "Human Grab Dish":
             # Valid only when both ingredients are in the pot (ready to serve soup)
             return (self._human_hands_empty(state) and 
-                    state.onion_in_pot and state.tomato_in_pot and state.soup_cooking)
+                    state.onion_in_pot and state.tomato_in_pot and (state.soup_cooking or state.soup_ready))
             
         elif action == "Pour Soup":
             # Valid if: soup is ready, human holding dish

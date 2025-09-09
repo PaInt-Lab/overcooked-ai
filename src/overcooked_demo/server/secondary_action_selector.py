@@ -10,43 +10,6 @@ from typing import Dict, Optional, List
 from enum import Enum
 
 
-class RecipeType(Enum):
-    """Recipe types that align with the coordinated action agent recipe keys"""
-    # Single ingredient recipes (raw)
-    ONION_RAW = "onion_raw"
-    TOMATO_RAW = "tomato_raw"
-    
-    # Single ingredient recipes (washed)
-    ONION_WASHED = "onion_washed"
-    TOMATO_WASHED = "tomato_washed"
-    
-    # Single ingredient recipes (chopped)
-    ONION_CHOPPED = "onion_chopped"
-    TOMATO_CHOPPED = "tomato_chopped"
-    
-    # Single ingredient recipes (washed + chopped)
-    ONION_WASHED_CHOPPED = "onion_washed_chopped"
-    TOMATO_WASHED_CHOPPED = "tomato_washed_chopped"
-    
-    # Dual ingredient recipes (raw)
-    ONION_RAW_TOMATO_RAW = "onion_raw_tomato_raw"
-    
-    # Dual ingredient recipes (one chopped)
-    ONION_CHOPPED_TOMATO_RAW = "onion_chopped_tomato_raw"
-    ONION_RAW_TOMATO_CHOPPED = "onion_raw_tomato_chopped"
-    
-    # Dual ingredient recipes (both chopped)
-    ONION_CHOPPED_TOMATO_CHOPPED = "onion_chopped_tomato_chopped"
-    
-    # Dual ingredient recipes (washed)
-    ONION_WASHED_TOMATO_WASHED = "onion_washed_tomato_washed"
-    
-    # Dual ingredient recipes (washed + chopped combinations)
-    ONION_WASHED_CHOPPED_TOMATO_WASHED = "onion_washed_chopped_tomato_washed"
-    ONION_WASHED_TOMATO_WASHED_CHOPPED = "onion_washed_tomato_washed_chopped"
-    ONION_WASHED_CHOPPED_TOMATO_WASHED_CHOPPED = "onion_washed_chopped_tomato_washed_chopped"
-
-
 class PrimaryAction(Enum):
     """Primary actions from actual plans and complete state graph"""
     # NEW: Washing actions (from complete state graph)
@@ -85,8 +48,6 @@ class PrimaryAction(Enum):
     # Special
     NOOP = "NOOP"
     HUMAN_NOOP = "Human NOOP"
-
-
 
 
 # Primary Action to Secondary Action Sequences (Based on Real Plans)

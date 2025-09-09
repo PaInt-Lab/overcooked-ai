@@ -9,8 +9,8 @@ import os
 from openai import OpenAI
 from plan_session import PLAN_STORE
 from secondary_action_selector import select_secondary_action
-from complete_state_graph import CompleteStateGraphGenerator, CompleteRecipeState  # NEW: Complete state graph with washing
-from ..plan_adaptation import ActionTracker, PlanRepository  # NEW: Plan adaptation system
+from complete_state_graph import CompleteStateGraphGenerator, CompleteRecipeState  # Complete state graph with washing
+from ..plan_adaptation import ActionTracker, PlanRepository  # Plan adaptation system
 
 # Use a simple vanilla model instead of fine-tuned ones
 DEFAULT_MODEL = "gpt-4o-mini"
@@ -140,11 +140,10 @@ class CoordinatedActionPredictorAgent(Agent):
         self.selected_model = DEFAULT_MODEL
 
         
-        # NEW: Plan adaptation system
+        #Plan adaptation system
         self.action_tracker = ActionTracker()
         self.plan_repository = PlanRepository()
         self.soup_served_flag = False
-        print("Plan adaptation system initialized")
 
     def _initialize_complete_state_graph(self):
         """Initialize the complete state graph"""
@@ -186,25 +185,23 @@ class CoordinatedActionPredictorAgent(Agent):
         """Attach the full PlanSession to this agent and filter for primary tasks only."""
         self.plan = PLAN_STORE[session_id]
         
-        # NEW: Filter plan to extract only primary tasks for LLM context
+        #Filter plan to extract only primary tasks for LLM context
         self.primary_tasks = self._extract_primary_tasks_from_plan()
-
         
         # Set task title from plan for coordination
         if hasattr(self.plan, 'task_title'):
             self.task_title = self.plan.task_title
-
     
     def _extract_primary_tasks_from_plan(self) -> List[str]:
         """
-        NEW: Extract only primary tasks from the full plan.
+        Extract only primary tasks from the full plan.
         This filters out secondary tasks so the LLM only sees human actions.
         The plan structure has arrays of primary actions per step.
         """
         if not self.plan or not hasattr(self.plan, 'events'):
             return []
         
-        # NEW: Handle the actual plan structure with arrays of primary actions
+        # Handle the actual plan structure with arrays of primary actions
         primary_tasks = []
         for event in self.plan.events:
             # Extract primary actions from the 'primary' field (which is an array)
@@ -214,7 +211,6 @@ class CoordinatedActionPredictorAgent(Agent):
                     if primary_action != 'NOOP':
                         primary_tasks.append(primary_action)
         
-        # print(f"🔍 Extracted primary tasks from plan: {primary_tasks}")
         return primary_tasks
 
 
@@ -336,7 +332,7 @@ class CoordinatedActionPredictorAgent(Agent):
         self.tomato_chopping_frontier = self._compute_frontier(self.tomato_chopping_stations, terrain)
         self.sink_frontier = self._compute_frontier(self.sink_stations, terrain)
         
-        # NEW: Compute counter tile frontier for dropping wrong objects
+        # Compute counter tile frontier for dropping wrong objects
         self.counter_tiles = self._find_counter_tiles(terrain)
         self.counter_frontier = self._compute_frontier(self.counter_tiles, terrain)
         
@@ -694,8 +690,6 @@ class CoordinatedActionPredictorAgent(Agent):
             "soup_delivered_by": soup_delivered_by
         }
 
-
-
     def _is_blocking_important_tile(self, my_pos: tuple, state) -> bool:
         """
         Check if the agent is currently blocking an important staging tile.
@@ -722,7 +716,7 @@ class CoordinatedActionPredictorAgent(Agent):
         important_tiles.update([pos for pos, _ in self.onion_frontier])
         important_tiles.update([pos for pos, _ in self.tomato_frontier])
         important_tiles.update([pos for pos, _ in self.stove_frontier])
-        important_tiles.update([pos for pos, _ in self.dish_frontier])
+        important_tiles.update([pos for pos, _ in self.dish_frontier]) 
         important_tiles.update([pos for pos, _ in self.delivery_frontier])
         important_tiles.update([pos for pos, _ in self.onion_staging_frontier])
         important_tiles.update([pos for pos, _ in self.tomato_staging_frontier])
@@ -958,10 +952,10 @@ class CoordinatedActionPredictorAgent(Agent):
                 elif location == "sink":
                     choices = self.sink_frontier
                 elif location == "counter_tile":
-                    # NEW: Use counter tiles for picking up ingredients
+                    # Use counter tiles for picking up ingredients
                     choices = self.counter_frontier
                 elif location.startswith("counter_tile_"):
-                    # NEW: Use specific counter tile position
+                    # Use specific counter tile position
                     try:
                         # Parse position from location string (e.g., "counter_tile_3_4")
                         parts = location.split("_")
@@ -1015,7 +1009,7 @@ class CoordinatedActionPredictorAgent(Agent):
                 }
                 choices = frontier_map.get(item)
             elif destination == "counter_tile":
-                # NEW: Use counter tiles for dropping wrong objects
+                # Use counter tiles for dropping wrong objects
                 choices = self.counter_frontier
             else:
                 frontier_map = {
@@ -1059,8 +1053,6 @@ class CoordinatedActionPredictorAgent(Agent):
         
         # Get current state summary
         self.last_summary = self.summarize_state(state, getattr(self, 'last_info', {}))
-        
-
         
         # Get available primary actions from our complete state graph with washing
         try:

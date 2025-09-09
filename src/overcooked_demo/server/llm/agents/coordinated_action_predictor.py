@@ -439,6 +439,66 @@ class CoordinatedActionPredictorAgent(Agent):
         
         return None
 
+    def _is_dish_on_counter_from_state(self, state) -> bool:
+        """
+        Check if a dish is available on a counter tile using the full state.
+        Excludes important counter tiles (staging, chopping, washing, stove stations).
+        
+        Args:
+            state: Full game state object
+            
+        Returns:
+            True if dish is on a safe counter tile, False otherwise
+        """
+        # Get all safe counter tiles (excluding important stations)
+        safe_counter_tiles = self.counter_tiles
+        
+        # Parse the state to get object positions
+        sd = state.to_dict()
+        tile_contents = {}
+        
+        for obj in sd["objects"]:
+            p = tuple(obj["position"])
+            name = obj.get("ingredient") or obj.get("name")
+            tile_contents.setdefault(p, []).append(name)
+        
+        # Check if any safe counter tile has a dish
+        for counter_pos in safe_counter_tiles:
+            if "dish" in tile_contents.get(counter_pos, []):
+                return True
+        
+        return False
+
+    def _find_dish_on_counter_from_state(self, state) -> Optional[tuple]:
+        """
+        Find the specific counter tile position where a dish is located.
+        Excludes important counter tiles (staging, chopping, washing, stove stations).
+        
+        Args:
+            state: Full game state object
+            
+        Returns:
+            (col, row) of counter tile with dish, or None if not found
+        """
+        # Get all safe counter tiles (excluding important stations)
+        safe_counter_tiles = self.counter_tiles
+        
+        # Parse the state to get object positions
+        sd = state.to_dict()
+        tile_contents = {}
+        
+        for obj in sd["objects"]:
+            p = tuple(obj["position"])
+            name = obj.get("ingredient") or obj.get("name")
+            tile_contents.setdefault(p, []).append(name)
+        
+        # Find the specific counter tile with the dish
+        for counter_pos in safe_counter_tiles:
+            if "dish" in tile_contents.get(counter_pos, []):
+                return counter_pos
+        
+        return None
+
     def _compute_frontier(self, tiles, terrain):
         """Return the set of walkable tiles adjacent to any tile in 'tiles'."""
         H, W = len(terrain), len(terrain[0])
@@ -850,12 +910,23 @@ class CoordinatedActionPredictorAgent(Agent):
                     location = "dispenser"
                 return "pickup", (item, location)
             
-            # Other items have fixed/unambiguous locations
-            elif item in ["dish", "soup"]:
+            # State-aware location detection for dish
+            elif item == "dish" and game_state:
+                if state and self._is_dish_on_counter_from_state(state):
+                    # Find the specific counter tile with the dish
+                    counter_pos = self._find_dish_on_counter_from_state(state)
+                    if counter_pos:
+                        location = f"counter_tile_{counter_pos[0]}_{counter_pos[1]}"  # Specific position
+                    else:
+                        location = "counter_tile"  # Fallback to generic
+                    return "pickup", (item, location)
+                else:
+                    return "pickup", item  # Default to dispenser
+            elif item == "soup":
                 return "pickup", item
                 
-            # Fallback for onion/tomato without game state
-            elif item in ["onion", "tomato"]:
+            # Fallback for onion/tomato/dish without game state
+            elif item in ["onion", "tomato", "dish"]:
                 return "pickup", item
 
         # Parse place actions with destination

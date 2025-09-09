@@ -90,17 +90,32 @@ cd src/overcooked_demo
 pip install -r server/requirements.txt
 ```
 
-### 2. Start the System
+### 2. Configuration
 
+The system uses several configuration files:
+
+#### **Game Configuration** (`server/config.json`)
+- **Layouts**: Available game layouts (cramped_room, counter_circuit, etc.)
+- **Game Parameters**: Max games, game length, scoring values
+- **Agent Settings**: Agent directory and configuration
+
+#### **Docker Configuration** (`docker-compose.yml`)
+- **Ollama Service**: Local LLM models for task classification
+- **App Service**: Main Overcooked game server
+- **Networking**: Internal communication between services
+
+### 3. Start the System
+
+#### **Option A: Docker Compose (Recommended)**
 ```bash
-# Start the web server and Ollama models
+# Start all services (Ollama + Overcooked server)
 cd src/overcooked_demo
 ./up.sh  # Development mode
 # or
 ./up.sh production  # Production mode
 ```
 
-### 3. Play with the LLM Agent
+### 4. Play with the LLM Agent
 
 1. Open your browser to [http://localhost](http://localhost)
 2. **Define Your Task**: Enter a task like "Serving Washed and Chopped Onion and Tomato Soup"
@@ -172,24 +187,30 @@ To stop the server:
 
 ```
 src/overcooked_demo/
+├── .env                                # Environment variables (OPENAI_API_KEY)
+├── docker-compose.yml                  # Docker orchestration
+├── up.sh / down.sh                     # Deployment scripts
 ├── server/
+│   ├── Dockerfile                      # Game server container
+│   ├── requirements.txt                # Python dependencies
 │   ├── app.py                          # Flask web server & API
 │   ├── game.py                         # Core game engine
 │   ├── config.json                     # Game configuration
-│   ├── llm/
-│   │   ├── agents/
-│   │   │   ├── coordinated_action_predictor.py  # Main LLM agent
-│   │   │   ├── subtask_creator.py              # Task decomposition
-│   │   │   └── subtask_to_event_sequence.py    # Task classification
-│   │   ├── plan_adaptation/
-│   │   │   ├── action_tracker.py               # Plan learning
-│   │   │   └── plan_repository.py             # Plan storage
-│   │   └── ollama/
-│   │       └── ollama_client.py               # LLM communication
+│   ├── plan_session.py                 # Session management
 │   ├── complete_state_graph.py         # State space navigation
 │   ├── secondary_action_selector.py    # Robot action selection
-│   └── plan_session.py                 # Session management
+│   └── llm/
+│       ├── agents/
+│       │   ├── coordinated_action_predictor.py  # Main LLM agent
+│       │   ├── subtask_creator.py              # Task decomposition
+│       │   └── subtask_to_event_sequence.py    # Task classification
+│       ├── plan_adaptation/
+│       │   ├── action_tracker.py               # Plan learning
+│       │   └── plan_repository.py             # Plan storage
+│       └── ollama/
+│           └── ollama_client.py               # LLM communication
 ├── ollama_models/                      # LLM model configurations
+│   ├── Dockerfile                      # Ollama container
 │   ├── subtask_creator/Modelfile
 │   └── task_tagger/Modelfile
 └── static/

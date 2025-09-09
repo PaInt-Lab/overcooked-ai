@@ -1,6 +1,9 @@
 """
 Factory for selecting the appropriate game mechanics based on recipe type.
 Integrates with the existing model selection system.
+
+NOT USED ANYMORE BUT KEPT IN CASE WE WANT TO REUSE IT LATER
+
 """
 
 from typing import Optional

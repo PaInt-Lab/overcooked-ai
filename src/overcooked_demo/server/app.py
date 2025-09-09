@@ -27,7 +27,7 @@ from game import Game, OvercookedGame, OvercookedTutorial
 from utils import ThreadSafeDict, ThreadSafeSet
 
 from llm.orchestrator.router import route_generate_subtasks
-from llm.agents.subtask_to_event_sequence import classify_subtasks, group_events, normalize_events
+from llm.agents.subtask_to_event_sequence import classify_subtasks, group_events
 
 ### Thoughts -- where I'll log potential issues/ideas as they come up
 # Should make game driver code more error robust -- if overcooked randomlly errors we should catch it and report it to user

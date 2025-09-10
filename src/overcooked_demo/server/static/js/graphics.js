@@ -186,7 +186,7 @@ class OvercookedScene extends Phaser.Scene {
         
         // Apply solid colors for special tiles instead of tinting
         if (ttype === 'G') {
-          // Staging station - Solid golden yellow rectangle
+          // Onion/Dish staging station - Solid golden yellow rectangle
           this.add.rectangle(
             this.tileSize * x + this.tileSize/2,
             this.tileSize * y + this.tileSize/2,
@@ -197,8 +197,8 @@ class OvercookedScene extends Phaser.Scene {
           this.add.text(
             this.tileSize * x + this.tileSize/2,
             this.tileSize * y + this.tileSize/2,
-            "STAGING",
-            { fontSize: '14px', fill: '#000000', fontWeight: 'bold', align: 'center' }
+            "ONION/DISH\nSTAGING",
+            { fontSize: '12px', fill: '#000000', fontWeight: 'bold', align: 'center' }
           ).setOrigin(0.5);
         } else if (ttype === 'C') {
           // Chopping station - Solid orange rectangle
@@ -231,18 +231,18 @@ class OvercookedScene extends Phaser.Scene {
             { fontSize: '14px', fill: '#000000', fontWeight: 'bold', align: 'center' }
           ).setOrigin(0.5);
         } else if (ttype === 'R') {
-          // Tomato staging station - Solid golden yellow rectangle (same as G)
+          // Tomato staging station - Solid medium red rectangle
           this.add.rectangle(
             this.tileSize * x + this.tileSize/2,
             this.tileSize * y + this.tileSize/2,
             this.tileSize,
             this.tileSize,
-            0xFFD700  // Golden yellow color (same as G)
+            0xFF8A8A  // Medium red color
           );
           this.add.text(
             this.tileSize * x + this.tileSize/2,
             this.tileSize * y + this.tileSize/2,
-            "STAGING",
+            "TOMATO\nSTAGING",
             { fontSize: '14px', fill: '#000000', fontWeight: 'bold', align: 'center' }
           ).setOrigin(0.5);
         }

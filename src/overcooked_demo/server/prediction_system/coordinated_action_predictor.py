@@ -7,10 +7,10 @@ from overcooked_ai_py.planning.planners import MotionPlanner
 from overcooked_ai_py.mdp.actions import Action, Direction
 import os
 from openai import OpenAI
-from plan_session import PLAN_STORE
-from secondary_action_selector import select_secondary_action
-from complete_state_graph import CompleteStateGraphGenerator, CompleteRecipeState  # Complete state graph with washing
-from ..plan_adaptation import ActionTracker, PlanRepository  # Plan adaptation system
+from plan_creation import PLAN_STORE
+from action_coordination import select_secondary_action
+from .complete_state_graph import CompleteStateGraphGenerator, CompleteRecipeState
+from plan_adaptation import ActionTracker, PlanRepository  # Plan adaptation system
 
 # Use a simple vanilla model instead of fine-tuned ones
 DEFAULT_MODEL = "gpt-4o-mini"

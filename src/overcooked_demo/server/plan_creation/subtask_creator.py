@@ -1,5 +1,5 @@
 from typing import List, Optional
-from llm.ollama.ollama_client import query_ollama
+from ollama_infrastructure import query_ollama
 
 class SubtaskAgent():
     """

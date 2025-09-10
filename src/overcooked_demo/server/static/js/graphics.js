@@ -186,19 +186,19 @@ class OvercookedScene extends Phaser.Scene {
         
         // Apply solid colors for special tiles instead of tinting
         if (ttype === 'G') {
-          // Staging station - Solid yellow rectangle
+          // Onion/Dish staging station - Solid golden yellow rectangle
           this.add.rectangle(
             this.tileSize * x + this.tileSize/2,
             this.tileSize * y + this.tileSize/2,
             this.tileSize,
             this.tileSize,
-            0xFFD700  // Gold/yellow color
+            0xFFD700  // Golden yellow color
           );
           this.add.text(
             this.tileSize * x + this.tileSize/2,
             this.tileSize * y + this.tileSize/2,
-            "DISH /\nONION\nSTAGE",
-            { fontSize: '14px', fill: '#000000', fontWeight: 'bold', align: 'center' }
+            "ONION/DISH\nSTAGING",
+            { fontSize: '12px', fill: '#000000', fontWeight: 'bold', align: 'center' }
           ).setOrigin(0.5);
         } else if (ttype === 'C') {
           // Chopping station - Solid orange rectangle
@@ -231,18 +231,18 @@ class OvercookedScene extends Phaser.Scene {
             { fontSize: '14px', fill: '#000000', fontWeight: 'bold', align: 'center' }
           ).setOrigin(0.5);
         } else if (ttype === 'R') {
-          // Red tomato staging station - Solid pale red rectangle
+          // Tomato staging station - Solid medium red rectangle
           this.add.rectangle(
             this.tileSize * x + this.tileSize/2,
             this.tileSize * y + this.tileSize/2,
             this.tileSize,
             this.tileSize,
-            0xFF6B6B  // Medium red color
+            0xFF8A8A  // Medium red color
           );
           this.add.text(
             this.tileSize * x + this.tileSize/2,
             this.tileSize * y + this.tileSize/2,
-            "TOMATO\nSTAGE",
+            "TOMATO\nSTAGING",
             { fontSize: '14px', fill: '#000000', fontWeight: 'bold', align: 'center' }
           ).setOrigin(0.5);
         }

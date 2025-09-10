@@ -2,7 +2,7 @@ import os
 import sys
 from uuid import uuid4
 
-from plan_session import PLAN_STORE, PlanSession
+from plan_creation import PLAN_STORE, PlanSession
 
 # Import and patch the production eventlet server if necessary
 if os.getenv("FLASK_ENV", "production") == "production":
@@ -26,8 +26,7 @@ from flask_socketio import SocketIO, emit, join_room, leave_room
 from game import Game, OvercookedGame, OvercookedTutorial
 from utils import ThreadSafeDict, ThreadSafeSet
 
-from llm.orchestrator.router import route_generate_subtasks
-from llm.agents.subtask_to_event_sequence import classify_subtasks, group_events
+from plan_creation import classify_subtasks, group_events, route_generate_subtasks
 
 ### Thoughts -- where I'll log potential issues/ideas as they come up
 # Should make game driver code more error robust -- if overcooked randomlly errors we should catch it and report it to user

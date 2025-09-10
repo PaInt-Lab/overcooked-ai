@@ -1,6 +1,6 @@
 import json
 from typing import List, Dict, Optional
-from llm.ollama.ollama_client import query_ollama
+from ollama_infrastructure import query_ollama
 import copy
 
 def classify_subtasks(

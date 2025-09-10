@@ -1,7 +1,7 @@
 import re
 from typing import List
 
-from llm.agents.subtask_creator import SubtaskAgent
+from .subtask_creator import SubtaskAgent
 
 def _parse_numbered_list(raw_text: str) -> List[str]:
     """

@@ -128,6 +128,10 @@ class CoordinatedActionPredictorAgent(Agent):
         self.tomato_chopped = False
         self.onion_washed = False
         self.tomato_washed = False
+        self.onion_salted = False
+        self.onion_peppered = False
+        self.tomato_salted = False
+        self.tomato_peppered = False
         
         # Complete state graph with washing capabilities
         self.complete_state_graph_generator = None
@@ -668,6 +672,10 @@ class CoordinatedActionPredictorAgent(Agent):
             self.tomato_chopped = False
             self.onion_washed = False
             self.tomato_washed = False
+            self.onion_salted = False
+            self.onion_peppered = False
+            self.tomato_salted = False
+            self.tomato_peppered = False
 
         # Check sink-related states
         onion_at_sink = any(
@@ -688,6 +696,44 @@ class CoordinatedActionPredictorAgent(Agent):
         if tomato_at_sink:
             self.tomato_washed = True
 
+        # Check salt station-related states
+        onion_at_salt_station = any(
+            "onion" in tile_contents.get(pos, [])
+            for pos in self.salt_stations
+        )
+        
+        tomato_at_salt_station = any(
+            "tomato" in tile_contents.get(pos, [])
+            for pos in self.salt_stations
+        )
+        
+        # Track salting completion state
+        # When an ingredient is at the salt station, it means it's being salted or has been salted
+        if onion_at_salt_station:
+            self.onion_salted = True
+            
+        if tomato_at_salt_station:
+            self.tomato_salted = True
+
+        # Check pepper station-related states
+        onion_at_pepper_station = any(
+            "onion" in tile_contents.get(pos, [])
+            for pos in self.pepper_stations
+        )
+        
+        tomato_at_pepper_station = any(
+            "tomato" in tile_contents.get(pos, [])
+            for pos in self.pepper_stations
+        )
+        
+        # Track peppering completion state
+        # When an ingredient is at the pepper station, it means it's being peppered or has been peppered
+        if onion_at_pepper_station:
+            self.onion_peppered = True
+            
+        if tomato_at_pepper_station:
+            self.tomato_peppered = True
+
         return {
             "onion_hand": onion_hand,
             "onion_staged": onion_staged,
@@ -695,12 +741,20 @@ class CoordinatedActionPredictorAgent(Agent):
             "onion_chopped": self.onion_chopped,
             "onion_at_sink": onion_at_sink,
             "onion_washed": self.onion_washed,
+            "onion_at_salt_station": onion_at_salt_station,
+            "onion_salted": self.onion_salted,
+            "onion_at_pepper_station": onion_at_pepper_station,
+            "onion_peppered": self.onion_peppered,
             "tomato_hand": tomato_hand,
             "tomato_staged": tomato_staged,
             "tomato_at_chopping": tomato_at_chopping,
             "tomato_chopped": self.tomato_chopped,
             "tomato_at_sink": tomato_at_sink,
             "tomato_washed": self.tomato_washed,
+            "tomato_at_salt_station": tomato_at_salt_station,
+            "tomato_salted": self.tomato_salted,
+            "tomato_at_pepper_station": tomato_at_pepper_station,
+            "tomato_peppered": self.tomato_peppered,
             "onion_in_pot": onion_in_pot,
             "tomato_in_pot": tomato_in_pot,
             "soup_cooking": soup_cooking,

@@ -1206,14 +1206,25 @@ class CoordinatedActionPredictorAgent(Agent):
         else:
             plan_text = "No primary tasks available"
 
-        # Determine which plan to use: original plan first, then most recent successful plan
+        # Determine which plan to use: original plan first, then all successful plans with priority
         plan_to_use = ""
         if not self.plan_repository.is_empty():
-            # Use most recent successful plan after first soup is served
-            recent_plan = self.plan_repository.get_most_recent_plan()
-            if recent_plan:
-                actions_str = " → ".join(recent_plan['actions'])
-                plan_to_use = f"MOST RECENT SUCCESSFUL PLAN (follow in order):\n{actions_str}"
+            # Use all successful plans with priority indicators (most recent first)
+            all_plans = self.plan_repository.get_plans_sorted_by_recency()
+            plan_lines = []
+            
+            for i, plan in enumerate(all_plans):
+                if i == 0:
+                    # Most recent plan - better represents current human preferences
+                    priority_label = "MOST RECENT PLAN (prioritize this - represents current human preferences)"
+                else:
+                    # Older plans - use as backup reference
+                    priority_label = f"OLDER PLAN #{i+1} (use as backup reference)"
+                
+                actions_str = " → ".join(plan['actions'])
+                plan_lines.append(f"{priority_label}:\n{actions_str}")
+            
+            plan_to_use = "\n\n".join(plan_lines)
         else:
             # Use original user plan for first time
             plan_to_use = f"USER PLAN (follow in order):\n{plan_text}"
@@ -1224,18 +1235,20 @@ class CoordinatedActionPredictorAgent(Agent):
         CURRENT STATE:
         {self.last_summary}
 
-        MOST RECENT USER PLAN (follow in order):
+        AVAILABLE PLANS (most recent first):
         {plan_to_use}
 
         AVAILABLE ACTIONS:
         {available_primary_actions}
 
         **CRITICAL: Follow the plan sequence step-by-step!**
-        - The plan is designed to be followed in order
+        - When multiple plans are available, PRIORITIZE the most recent plan as it better represents current human preferences
+        - Older plans can be used as backup guidance if the most recent plan doesn't fit the current state
+        - The plans are designed to be followed in order
         - Don't skip ahead to later steps
-        - Only choose actions that are both AVAILABLE and the NEXT LOGICAL STEP in the user's plan
+        - Only choose actions that are both AVAILABLE and the NEXT LOGICAL STEP in the plan
 
-        Select the action that best aligns with the user's plan and current state.
+        Select the action that best aligns with the most recent plan and current state.
 
         Return only this line:
         Primary: <action_name>
@@ -1247,7 +1260,13 @@ class CoordinatedActionPredictorAgent(Agent):
         
         # Show plan adaptation info
         if not self.plan_repository.is_empty():
-            print(f"PLAN ADAPTATION: Using most recent successful plan (total plans: {self.plan_repository.get_plan_count()})")
+            total_plans = self.plan_repository.get_plan_count()
+            print(f"PLAN ADAPTATION: Using {total_plans} successful plans (most recent prioritized)")
+            # Show a summary of all plans sorted by recency
+            all_plans = self.plan_repository.get_plans_sorted_by_recency()
+            for i, plan in enumerate(all_plans):
+                priority = "MOST RECENT" if i == 0 else f"OLDER #{i+1}"
+                print(f"  {priority}: {' → '.join(plan['actions'][:3])}{'...' if len(plan['actions']) > 3 else ''}")
         else:
             print("PLAN ADAPTATION: Using original user plan (no successful plans yet)")
         # Call LLM to get predictions

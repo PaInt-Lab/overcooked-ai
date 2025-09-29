@@ -85,6 +85,19 @@ class PlanRepository:
         """
         return self.successful_plans[-1] if self.successful_plans else None
     
+    def get_plans_sorted_by_recency(self) -> List[Dict]:
+        """
+        Get all successful plans sorted by recency (most recent first).
+        
+        Returns:
+            List of all successful plans sorted by completion time (most recent first)
+        """
+        if not self.successful_plans:
+            return []
+        
+        # Sort by completed_at timestamp in descending order (most recent first)
+        return sorted(self.successful_plans, key=lambda x: x.get('completed_at', 0), reverse=True)
+    
     def get_plan_count(self) -> int:
         """Get the total number of successful plans stored."""
         return len(self.successful_plans)

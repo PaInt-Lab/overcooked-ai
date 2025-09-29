@@ -966,6 +966,10 @@ class CoordinatedActionPredictorAgent(Agent):
                     location = "chopping_station"
                 elif game_state.get('onion_at_sink', False):
                     location = "sink"
+                elif game_state.get('onion_at_salt_station', False):
+                    location = "salt_station"
+                elif game_state.get('onion_at_pepper_station', False):
+                    location = "pepper_station"
                 elif state and self._is_ingredient_on_counter_from_state(state, "onion"):
                     # Find the specific counter tile with the onion
                     counter_pos = self._find_ingredient_on_counter_from_state(state, "onion")
@@ -982,6 +986,10 @@ class CoordinatedActionPredictorAgent(Agent):
                     location = "chopping_station"
                 elif game_state.get('tomato_at_sink', False):
                     location = "sink"
+                elif game_state.get('tomato_at_salt_station', False):
+                    location = "salt_station"
+                elif game_state.get('tomato_at_pepper_station', False):
+                    location = "pepper_station"
                 elif state and self._is_ingredient_on_counter_from_state(state, "tomato"):
                     # Find the specific counter tile with the tomato
                     counter_pos = self._find_ingredient_on_counter_from_state(state, "tomato")

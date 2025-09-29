@@ -12,13 +12,19 @@ from enum import Enum
 
 class PrimaryAction(Enum):
     """Primary actions from actual plans and complete state graph"""
-    # NEW: Washing actions (from complete state graph)
+    # Washing actions (from complete state graph)
     WASH_ONION = "Wash Onion"
     WASH_TOMATO = "Wash Tomato"
     
-    # NEW: Processing actions (from complete state graph)
+    # Processing actions (from complete state graph)
     CHOP_ONION = "Chop Onion"
     CHOP_TOMATO = "Chop Tomato"
+    
+    # Seasoning actions (from complete state graph)
+    SALT_ONION = "Salt Onion"
+    SALT_TOMATO = "Salt Tomato"
+    PEPPER_ONION = "Pepper Onion"
+    PEPPER_TOMATO = "Pepper Tomato"
     
     # Plan-style primary actions (standardized case)
     STAGE_ONION = "Stage Onion"
@@ -52,7 +58,7 @@ class PrimaryAction(Enum):
 
 # Primary Action to Secondary Action Sequences (Based on Real Plans)
 PRIMARY_TO_SECONDARY_SEQUENCES = {
-    # NEW: Washing actions - Robot handles the washing workflow
+    # Washing actions - Robot handles the washing workflow
     PrimaryAction.WASH_ONION: [
         "pickup(onion)",                 # Step 1: Fetch raw onion
         "place(onion, sink)"             # Step 2: Place at sink for washing
@@ -63,7 +69,7 @@ PRIMARY_TO_SECONDARY_SEQUENCES = {
         "place(tomato, sink)"            # Step 2: Place at sink for washing
     ],
     
-    # NEW: Processing actions - Robot handles the chopping workflow
+    # Processing actions - Robot handles the chopping workflow
     PrimaryAction.CHOP_ONION: [
         "pickup(onion)",                 # Step 1: Fetch onion (raw or washed)
         "place(onion, chopping_station)" # Step 2: Place at chopping station
@@ -72,6 +78,27 @@ PRIMARY_TO_SECONDARY_SEQUENCES = {
     PrimaryAction.CHOP_TOMATO: [
         "pickup(tomato)",                # Step 1: Fetch tomato (raw or washed)
         "place(tomato, chopping_station)" # Step 2: Place at chopping station
+    ],
+    
+    # Seasoning actions - Robot handles the seasoning workflow
+    PrimaryAction.SALT_ONION: [
+        "pickup(onion)",                 # Step 1: Fetch onion (raw, washed, or chopped)
+        "place(onion, salt_station)"     # Step 2: Place at salt station
+    ],
+    
+    PrimaryAction.SALT_TOMATO: [
+        "pickup(tomato)",                # Step 1: Fetch tomato (raw, washed, or chopped)
+        "place(tomato, salt_station)"    # Step 2: Place at salt station
+    ],
+    
+    PrimaryAction.PEPPER_ONION: [
+        "pickup(onion)",                 # Step 1: Fetch onion (raw, washed, or chopped)
+        "place(onion, pepper_station)"   # Step 2: Place at pepper station
+    ],
+    
+    PrimaryAction.PEPPER_TOMATO: [
+        "pickup(tomato)",                # Step 1: Fetch tomato (raw, washed, or chopped)
+        "place(tomato, pepper_station)"  # Step 2: Place at pepper station
     ],
     
     # Plan-style primary actions with sequential workflows
@@ -134,6 +161,8 @@ PRIMARY_TO_SECONDARY_SEQUENCES = {
         "pickup(onion)", "pickup(tomato)", "pickup(dish)", "pickup(soup)",
         "place(onion)", "place(tomato)", "place(dish)", "place(soup)",
         "place(onion, chopping_station)", "place(tomato, chopping_station)",
+        "place(onion, salt_station)", "place(tomato, salt_station)",
+        "place(onion, pepper_station)", "place(tomato, pepper_station)",
         "place(chopped_onion)", "place(chopped_tomato)"
     ]
 }
@@ -162,7 +191,7 @@ def _smart_select_secondary_action(game_state: Dict, predicted_primary_action: s
     This fixes the issue where robot keeps trying to pickup when it should place.
     Now also considers what's already in the pot to avoid redundant actions.
     """
-    # NEW: Check for object mismatch first (before handling specific actions)
+    # Check for object mismatch first (before handling specific actions)
     object_to_drop = _detect_object_mismatch(game_state, predicted_primary_action)
     if object_to_drop:
         # Check if human already has the required object
@@ -196,7 +225,7 @@ def _smart_select_secondary_action(game_state: Dict, predicted_primary_action: s
         else:
             return "NOOP"
     
-    # NEW: Handle washing actions
+    # Handle washing actions
     if predicted_primary_action == "Wash Onion":
         # If human has the onion, let them wash it themselves
         if game_state.get('onion_hand') == 'partner':
@@ -219,7 +248,7 @@ def _smart_select_secondary_action(game_state: Dict, predicted_primary_action: s
             # Robot needs to pick up tomato first
             return "pickup(tomato)"
     
-    # NEW: Handle chopping actions  
+    # Handle chopping actions  
     if predicted_primary_action == "Chop Onion":
         # If human has the onion, let them chop it themselves
         if game_state.get('onion_hand') == 'partner':
@@ -238,6 +267,51 @@ def _smart_select_secondary_action(game_state: Dict, predicted_primary_action: s
         elif game_state.get('tomato_hand') == 'agent':
             # Robot has tomato, place it at chopping station
             return "place(tomato, chopping_station)"
+        elif game_state.get('tomato_hand') == 'none':
+            # Robot needs to pick up tomato first
+            return "pickup(tomato)"
+    
+    # Handle seasoning actions
+    if predicted_primary_action == "Salt Onion":
+        # If human has the onion, let them salt it themselves
+        if game_state.get('onion_hand') == 'partner':
+            return "NOOP"
+        elif game_state.get('onion_hand') == 'agent':
+            # Robot has onion, place it at salt station
+            return "place(onion, salt_station)"
+        elif game_state.get('onion_hand') == 'none':
+            # Robot needs to pick up onion first
+            return "pickup(onion)"
+    
+    if predicted_primary_action == "Salt Tomato":
+        # If human has the tomato, let them salt it themselves
+        if game_state.get('tomato_hand') == 'partner':
+            return "NOOP"
+        elif game_state.get('tomato_hand') == 'agent':
+            # Robot has tomato, place it at salt station
+            return "place(tomato, salt_station)"
+        elif game_state.get('tomato_hand') == 'none':
+            # Robot needs to pick up tomato first
+            return "pickup(tomato)"
+    
+    if predicted_primary_action == "Pepper Onion":
+        # If human has the onion, let them pepper it themselves
+        if game_state.get('onion_hand') == 'partner':
+            return "NOOP"
+        elif game_state.get('onion_hand') == 'agent':
+            # Robot has onion, place it at pepper station
+            return "place(onion, pepper_station)"
+        elif game_state.get('onion_hand') == 'none':
+            # Robot needs to pick up onion first
+            return "pickup(onion)"
+    
+    if predicted_primary_action == "Pepper Tomato":
+        # If human has the tomato, let them pepper it themselves
+        if game_state.get('tomato_hand') == 'partner':
+            return "NOOP"
+        elif game_state.get('tomato_hand') == 'agent':
+            # Robot has tomato, place it at pepper station
+            return "place(tomato, pepper_station)"
         elif game_state.get('tomato_hand') == 'none':
             # Robot needs to pick up tomato first
             return "pickup(tomato)"

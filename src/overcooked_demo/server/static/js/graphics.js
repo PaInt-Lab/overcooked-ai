@@ -245,6 +245,36 @@ class OvercookedScene extends Phaser.Scene {
             "TOMATO\nSTAGING",
             { fontSize: '14px', fill: '#000000', fontWeight: 'bold', align: 'center' }
           ).setOrigin(0.5);
+        } else if (ttype === 'L') {
+          // Salt station - Solid light yellow rectangle
+          this.add.rectangle(
+            this.tileSize * x + this.tileSize/2,
+            this.tileSize * y + this.tileSize/2,
+            this.tileSize,
+            this.tileSize,
+            0xFFF8DC  // Light yellow color
+          );
+          this.add.text(
+            this.tileSize * x + this.tileSize/2,
+            this.tileSize * y + this.tileSize/2,
+            "SALT",
+            { fontSize: '14px', fill: '#000000', fontWeight: 'bold', align: 'center' }
+          ).setOrigin(0.5);
+        } else if (ttype === 'Q') {
+          // Pepper station - Solid light yellow rectangle  
+          this.add.rectangle(
+            this.tileSize * x + this.tileSize/2,
+            this.tileSize * y + this.tileSize/2,
+            this.tileSize,
+            this.tileSize,
+            0xFFF8DC  // Light yellow color (same as salt station)
+          );
+          this.add.text(
+            this.tileSize * x + this.tileSize/2,
+            this.tileSize * y + this.tileSize/2,
+            "PEPPER",
+            { fontSize: '14px', fill: '#000000', fontWeight: 'bold', align: 'center' }
+          ).setOrigin(0.5);
         }
       }
     }

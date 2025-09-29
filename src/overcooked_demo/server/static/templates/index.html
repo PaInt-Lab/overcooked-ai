@@ -151,7 +151,7 @@
             id="taskTitle"
             class="form-control"
             placeholder="e.g. Serving Onion Soup"
-            value="Serving Washed and Chopped Onion and Washed and Chopped Tomato Soup"
+            value="Serving Washed, Chopped, Salted, and Peppered Onion and Washed, Chopped, Salted, and Peppered Tomato Soup"
           />
         </div>
         <!-- Predefine Subtasks -->
@@ -199,7 +199,10 @@
                  Chopped Onion and Chopped Tomato Soup (Testing)
                </button>
                <button id="testWashingBtn" class="btn btn-light-teal btn-block mt-2" style="white-space: normal; height: auto; padding: 8px 12px; line-height: 1.2;">
-                 Both Ingredients Washed and Chopped (Only One That Has State Graph Built)
+                 Both Ingredients Washed and Chopped (Testing)
+               </button>
+               <button id="testSeasonedBtn" class="btn btn-light-green btn-block mt-2" style="white-space: normal; height: auto; padding: 8px 12px; line-height: 1.2;">
+                 Washed, Chopped, Salted, and Peppered Soup (Testing)
                </button>
              </div>
           </div>
@@ -1208,6 +1211,64 @@
 
             // Create cards for each washing subtask
             washingSubtasks.forEach((subtask) => {
+              createSubtaskCard(subtask);
+            });
+          });
+
+        // Washed, Chopped, Salted, and Peppered Soup test functionality
+        document
+          .getElementById("testSeasonedBtn")
+          .addEventListener("click", function (e) {
+            e.preventDefault();
+            
+            // Clear existing subtasks
+            const container = document.getElementById("subtaskContainer");
+            const empty = document.getElementById("emptyMessage");
+            if (empty) {
+              empty.style.display = "none";
+            }
+            container.innerHTML = "";
+
+            // Washed, Chopped, Salted, and Peppered Soup subtasks
+            const seasonedSubtasks = [
+              "Robot Fetch onion",
+              "Wash Onion",
+              "Robot Fetch onion",
+              "Chop Onion",
+              "Robot Fetch onion",
+              "Salt Onion",
+              "Robot Fetch onion",
+              "Pepper Onion",
+              "Robot Fetch onion",
+              "Stage Onion",
+              "Human Grab Onion",
+              "Robot Fetch tomato",
+              "Robot Fetch tomato",
+              "Wash Tomato",
+              "Robot Fetch tomato",
+              "Chop Tomato",
+              "Robot Fetch tomato",
+              "Salt Tomato",
+              "Robot Fetch tomato",
+              "Pepper Tomato",
+              "Robot Fetch tomato",
+              "Stage Tomato",
+              "Human Grab Tomato",
+              "Place tomato in pot",
+              "Turn stove on",
+              "Wait for ingredients to cook",
+              "Robot Fetch dish",
+              "Stage dish",
+              "Human Grab dish",
+              "Pour soup",
+              "Human Stage Soup",
+              "Wait For Robot To Serve Soup",
+              "Robot fetch soup",
+              "Robot place soup on serving station"
+            ];
+
+            // Create cards for each seasoned subtask
+            seasonedSubtasks.forEach((subtask) => {
               createSubtaskCard(subtask);
             });
           });

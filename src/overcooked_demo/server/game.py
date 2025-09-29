@@ -852,6 +852,30 @@ class OvercookedGame(Game):
                 if 0 <= y < H and 0 <= x < W:
                     graphics_terrain[y][x] = 'W'
             
+            # Add salt stations if using LLM agent with salt support
+            salt_positions = []
+            for npc_policy in self.npc_policies.values():
+                if hasattr(npc_policy, 'salt_stations') and npc_policy.salt_stations:
+                    salt_positions.extend(npc_policy.salt_stations)
+                    break  # Only need one agent's salt positions
+            
+            # Mark salt tiles as 'L' in the COPY
+            for (x, y) in salt_positions:
+                if 0 <= y < H and 0 <= x < W:
+                    graphics_terrain[y][x] = 'L'
+            
+            # Add pepper stations if using LLM agent with pepper support
+            pepper_positions = []
+            for npc_policy in self.npc_policies.values():
+                if hasattr(npc_policy, 'pepper_stations') and npc_policy.pepper_stations:
+                    pepper_positions.extend(npc_policy.pepper_stations)
+                    break  # Only need one agent's pepper positions
+            
+            # Mark pepper tiles as 'Q' in the COPY
+            for (x, y) in pepper_positions:
+                if 0 <= y < H and 0 <= x < W:
+                    graphics_terrain[y][x] = 'Q'
+            
             # Add red tomato staging tile for counter_circuit layout at position (2,2)
             layout_name = getattr(self.mdp, 'layout_name', 'unknown')
             if layout_name == 'counter_circuit':

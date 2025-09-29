@@ -117,6 +117,8 @@ class CoordinatedActionPredictorAgent(Agent):
         self.delivery_tiles = []
         self.onion_chopping_stations = []
         self.tomato_chopping_stations = []
+        self.salt_stations = []
+        self.pepper_stations = []
 
 
         self.last_summary = None
@@ -317,6 +319,24 @@ class CoordinatedActionPredictorAgent(Agent):
             # For cramped_room_tomato: sink at (2,3)
             self.sink_stations.append((2, 3))
         
+        # Create salt stations
+        self.salt_stations = []
+        
+        if layout_name == 'counter_circuit':
+            # For counter_circuit: salt at (1,1)
+            self.salt_stations.append((5, 2))
+        # elif layout_name == 'cramped_room_tomato':
+        # This map is already super cramped to begin with
+        
+        # Create pepper stations
+        self.pepper_stations = []
+        
+        if layout_name == 'counter_circuit':
+            # For counter_circuit: pepper at (1,2)
+            self.pepper_stations.append((6, 2))
+        # elif layout_name == 'cramped_room_tomato':
+        # This map is already super cramped to begin with
+        
         # Compute frontiers
         self.ingredient_frontier = self._compute_frontier(self.ingredient_spawns, terrain)
         self.onion_frontier = self._compute_frontier(self.onion_spawns, terrain)
@@ -331,6 +351,8 @@ class CoordinatedActionPredictorAgent(Agent):
         self.onion_chopping_frontier = self._compute_frontier(self.onion_chopping_stations, terrain)
         self.tomato_chopping_frontier = self._compute_frontier(self.tomato_chopping_stations, terrain)
         self.sink_frontier = self._compute_frontier(self.sink_stations, terrain)
+        self.salt_frontier = self._compute_frontier(self.salt_stations, terrain)
+        self.pepper_frontier = self._compute_frontier(self.pepper_stations, terrain)
         
         # Compute counter tile frontier for dropping wrong objects
         self.counter_tiles = self._find_counter_tiles(terrain)
@@ -362,6 +384,8 @@ class CoordinatedActionPredictorAgent(Agent):
         important_tiles.update(self.onion_chopping_stations)
         important_tiles.update(self.tomato_chopping_stations)
         important_tiles.update(self.sink_stations)
+        important_tiles.update(self.salt_stations)
+        important_tiles.update(self.pepper_stations)
         
         for row in range(H):
             for col in range(W):
@@ -711,6 +735,10 @@ class CoordinatedActionPredictorAgent(Agent):
         # Add all sink stations
         important_tiles.update(self.sink_stations)
         
+        # Add all seasoning stations
+        important_tiles.update(self.salt_stations)
+        important_tiles.update(self.pepper_stations)
+        
         # Add all frontier tiles (adjacent to important locations)
         important_tiles.update([pos for pos, _ in self.ingredient_frontier])
         important_tiles.update([pos for pos, _ in self.onion_frontier])
@@ -724,6 +752,9 @@ class CoordinatedActionPredictorAgent(Agent):
         important_tiles.update([pos for pos, _ in self.soup_staging_frontier])
         important_tiles.update([pos for pos, _ in self.onion_chopping_frontier])
         important_tiles.update([pos for pos, _ in self.tomato_chopping_frontier])
+        important_tiles.update([pos for pos, _ in self.sink_frontier])
+        important_tiles.update([pos for pos, _ in self.salt_frontier])
+        important_tiles.update([pos for pos, _ in self.pepper_frontier])
         
         # Check if current position is blocking an important tile
         is_blocking = my_pos in important_tiles
@@ -750,6 +781,8 @@ class CoordinatedActionPredictorAgent(Agent):
         important_tiles.update(self.onion_chopping_stations)
         important_tiles.update(self.tomato_chopping_stations)
         important_tiles.update(self.sink_stations)
+        important_tiles.update(self.salt_stations)
+        important_tiles.update(self.pepper_stations)
         important_tiles.update([pos for pos, _ in self.ingredient_frontier])
         important_tiles.update([pos for pos, _ in self.onion_frontier])
         important_tiles.update([pos for pos, _ in self.tomato_frontier])
@@ -763,6 +796,8 @@ class CoordinatedActionPredictorAgent(Agent):
         important_tiles.update([pos for pos, _ in self.onion_chopping_frontier])
         important_tiles.update([pos for pos, _ in self.tomato_chopping_frontier])
         important_tiles.update([pos for pos, _ in self.sink_frontier])
+        important_tiles.update([pos for pos, _ in self.salt_frontier])
+        important_tiles.update([pos for pos, _ in self.pepper_frontier])
         
         # Get other player position to avoid blocking them
         other_player_pos = state.player_positions[1 - self.agent_index]
@@ -928,7 +963,7 @@ class CoordinatedActionPredictorAgent(Agent):
         if place_match:
             item = place_match.group(1).strip()
             destination = place_match.group(2).strip()
-            if item in ["onion", "tomato", "dish"] and destination in ["chopping_station", "staging_station", "sink", "counter_tile"]:
+            if item in ["onion", "tomato", "dish"] and destination in ["chopping_station", "staging_station", "sink", "salt_station", "pepper_station", "counter_tile"]:
                 return "place", (item, destination)
 
         # Parse place actions without destination (for items with fixed destinations)
@@ -1006,6 +1041,18 @@ class CoordinatedActionPredictorAgent(Agent):
                 frontier_map = {
                     "onion": self.sink_frontier,
                     "tomato": self.sink_frontier,
+                }
+                choices = frontier_map.get(item)
+            elif destination == "salt_station":
+                frontier_map = {
+                    "onion": self.salt_frontier,
+                    "tomato": self.salt_frontier,
+                }
+                choices = frontier_map.get(item)
+            elif destination == "pepper_station":
+                frontier_map = {
+                    "onion": self.pepper_frontier,
+                    "tomato": self.pepper_frontier,
                 }
                 choices = frontier_map.get(item)
             elif destination == "counter_tile":
@@ -1104,42 +1151,6 @@ class CoordinatedActionPredictorAgent(Agent):
         else:
             # Use original user plan for first time
             plan_to_use = f"USER PLAN (follow in order):\n{plan_text}"
-        
-        # OLD: Include historical successful plans in the prompt (commented out for testing)
-        # historical_plans_text = ""
-        # if not self.plan_repository.is_empty():
-        #     historical_plans_text = "\nPREVIOUS SUCCESSFUL PLANS:\n"
-        #     all_plans = self.plan_repository.get_all_plans()
-        #     for i, plan in enumerate(all_plans):
-        #         actions_str = " → ".join(plan['actions'])
-        #         historical_plans_text += f"Plan {plan['sequence_id']}: {actions_str}\n"
-        #     historical_plans_text += "\nUse these successful plans as reference for effective action sequences.\n"
-        
-        # prompt = f"""
-        # You are helping a human cook soup. Follow the user's plan step-by-step in the correct sequence.
-
-        # CURRENT STATE:
-        # {self.last_summary}
-
-        # USER PLAN (follow in order):
-        # {plan_text}
-
-        # AVAILABLE ACTIONS:
-        # {available_primary_actions}
-
-        # PREVIOUS SUCCESSFUL PLANS:
-        # {historical_plans_text}
-
-        # **CRITICAL: Follow the plan sequence step-by-step!**
-        # - The plan is designed to be followed in order
-        # - Don't skip ahead to later steps
-        # - Only choose actions that are both AVAILABLE and the NEXT LOGICAL STEP in the user's plan
-
-        # Select the action that best aligns with the user's plan and current state.
-
-        # Return only this line:
-        # Primary: <action_name>
-        # """
 
         prompt = f"""
         You are helping a human cook soup. Follow the user's plan step-by-step in the correct sequence.

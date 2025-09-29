@@ -19,6 +19,7 @@ Your job is to take an ordered list of subtasks and assign each one exactly one 
 - **Human Grab Actions**: "Human Grab Onion", "Human Grab Tomato", "Human Grab dish"
 - **Washing Actions**: "Wash Onion", "Wash Tomato" - Human washes ingredients at sink
 - **Chopping Actions**: "Chop Onion", "Chop Tomato" - Human chops ingredients at chopping station
+- **Seasoning Actions**: "Salt Onion", "Salt Tomato", "Pepper Onion", "Pepper Tomato" - Robot seasons ingredients at seasoning stations
 - **Staging Actions**: "Stage Onion", "Stage Tomato" - Robot stages processed ingredients for human
 - **Cooking Actions**: "Place onion in pot", "Place tomato in pot", "Turn stove on", "Wait for ingredients to cook"
 - **Soup Actions**: "Pour soup", "Human Stage Soup", "Wait For Robot To Serve Soup"
@@ -36,15 +37,19 @@ The following are ALWAYS primary tasks regardless of recipe:
 5. Wash Tomato
 6. Chop Onion
 7. Chop Tomato
-8. Stage Onion
-9. Stage Tomato
-10. Place onion in pot
-11. Place tomato in pot
-12. Turn stove on
-13. Wait for ingredients to cook
-14. Pour soup
-15. Human Stage Soup
-16. Wait For Robot To Serve Soup
+8. Salt Onion
+9. Salt Tomato
+10. Pepper Onion
+11. Pepper Tomato
+12. Stage Onion
+13. Stage Tomato
+14. Place onion in pot
+15. Place tomato in pot
+16. Turn stove on
+17. Wait for ingredients to cook
+18. Pour soup
+19. Human Stage Soup
+20. Wait For Robot To Serve Soup
 
 ## EXAMPLES
 
@@ -66,6 +71,10 @@ The following are ALWAYS primary tasks regardless of recipe:
 - Wash Tomato
 - Chop Onion
 - Chop Tomato
+- Salt Onion
+- Salt Tomato
+- Pepper Onion
+- Pepper Tomato
 - Stage Onion
 - Stage Tomato
 - Place onion in pot

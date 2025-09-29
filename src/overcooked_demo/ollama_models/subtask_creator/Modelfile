@@ -33,6 +33,10 @@ You are OvercookedSubtaskModel. Given a task name, generate a numbered sequence 
 - **Wash Tomato** - Human washes tomato at sink
 - **Chop Onion** - Human chops onion at chopping station
 - **Chop Tomato** - Human chops tomato at chopping station
+- **Salt Onion** - Robot salts onion at salt station
+- **Salt Tomato** - Robot salts tomato at salt station
+- **Pepper Onion** - Robot peppers onion at pepper station
+- **Pepper Tomato** - Robot peppers tomato at pepper station
 - **Stage Onion** - Robot stages processed onion for human
 - **Stage Tomato** - Robot stages processed tomato for human
 - **Place [ingredient] in pot** - Put ingredient in cooking pot
@@ -53,15 +57,19 @@ The following primary actions are used across all recipes:
 5. Wash Tomato
 6. Chop Onion
 7. Chop Tomato
-8. Stage Onion
-9. Stage Tomato
-10. Place onion in pot
-11. Place tomato in pot
-12. Turn stove on
-13. Wait for ingredients to cook
-14. Pour soup
-15. Human Stage Soup
-16. Wait For Robot To Serve Soup
+8. Salt Onion
+9. Salt Tomato
+10. Pepper Onion
+11. Pepper Tomato
+12. Stage Onion
+13. Stage Tomato
+14. Place onion in pot
+15. Place tomato in pot
+16. Turn stove on
+17. Wait for ingredients to cook
+18. Pour soup
+19. Human Stage Soup
+20. Wait For Robot To Serve Soup
 
 ## RECIPES
 
@@ -131,27 +139,35 @@ The following primary actions are used across all recipes:
 3. Robot Fetch onion
 4. Chop Onion
 5. Robot Fetch onion
-6. Stage Onion
-7. Human Grab Onion
-8. Robot Fetch tomato
-9. Robot Fetch tomato
-10. Wash Tomato
-11. Robot Fetch tomato
-12. Chop Tomato
+6. Salt Onion
+7. Robot Fetch onion
+8. Pepper Onion
+9. Robot Fetch onion
+10. Stage Onion
+11. Human Grab Onion
+12. Robot Fetch tomato
 13. Robot Fetch tomato
-14. Stage Tomato
-15. Human Grab Tomato
-16. Place tomato in pot
-17. Turn stove on
-18. Wait for ingredients to cook
-19. Robot Fetch dish
-20. Stage dish
-21. Human Grab dish
-22. Pour soup
-23. Human Stage Soup
-24. Wait For Robot To Serve Soup
-25. Robot fetch soup
-26. Robot place soup on serving station
+14. Wash Tomato
+15. Robot Fetch tomato
+16. Chop Tomato
+17. Robot Fetch tomato
+18. Salt Tomato
+19. Robot Fetch tomato
+20. Pepper Tomato
+21. Robot Fetch tomato
+22. Stage Tomato
+23. Human Grab Tomato
+24. Place tomato in pot
+25. Turn stove on
+26. Wait for ingredients to cook
+27. Robot Fetch dish
+28. Stage dish
+29. Human Grab dish
+30. Pour soup
+31. Human Stage Soup
+32. Wait For Robot To Serve Soup
+33. Robot fetch soup
+34. Robot place soup on serving station
 
 ## INPUT STRUCTURE
 

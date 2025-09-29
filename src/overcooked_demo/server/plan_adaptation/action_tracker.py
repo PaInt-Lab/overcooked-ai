@@ -12,10 +12,14 @@ from typing import List, Dict, Optional
 STATE_ACTION_MAP = {
     'onion_chopped': 'Chop Onion',
     'onion_washed': 'Wash Onion',
+    'onion_salted': 'Salt Onion',
+    'onion_peppered': 'Pepper Onion',
     'onion_staged': 'Stage Onion',
     'onion_in_pot': 'Place Onion in Pot',
     'tomato_chopped': 'Chop Tomato',
     'tomato_washed': 'Wash Tomato',
+    'tomato_salted': 'Salt Tomato',
+    'tomato_peppered': 'Pepper Tomato',
     'tomato_staged': 'Stage Tomato',
     'tomato_in_pot': 'Place Tomato in Pot'
 }
@@ -49,10 +53,14 @@ class ActionTracker:
         # State recording flags
         self.onion_chopped_recorded: bool = False
         self.onion_washed_recorded: bool = False
+        self.onion_salted_recorded: bool = False
+        self.onion_peppered_recorded: bool = False
         self.onion_staged_recorded: bool = False
         self.onion_in_pot_recorded: bool = False
         self.tomato_chopped_recorded: bool = False
         self.tomato_washed_recorded: bool = False
+        self.tomato_salted_recorded: bool = False
+        self.tomato_peppered_recorded: bool = False
         self.tomato_staged_recorded: bool = False
         self.tomato_in_pot_recorded: bool = False
         

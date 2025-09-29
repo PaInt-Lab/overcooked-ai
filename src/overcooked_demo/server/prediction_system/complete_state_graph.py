@@ -49,12 +49,20 @@ class CompleteRecipeState:
     onion_at_chopping: bool = False
     onion_chopped: bool = False
     onion_at_sink: bool = False
-    onion_washed: bool = False  
+    onion_washed: bool = False
+    onion_at_salt_station: bool = False
+    onion_salted: bool = False
+    onion_at_pepper_station: bool = False
+    onion_peppered: bool = False
     
     tomato_at_chopping: bool = False
     tomato_chopped: bool = False
     tomato_at_sink: bool = False
-    tomato_washed: bool = False  
+    tomato_washed: bool = False
+    tomato_at_salt_station: bool = False
+    tomato_salted: bool = False
+    tomato_at_pepper_station: bool = False
+    tomato_peppered: bool = False  
     
     # Cooking states (existing)
     onion_in_pot: bool = False
@@ -396,16 +404,20 @@ class CompleteStateGraphGenerator:
     def __init__(self):
         self.graph = CompleteRecipeGraph()
         
-        # All 16 primary actions for the complete recipe
+        # All 20 primary actions for the complete recipe (with seasoning)
         self.primary_actions = [
             "Wash Onion",                  # Robot washes raw onion at sink
             "Chop Onion",                  # Robot chops washed onion at chopping station
+            "Salt Onion",                  # Robot salts onion at salt station
+            "Pepper Onion",                # Robot peppers onion at pepper station
             "Stage Onion",                 # Robot stages processed onion for human
             "Human Grab Onion",            # Human grabs staged onion
             "Place Onion in Pot",          # Human places onion in cooking pot
             
             "Wash Tomato",                 # Robot washes raw tomato at sink
             "Chop Tomato",                 # Robot chops washed tomato at chopping station
+            "Salt Tomato",                 # Robot salts tomato at salt station
+            "Pepper Tomato",               # Robot peppers tomato at pepper station
             "Stage Tomato",                # Robot stages processed tomato for human
             "Human Grab Tomato",           # Human grabs staged tomato
             "Place Tomato in Pot",         # Human places tomato in cooking pot
@@ -532,6 +544,20 @@ class CompleteStateGraphGenerator:
                     not state.onion_in_pot and   # Onion not already used
                     soup_not_in_play)  # No soup in progress
             
+        elif action == "Salt Onion":
+            # Valid if: salt station available, onion not already salted, onion not in pot
+            return (not state.onion_at_salt_station and not state.tomato_at_salt_station and  # Station available
+                    not state.onion_salted and  # Onion not already salted
+                    not state.onion_in_pot and   # Onion not already used
+                    soup_not_in_play)  # No soup in progress
+            
+        elif action == "Pepper Onion":
+            # Valid if: pepper station available, onion not already peppered, onion not in pot
+            return (not state.onion_at_pepper_station and not state.tomato_at_pepper_station and  # Station available
+                    not state.onion_peppered and  # Onion not already peppered
+                    not state.onion_in_pot and   # Onion not already used
+                    soup_not_in_play)  # No soup in progress
+            
         elif action == "Stage Onion":
             # Valid if: agent has onion (raw, washed, or chopped) and onion not already staged
             return (not state.onion_staged and
@@ -563,6 +589,20 @@ class CompleteStateGraphGenerator:
                     not state.tomato_chopped and  # Tomato not already chopped
                     not state.tomato_in_pot and   # Tomato not already used
                     soup_not_in_play)  # Human not holding tomato (human should process what they have)
+            
+        elif action == "Salt Tomato":
+            # Valid if: salt station available, tomato not already salted, tomato not in pot
+            return (not state.onion_at_salt_station and not state.tomato_at_salt_station and  # Station available
+                    not state.tomato_salted and  # Tomato not already salted
+                    not state.tomato_in_pot and   # Tomato not already used
+                    soup_not_in_play)  # No soup in progress
+            
+        elif action == "Pepper Tomato":
+            # Valid if: pepper station available, tomato not already peppered, tomato not in pot
+            return (not state.onion_at_pepper_station and not state.tomato_at_pepper_station and  # Station available
+                    not state.tomato_peppered and  # Tomato not already peppered
+                    not state.tomato_in_pot and   # Tomato not already used
+                    soup_not_in_play)  # No soup in progress
             
         elif action == "Stage Tomato":
             # Valid if: agent has tomato (raw, washed, or chopped) and tomato not already staged

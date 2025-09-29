@@ -1048,6 +1048,10 @@ class CoordinatedActionPredictorAgent(Agent):
                     choices = self.onion_chopping_frontier if item == "onion" else self.tomato_chopping_frontier
                 elif location == "sink":
                     choices = self.sink_frontier
+                elif location == "salt_station":
+                    choices = self.salt_frontier
+                elif location == "pepper_station":
+                    choices = self.pepper_frontier
                 elif location == "counter_tile":
                     # Use counter tiles for picking up ingredients
                     choices = self.counter_frontier

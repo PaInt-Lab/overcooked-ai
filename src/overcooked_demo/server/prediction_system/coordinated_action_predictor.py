@@ -1,4 +1,5 @@
 from collections import deque
+from datetime import datetime
 import re
 from typing import List, Dict, Optional
 from overcooked_ai_py.agents.agent import Agent
@@ -939,9 +940,6 @@ class CoordinatedActionPredictorAgent(Agent):
                 action_plan = _bfs_fallback(start_pos, goal_pos, terrain, goal_ori)
                 return action_plan
 
-
-
-
     def _parse_robot_action(self, robot_action, game_state=None, state=None):
         """
         Parse the robot action to get function name and item with state-aware location detection.
@@ -1037,6 +1035,45 @@ class CoordinatedActionPredictorAgent(Agent):
 
         # final fallback
         return "pickup", "onion"
+
+    def get_temporal_temperature():
+        """Get temperature setting based on time of day."""
+        hour = datetime.now().hour
+        
+        if 6 <= hour < 12:  # Morning - more deterministic
+            return 0.1
+        elif 12 <= hour < 18:  # Afternoon - balanced
+            return 0.3
+        elif 18 <= hour < 24:  # Evening - more creative
+            return 0.5
+        else:  # Late night - very deterministic for quick decisions
+            return 0.0
+
+    def get_temporal_context():
+        """Generate real-time temporal context for LLM prompts."""
+        from datetime import datetime
+        
+        now = datetime.now()
+        hour = now.hour
+        weekday = now.weekday()  # 0=Monday, 6=Sunday
+        
+        # Day context
+        if weekday < 5:  # Weekday
+            day_context = "It's a weekday - humans typically prefer efficient, structured approaches"
+        else:  # Weekend  
+            day_context = "It's the weekend - humans may be more experimental and collaborative"
+        
+        # Time context
+        if 6 <= hour < 12:
+            time_context = "It's morning - humans tend to be more methodical and prefer step-by-step approaches"
+        elif 12 <= hour < 18:
+            time_context = "It's afternoon - humans may be more efficient and prefer faster workflows"
+        elif 18 <= hour < 24:
+            time_context = "It's evening - humans might be more relaxed and collaborative"
+        else:
+            time_context = "It's late night - humans may be more focused on quick completion"
+        
+        return f"{day_context}. {time_context}"
 
     def _move_to(self, action: str, item_info, start_pos: tuple, start_ori: tuple, destination: str = None):
         """Move to the appropriate location for the given action and item."""
@@ -1232,6 +1269,9 @@ class CoordinatedActionPredictorAgent(Agent):
         prompt = f"""
         You are helping a human cook soup. Follow the user's plan step-by-step in the correct sequence.
 
+        TEMPORAL CONTEXT:
+        {self.get_temporal_context()}
+
         CURRENT STATE:
         {self.last_summary}
 
@@ -1270,8 +1310,7 @@ class CoordinatedActionPredictorAgent(Agent):
         else:
             print("PLAN ADAPTATION: Using original user plan (no successful plans yet)")
         # Call LLM to get predictions
-        response = query_openai(prompt, self.selected_model)
-
+        response = query_openai(prompt, self.selected_model, self.get_temporal_temperature())
         
         # Parse the response - only need primary action now
         predicted_human_action = self._parse_primary_action(response)
@@ -1303,8 +1342,6 @@ class CoordinatedActionPredictorAgent(Agent):
                 
                 # Reset the soup served flag after processing
                 self.soup_served_flag = False
-                
-
         
         # Get robot action using our smart coordination system
         try:

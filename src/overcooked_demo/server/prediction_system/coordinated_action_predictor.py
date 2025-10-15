@@ -251,9 +251,11 @@ class CoordinatedActionPredictorAgent(Agent):
         {available_primary_actions}
 
         **CRITICAL: Follow the plan sequence step-by-step!**
+        - DO NOT skip to the next ingredient if you're currently holding an item that is involved in the current steps for the plan.
+        - If the plan's next step involves an item that someone is holding, there are higher odds that that is the next correct action!
         - When multiple plans are available, PRIORITIZE the most recent plan as it better represents current human preferences
         - Older plans can be used as backup guidance if the most recent plan doesn't fit the current state
-        - The plans are designed to be followed in order
+        - The plans are very important and are designed to be followed in order!
         - Don't skip ahead to later steps
         - Only choose actions that are both AVAILABLE and the NEXT LOGICAL STEP in the plan
 

@@ -148,6 +148,15 @@ class CoordinatedActionPredictorAgent(Agent):
         # Initialize tile manager from MDP
         self.tile_manager.initialize_from_mdp(mdp)
         
+        # Expose station positions at agent level for game.py to access
+        self.onion_chopping_stations = self.tile_manager.onion_chopping_stations
+        self.tomato_chopping_stations = self.tile_manager.tomato_chopping_stations
+        self.onion_staging_tiles = self.tile_manager.onion_staging_tiles
+        self.tomato_staging_tiles = self.tile_manager.tomato_staging_tiles
+        self.sink_stations = self.tile_manager.sink_stations
+        self.salt_stations = self.tile_manager.salt_stations
+        self.pepper_stations = self.tile_manager.pepper_stations
+        
         # Update movement planner and blocking detector with MDP
         self.movement_planner.mdp = mdp
         self.blocking_detector.mdp = mdp

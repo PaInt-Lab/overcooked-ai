@@ -21,7 +21,8 @@ from .llm import query_openai
 from .pathfinding import MovementPlanner
 from .action_parsing import ActionParser
 from .state_management import StateSummarizer, TileManager, BlockingDetector
-from .complete_state_graph import CompleteStateGraphGenerator, CompleteRecipeState
+from .complete_state_graph import CompleteRecipeState
+from .graph_manager import get_global_graph
 
 
 class CoordinatedActionPredictorAgent(Agent):
@@ -55,7 +56,7 @@ class CoordinatedActionPredictorAgent(Agent):
         self.blocking_detector.tile_manager = self.tile_manager
         
         # Complete state graph with washing capabilities
-        self.complete_state_graph_generator = None
+        # Use global singleton instance (loaded once across all agents)
         self.complete_state_graph = None
         
         # Task title for coordination
@@ -79,13 +80,10 @@ class CoordinatedActionPredictorAgent(Agent):
         self.primary_tasks = []
 
     def _initialize_complete_state_graph(self):
-        """Initialize the complete state graph"""
-        if self.complete_state_graph_generator is None:
-            print("Initializing complete state graph...")
-            self.complete_state_graph_generator = CompleteStateGraphGenerator()
-            # Use cached version for fast loading
-            self.complete_state_graph = self.complete_state_graph_generator.get_or_generate_graph()
-            print("Complete state graph ready for action selection")
+        """Initialize the complete state graph using global singleton"""
+        if self.complete_state_graph is None:
+            # Get the global shared instance (loaded once for all agents)
+            self.complete_state_graph = get_global_graph()
     
     def get_available_primary_actions(self, state, info):
         """Get available primary actions from complete state graph"""

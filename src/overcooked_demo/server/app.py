@@ -70,6 +70,13 @@ PREDEFINED_CONFIG = json.dumps(CONFIG["predefined"])
 # Default configuration for tutorial
 TUTORIAL_CONFIG = json.dumps(CONFIG["tutorial"])
 
+# Pre-load the complete state graph at server startup (one-time cost)
+# This prevents any blocking during the first game creation
+print("Pre-loading complete state graph at server startup...")
+from prediction_system.graph_manager import get_global_graph
+get_global_graph()
+print("Server ready! Graph is cached and ready for all games.")
+
 # Global queue of available IDs. This is how we synch game creation and keep track of how many games are in memory
 FREE_IDS = queue.Queue(maxsize=MAX_GAMES)
 

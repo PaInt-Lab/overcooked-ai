@@ -4,21 +4,21 @@
   <img src="images/layouts.gif" alt="Overcooked Demo" width="600"/>
 </p>
 
-## 🚀 Overview
+## Overview
 
 **Overcooked-AI** is a research platform for human-AI coordination, now supercharged with a sophisticated **LLM Agent** system that uses coordinated navigation, plan adaptation, and state graph-based decision making. This project introduces a novel approach to human-AI collaboration that combines large language models with graph-based state navigation for intelligent coordination in the Overcooked environment.
 
-- **🤖 LLM-powered coordination**: Uses OpenAI's GPT-4o-mini for intelligent action prediction and planning
-- **🧠 Plan adaptation**: Learns from successful action sequences and adapts future behavior
-- **🗺️ State graph navigation**: Goal-directed navigation through complete state space
-- **🔄 Real-time coordination**: Dynamic human-robot collaboration with WebSocket communication
-- **🧽 Advanced workflows**: Supports ingredient washing, chopping, and complex cooking sequences
+- **LLM-powered coordination**: Uses OpenAI's GPT-4o-mini for intelligent action prediction and planning
+- **Plan adaptation**: Learns from successful action sequences and adapts future behavior
+- **State graph navigation**: Goal-directed navigation through complete state space
+- **Real-time coordination**: Dynamic human-robot collaboration with WebSocket communication
+- **Advanced workflows**: Supports ingredient washing, chopping, and complex cooking sequences
 
 > **Note:** This system represents a significant advancement over traditional RL/BC approaches, focusing on natural language understanding and adaptive coordination.
 
 ---
 
-## 🧠 System Architecture
+## System Architecture
 
 The system consists of three main layers:
 
@@ -40,27 +40,27 @@ The system consists of three main layers:
 
 ---
 
-## ✨ Key Features
+## Key Features
 
-### **🧠 Intelligent Coordination**
+### **Intelligent Coordination**
 - **Human Action Prediction**: LLM predicts what humans will do next
 - **Smart Robot Actions**: Robot selects complementary actions based on predictions
 - **Conflict Resolution**: Handles object mismatches and blocking situations
 - **State-Aware Decisions**: Considers complete game state for optimal coordination
 
-### **📚 Plan Learning & Adaptation**
+### **Plan Learning & Adaptation**
 - **Success Tracking**: Records successful action sequences automatically
 - **Plan Repository**: Stores and retrieves effective coordination patterns
 - **Adaptive Behavior**: Uses learned patterns to improve future performance
 - **Two-Phase Learning**: State-based and sequential action recording
 
-### **🗺️ Advanced State Navigation**
+### **Advanced State Navigation**
 - **Complete State Graph**: Pre-computed navigation for washing+chopping workflows
 - **Flexible Processing**: Supports any order of ingredient preparation
 - **Goal-Directed Navigation**: A* pathfinding through state space
 - **Caching System**: Fast state lookup and action prediction
 
-### **🎮 Rich User Experience**
+### **Rich User Experience**
 - **Drag & Drop Interface**: Visual subtask creation and reordering
 - **LLM Task Generation**: "Ask LLM" button for automatic subtask creation
 - **Real-time Visualization**: Live game rendering with special station indicators
@@ -68,69 +68,142 @@ The system consists of three main layers:
 
 ---
 
-## 🖥️ Quick Start
+## Quick Start
 
 ### Prerequisites
-- Python 3.10+
-- [Docker](https://docs.docker.com/get-docker/) (for Ollama models)
+- [Docker](https://docs.docker.com/get-docker/) installed
 - OpenAI API key (for GPT-4o-mini)
 
 ### 1. Environment Setup
 
+#### **Clone the Repository**
 ```bash
-# Clone the repository
 git clone <your-repo-url>
 cd Overcooked-AI
-
-# Set up environment
-export OPENAI_API_KEY="your-openai-api-key-here"
-
-# Install dependencies
-cd src/overcooked_demo
-pip install -r server/requirements.txt
 ```
 
-### 2. Configuration
-
-The system uses several configuration files:
-
-#### **Game Configuration** (`server/config.json`)
-- **Layouts**: Available game layouts (cramped_room, counter_circuit, etc.)
-- **Game Parameters**: Max games, game length, scoring values
-- **Agent Settings**: Agent directory and configuration
-
-#### **Docker Configuration** (`docker-compose.yml`)
-- **Ollama Service**: Local LLM models for task classification
-- **App Service**: Main Overcooked game server
-- **Networking**: Internal communication between services
-
-### 3. Start the System
-
-#### **Option A: Docker Compose (Recommended)**
+#### **Setup OpenAI API Key**
+Create a `.env` file in `src/overcooked_demo/` with your OpenAI API key:
 ```bash
-# Start all services (Ollama + Overcooked server)
+cd src/overcooked_demo
+echo "OPENAI_API_KEY=your-openai-api-key-here" > .env
+```
+
+> **Important:** All setup uses Docker containers. Do not attempt to install Python dependencies locally - the `requirements.txt` file contains legacy dependencies that will conflict with modern Python versions.
+
+### 2. Docker Container Setup
+
+#### **Step 1: Create Docker Network**
+```bash
+docker network create overcook-net
+```
+This creates a dedicated network for container communication. Only needs to be executed once during initial setup.
+
+#### **Step 2: Create Ollama Models**
+Navigate to the Ollama models directory and create the required models:
+```bash
+cd ollama_models/task_tagger
+ollama create task_tagger -f Modelfile
+
+cd ../subtask_creator
+ollama create subtask_creator -f Modelfile
+```
+
+#### **Step 3: Build Docker Images**
+```bash
+# Return to overcooked_demo directory
+cd ../..
+
+# Build Ollama Image
+docker build --no-cache -t ollama/ollama:latest .
+
+# Build Overcooked Application Image
+docker build --no-cache -t overcooked-llm .
+```
+
+#### **Step 4: Deploy Containers**
+
+**Run Ollama Container:**
+```bash
+docker run -d \
+  --name ollama-model \
+  --network overcook-net \
+  --gpus all \
+  -p 11434:11434 \
+  -v "$HOME/.ollama/models:/root/.ollama/models" \
+  ollama/ollama:latest
+```
+
+**Run Overcooked Application Container:**
+```bash
+docker run -d \
+  --name overcooked-app \
+  --network overcook-net \
+  --env-file .env \
+  -p 5000:5000 \
+  -v "${PWD}:/app" \
+  overcooked-llm:latest
+```
+
+> **Note for Windows users:** Replace `$HOME` with `$env:USERPROFILE` in the Ollama container command.
+
+#### **Alternative: Docker Compose (Simpler)**
+If you prefer a simpler setup, you can use Docker Compose:
+```bash
 cd src/overcooked_demo
 ./up.sh  # Development mode
 # or
 ./up.sh production  # Production mode
 ```
 
-### 4. Play with the LLM Agent
+### 3. Play with the LLM Agent
 
-1. Open your browser to [http://localhost](http://localhost)
+1. Open your browser to [http://localhost](http://localhost) (or [http://localhost:5000](http://localhost:5000) if using manual Docker setup)
 2. **Define Your Task**: Enter a task like "Serving Washed and Chopped Onion and Tomato Soup"
 3. **Create Subtasks**: Use "Ask LLM" or create subtasks manually with drag & drop
 4. **Confirm Sequence**: Review and confirm your subtask sequence
 5. **Start Game**: Select "overcooked_llm" as your partner and begin playing!
 
-To stop the server:
+### 4. Container Management
+
+#### **Access Container Shell**
+For debugging or manual command execution:
+```bash
+docker exec -it overcooked-app bash
+```
+
+#### **Monitor Container Logs**
+View real-time logs from the application:
+```bash
+docker logs --since 0s -f overcooked-app
+```
+
+#### **Stop Containers**
+Using Docker Compose:
 ```bash
 ./down.sh
 ```
 
+Or manually:
+```bash
+docker stop overcooked-app ollama-model
+docker rm overcooked-app ollama-model
+```
+
+#### **Rebuild After Changes**
+If you modify files outside the `/server` folder, rebuild the image:
+```bash
+docker build --no-cache -t overcooked-llm .
+docker stop overcooked-app
+docker rm overcooked-app
+# Then run the container again (Step 4)
+```
+
+> **Note:** Changes to files inside `/server` are automatically reflected due to volume mounting - no rebuild needed!
+
 ---
 
-## 🧩 How It Works
+## How It Works
 
 ### **Task Definition & Planning**
 1. **User Input**: Define high-level cooking tasks through the web interface
@@ -153,7 +226,7 @@ To stop the server:
 
 ---
 
-## 🛠️ System Components (Major)
+## System Components (Major)
 
 ### **Core LLM Agent** (`coordinated_action_predictor.py`)
 - **Model**: OpenAI GPT-4o-mini
@@ -183,7 +256,7 @@ To stop the server:
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 src/overcooked_demo/
@@ -239,7 +312,7 @@ src/overcooked_demo/
 
 ---
 
-## 🚀 Research Applications
+## Research Applications
 
 This system enables research in:
 
@@ -251,7 +324,7 @@ This system enables research in:
 
 ---
 
-## 📊 Performance & Capabilities
+## Performance & Capabilities
 
 - **Real-time Processing**: 30 FPS game updates with LLM inference
 - **State Space**: Complete navigation for washing+chopping workflows
@@ -261,7 +334,7 @@ This system enables research in:
 
 ---
 
-## 👤 Authors & Acknowledgments
+## Authors & Acknowledgments
 
 - **Lead LLM Agent Developer:** Vito Rizzuto  
 - **Original Overcooked-AI:** Micah Carroll (mdc@berkeley.edu), Center for Human-Compatible AI
@@ -269,13 +342,13 @@ This system enables research in:
 
 ---
 
-## 📜 License
+## License
 
 This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
 
 ---
 
-## 🔗 References & Further Reading
+## References & Further Reading
 
 - [OpenAI API Documentation](https://platform.openai.com/docs)
 - [Ollama: Run open LLMs locally](https://ollama.com/)
@@ -285,7 +358,7 @@ This project is licensed under the MIT License. See [LICENSE](LICENSE) for detai
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
 This is a research project focused on human-AI coordination. Contributions that advance the state of LLM-based agent coordination are welcome!
 

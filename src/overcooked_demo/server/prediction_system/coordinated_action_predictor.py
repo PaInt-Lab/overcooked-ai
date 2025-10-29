@@ -17,7 +17,7 @@ from action_coordination import select_secondary_action
 from plan_adaptation import ActionTracker, PlanRepository
 
 # Import our new modular components
-from .llm import query_openai, get_temporal_temperature, get_temporal_context
+from .llm import query_openai
 from .pathfinding import MovementPlanner
 from .action_parsing import ActionParser
 from .state_management import StateSummarizer, TileManager, BlockingDetector
@@ -60,6 +60,10 @@ class CoordinatedActionPredictorAgent(Agent):
         
         # Task title for coordination
         self.task_title = None
+        
+        # Plan time and day for temporal context
+        self.plan_time = None
+        self.plan_day = None
         
         # Use simple vanilla model
         from .llm.openai_client import DEFAULT_MODEL
@@ -119,6 +123,12 @@ class CoordinatedActionPredictorAgent(Agent):
         # Set task title from plan for coordination
         if hasattr(self.plan, 'task_title'):
             self.task_title = self.plan.task_title
+        
+        # Set plan time and day for temporal context
+        if hasattr(self.plan, 'plan_time'):
+            self.plan_time = self.plan.plan_time
+        if hasattr(self.plan, 'plan_day'):
+            self.plan_day = self.plan.plan_day
     
     def _extract_primary_tasks_from_plan(self) -> List[str]:
         """
@@ -234,13 +244,15 @@ class CoordinatedActionPredictorAgent(Agent):
         # Determine which plan to use: original plan first, then all successful plans with priority
         plan_to_use = self._get_plan_to_use(plan_text)
 
+        # Build temporal context if available
+        temporal_context = ""
+        if self.plan_time and self.plan_day:
+            temporal_context = f"\nCURRENT TIME & DAY: {self.plan_day} at {self.plan_time}\nConsider timing patterns from previous successful plans when selecting actions.\n"
+        
         # Build prompt for LLM
         prompt = f"""
         You are helping a human cook soup. Follow the user's plan step-by-step in the correct sequence.
-
-        TEMPORAL CONTEXT:
-        {get_temporal_context()}
-
+        {temporal_context}
         CURRENT STATE:
         {self.last_summary}
 
@@ -268,8 +280,8 @@ class CoordinatedActionPredictorAgent(Agent):
         # Display essential information for testing
         self._print_debug_info(available_primary_actions)
         
-        # Call LLM to get predictions
-        response = query_openai(prompt, self.selected_model, get_temporal_temperature())
+        # Call LLM to get predictions (using fixed temperature for consistency)
+        response = query_openai(prompt, self.selected_model, temperature=0.3)
         
         # Parse the response - only need primary action now
         predicted_human_action = self.action_parser.parse_primary_action(response)
@@ -292,12 +304,19 @@ class CoordinatedActionPredictorAgent(Agent):
                                          predicted_human_action, available_primary_actions)
 
     def _build_plan_text(self) -> str:
-        """Build plan text from primary tasks."""
+        """Build plan text from primary tasks with time/day context."""
         if hasattr(self, 'primary_tasks') and self.primary_tasks:
+            # Add time/day header if available
+            header = ""
+            if self.plan_time and self.plan_day:
+                header = f"Original User Plan (for {self.plan_day} at {self.plan_time}):\n"
+            else:
+                header = "Original User Plan:\n"
+            
             plan_lines = []
             for idx, primary_task in enumerate(self.primary_tasks):
                 plan_lines.append(f"{idx+1}) {primary_task}")
-            return "\n".join(plan_lines)
+            return header + "\n".join(plan_lines)
         else:
             return "No primary tasks available"
     
@@ -309,12 +328,17 @@ class CoordinatedActionPredictorAgent(Agent):
             plan_lines = []
             
             for i, plan in enumerate(all_plans):
+                # Build time/day info if available
+                time_info = ""
+                if plan.get('plan_time') and plan.get('plan_day'):
+                    time_info = f" (executed {plan['plan_day']} at {plan['plan_time']})"
+                
                 if i == 0:
                     # Most recent plan - better represents current human preferences
-                    priority_label = "MOST RECENT PLAN (prioritize this - represents current human preferences)"
+                    priority_label = f"MOST RECENT PLAN{time_info} (prioritize this - represents current human preferences)"
                 else:
                     # Older plans - use as backup reference
-                    priority_label = f"OLDER PLAN #{i+1} (use as backup reference)"
+                    priority_label = f"OLDER PLAN #{i+1}{time_info} (use as backup reference)"
                 
                 actions_str = " → ".join(plan['actions'])
                 plan_lines.append(f"{priority_label}:\n{actions_str}")
@@ -354,7 +378,9 @@ class CoordinatedActionPredictorAgent(Agent):
                 successful_plan = {
                     'actions': self.action_tracker.get_current_sequence(),
                     'duration': self.action_tracker.get_sequence_duration(),
-                    'recipe_type': 'onion_washed_chopped_tomato_washed_chopped'  # Fixed recipe type for now
+                    'recipe_type': 'onion_washed_chopped_tomato_washed_chopped',  # Fixed recipe type for now
+                    'plan_time': self.plan_time,  # Store time when plan was executed
+                    'plan_day': self.plan_day  # Store day when plan was executed
                 }
                 self.plan_repository.add_successful_plan(successful_plan)
                 

@@ -461,17 +461,22 @@ def confirm_subtasks():
       {
         "taskName": "...",
         "subtasks": [...],
-        "taskTitle": "...",  # NEW: The task title from frontend
+        "taskTitle": "...",  # The task title from frontend
+        "planTime": "...",  # Time of plan (HH:MM format)
+        "planDay": "...",   # Day of week
         "notes": "..."
       }
     Returns:
-      { "status":"success", "events":[...], "taskTitle":"..." }
+      { "status":"success", "events":[...], "taskTitle":"...", "planTime":"...", "planDay":"..." }
     """
     payload = request.get_json() or {}
     subtasks = payload.get("subtasks", [])
-    task_title = payload.get("taskTitle", "")  # NEW: Extract task title
+    task_title = payload.get("taskTitle", "")
+    plan_time = payload.get("planTime", "")
+    plan_day = payload.get("planDay", "")
     print(f"Received subtasks: {subtasks}")
     print(f"Task title: {task_title}")
+    print(f"Plan time: {plan_time}, Plan day: {plan_day}")
 
     try:
         # 1. Tag
@@ -483,14 +488,16 @@ def confirm_subtasks():
         # norm_events = normalize_events(events)
 
         session_id = uuid4().hex
-        PLAN_STORE[session_id] = PlanSession(events, task_title)  # Pass task_title
+        PLAN_STORE[session_id] = PlanSession(events, task_title, plan_time, plan_day)
 
-        # 3. Return sequence, session ID, and task title
+        # 3. Return sequence, session ID, task title, and time/day
         return jsonify({
             "status": "success", 
             "session_id": session_id, 
             "events": events,
-            "taskTitle": task_title  # Return task title
+            "taskTitle": task_title,
+            "planTime": plan_time,
+            "planDay": plan_day
         }), 200
 
     except Exception as e:

@@ -154,6 +154,38 @@
             value="Serving Washed, Chopped, Salted, and Peppered Onion and Washed, Chopped, Salted, and Peppered Tomato Soup"
           />
         </div>
+        <!-- Plan Time and Day -->
+        <div class="form-group">
+          <div class="row">
+            <div class="col-md-6">
+              <label for="planTime">Plan Time</label>
+              <input
+                type="time"
+                id="planTime"
+                class="form-control"
+                value="12:00"
+              />
+              <small class="form-text text-muted">
+                Time when this plan will be executed
+              </small>
+            </div>
+            <div class="col-md-6">
+              <label for="planDay">Day of Week</label>
+              <select id="planDay" class="form-control">
+                <option value="Monday">Monday</option>
+                <option value="Tuesday">Tuesday</option>
+                <option value="Wednesday" selected>Wednesday</option>
+                <option value="Thursday">Thursday</option>
+                <option value="Friday">Friday</option>
+                <option value="Saturday">Saturday</option>
+                <option value="Sunday">Sunday</option>
+              </select>
+              <small class="form-text text-muted">
+                Day when this plan will be executed
+              </small>
+            </div>
+          </div>
+        </div>
         <!-- Predefine Subtasks -->
         <div class="form-group">
           <label>Predefine Subtasks</label>
@@ -1372,15 +1404,19 @@
             (c) => c.querySelector(".subtask-text").textContent.trim()
           );
 
-          // Get the task title from the input field
+          // Get the task title, time, and day from input fields
           const taskTitle = document.getElementById("taskTitle").value.trim();
+          const planTime = document.getElementById("planTime").value;
+          const planDay = document.getElementById("planDay").value;
 
           fetch("/confirm_subtasks", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ 
               subtasks: seq,
-              taskTitle: taskTitle  // Add the task title
+              taskTitle: taskTitle,
+              planTime: planTime,
+              planDay: planDay
             }),
           })
             .then((r) => r.json())
@@ -1389,6 +1425,8 @@
               if (data.status === "success") {
                 window.planSessionId = data.session_id;
                 window.taskTitle = data.taskTitle;  // Store task title globally
+                window.planTime = data.planTime;  // Store plan time globally
+                window.planDay = data.planDay;  // Store plan day globally
                 isConfirmed = true;
                 document.querySelectorAll(".subtask-card").forEach((card) => {
                   card.classList.add("confirmed");
@@ -1415,6 +1453,19 @@
             });
         }
         confirmBtn.addEventListener("click", toggleConfirm);
+
+        // Make time picker open when clicking anywhere on the input
+        const planTimeInput = document.getElementById("planTime");
+        planTimeInput.addEventListener("click", function() {
+          try {
+            // Show the time picker dropdown
+            if (this.showPicker) {
+              this.showPicker();
+            }
+          } catch (e) {
+            // showPicker() not supported in some browsers, ignore
+          }
+        });
       });
     </script>
 

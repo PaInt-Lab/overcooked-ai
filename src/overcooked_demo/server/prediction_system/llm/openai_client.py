@@ -3,9 +3,7 @@
 import os
 from openai import OpenAI
 
-# Use a simple vanilla model instead of fine-tuned ones
-DEFAULT_MODEL = "gpt-4o-mini"
-
+DEFAULT_MODEL = "gpt-4o"
 
 def query_openai(prompt: str, model: str = None, temperature: float = 0.0) -> str:
     """Query the OpenAI API with the given prompt and return the response text."""

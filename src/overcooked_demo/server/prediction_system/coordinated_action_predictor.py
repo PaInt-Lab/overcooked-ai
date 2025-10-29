@@ -273,12 +273,26 @@ class CoordinatedActionPredictorAgent(Agent):
         # Build temporal context if available
         temporal_context = ""
         if self.plan_time and self.plan_day:
-            temporal_context = f"\nCURRENT TIME & DAY: {self.plan_day} at {self.plan_time}\nConsider timing patterns from previous successful plans when selecting actions.\n"
+            temporal_context = f"{self.plan_day} and {self.plan_time}"
         
+        # **CRITICAL: Follow the plan sequence step-by-step!**
+        # - DO NOT skip to the next ingredient if you're currently holding an item that is involved in the current steps for the plan.
+        # - If the plan's next step involves an item that someone is holding, there are higher odds that that is the next correct action!
+        # - When multiple plans are available, PRIORITIZE the most recent plan as it better represents current human preferences
+        # - Older plans can be used as backup guidance if the most recent plan doesn't fit the current state
+        # - The plans are very important and are designed to be followed in order!
+        # - Don't skip ahead to later steps
+        # - Only choose actions that are both AVAILABLE and the NEXT LOGICAL STEP in the plan
+
+        # Select the action that best aligns with the day of the week of previously completed plans and the most recent plan regarding the current state.
+
         # Build prompt for LLM
         prompt = f"""
-        You are helping a human cook soup. Follow the user's plan step-by-step in the correct sequence.
+        You are helping a human cook soup. You need to select the best next action based on multiple available plans and the current state.
+
+        CURRENT TIME & DAY: 
         {temporal_context}
+
         CURRENT STATE:
         {self.last_summary}
 
@@ -288,18 +302,25 @@ class CoordinatedActionPredictorAgent(Agent):
         AVAILABLE ACTIONS:
         {available_primary_actions}
 
-        **CRITICAL: Follow the plan sequence step-by-step!**
-        - DO NOT skip to the next ingredient if you're currently holding an item that is involved in the current steps for the plan.
-        - If the plan's next step involves an item that someone is holding, there are higher odds that that is the next correct action!
-        - When multiple plans are available, PRIORITIZE the most recent plan as it better represents current human preferences
-        - Older plans can be used as backup guidance if the most recent plan doesn't fit the current state
-        - The plans are very important and are designed to be followed in order!
-        - Don't skip ahead to later steps
-        - Only choose actions that are both AVAILABLE and the NEXT LOGICAL STEP in the plan
+        DECISION PROCESS:
+        1. Analyze the current state - what has been completed so far?
 
-        Select the action that best aligns with the most recent plan and current state.
+        2. Compare plans:
+        - Start with the MOST RECENT PLAN (prioritize this if it aligns with current state)
+        - If the most recent plan doesn't fit the current progress, check OLDER PLANS as backup
+        - Identify which plan's sequence best matches where you are now
 
-        Return only this line:
+        3. Find the next step:
+        - Look at the matching plan sequence
+        - Find the FIRST uncompleted step in that sequence
+        - Verify that step exists in AVAILABLE ACTIONS
+
+        4. Select the action:
+        - Choose the action from AVAILABLE ACTIONS that represents the NEXT logical step
+        - Stay within one plan's sequence (don't mix different plans)
+        - Follow steps sequentially within that plan
+
+        RETURN FORMAT:
         Primary: <action_name>
         """
         

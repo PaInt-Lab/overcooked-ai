@@ -598,12 +598,45 @@
         margin-bottom: 15px;
         padding-bottom: 10px;
         border-bottom: 1px solid #dee2e6;
+        cursor: pointer;
+        user-select: none;
+      }
+
+      .plan-header:hover {
+        background-color: #e9ecef;
+        margin: -5px -10px 15px -10px;
+        padding: 5px 10px 10px 10px;
+        border-radius: 4px;
       }
 
       .plan-title {
         font-size: 18px;
         font-weight: 600;
         color: #495057;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .collapse-icon {
+        font-size: 14px;
+        transition: transform 0.3s ease;
+      }
+
+      .collapse-icon.collapsed {
+        transform: rotate(-90deg);
+      }
+
+      .plan-content {
+        transition: max-height 0.3s ease, opacity 0.3s ease;
+        overflow: hidden;
+      }
+
+      .plan-content.collapsed {
+        max-height: 0 !important;
+        opacity: 0;
+        margin: 0;
+        padding: 0;
       }
 
       .plan-time-inputs {
@@ -733,7 +766,6 @@
 
       // Pre-loaded plans state management
       window.preloadedPlans = [];
-      let preloadedPlanIdCounter = 1;
 
       document.addEventListener("DOMContentLoaded", function () {
         const createBtn = document.getElementById("create");
@@ -1261,13 +1293,16 @@
           card.setAttribute("data-plan-id", planId);
 
           card.innerHTML = `
-            <div class="plan-header">
+            <div class="plan-header" data-plan-id="${planId}">
               <div>
-                <span class="plan-title">Plan #${planId}</span>
+                <span class="plan-title">
+                  <span class="collapse-icon">▼</span>
+                  Plan #${planId}
+                </span>
               </div>
               <div class="plan-time-inputs">
-                <input type="time" class="plan-time-input" value="${planTime}" data-plan-id="${planId}">
-                <select class="plan-day-select" data-plan-id="${planId}">
+                <input type="time" class="plan-time-input" value="${planTime}" data-plan-id="${planId}" onclick="event.stopPropagation()">
+                <select class="plan-day-select" data-plan-id="${planId}" onclick="event.stopPropagation()">
                   <option value="Monday" ${planDay === "Monday" ? "selected" : ""}>Monday</option>
                   <option value="Tuesday" ${planDay === "Tuesday" ? "selected" : ""}>Tuesday</option>
                   <option value="Wednesday" ${planDay === "Wednesday" ? "selected" : ""}>Wednesday</option>
@@ -1276,17 +1311,35 @@
                   <option value="Saturday" ${planDay === "Saturday" ? "selected" : ""}>Saturday</option>
                   <option value="Sunday" ${planDay === "Sunday" ? "selected" : ""}>Sunday</option>
                 </select>
-                <button class="delete-plan-btn" onclick="deletePreloadedPlan(${planId})">Delete Plan</button>
+                <button class="delete-plan-btn" onclick="event.stopPropagation(); deletePreloadedPlan(${planId})">Delete Plan</button>
               </div>
             </div>
-            <div class="plan-subtasks-container" data-plan-id="${planId}">
-              <p class="text-muted text-center empty-subtasks-message">No subtasks yet. Add some below!</p>
+            <div class="plan-content" data-plan-id="${planId}">
+              <div class="plan-subtasks-container" data-plan-id="${planId}">
+                <p class="text-muted text-center empty-subtasks-message">No subtasks yet. Add some below!</p>
+              </div>
+              <input type="text" class="form-control mt-2 subtask-input-field" placeholder="Enter subtask..." data-plan-id="${planId}">
+              <button class="add-preloaded-subtask-btn" data-plan-id="${planId}">Add Subtask</button>
             </div>
-            <input type="text" class="form-control mt-2 subtask-input-field" placeholder="Enter subtask..." data-plan-id="${planId}">
-            <button class="add-preloaded-subtask-btn" data-plan-id="${planId}">Add Subtask</button>
           `;
 
           container.appendChild(card);
+
+          // Add collapse/expand functionality
+          const header = card.querySelector('.plan-header');
+          const content = card.querySelector('.plan-content');
+          const collapseIcon = card.querySelector('.collapse-icon');
+          
+          header.addEventListener('click', function(e) {
+            // Don't collapse if clicking on inputs/buttons (they have stopPropagation)
+            if (content.classList.contains('collapsed')) {
+              content.classList.remove('collapsed');
+              collapseIcon.classList.remove('collapsed');
+            } else {
+              content.classList.add('collapsed');
+              collapseIcon.classList.add('collapsed');
+            }
+          });
 
           // Add existing subtasks if provided
           if (subtasks.length > 0) {
@@ -1527,14 +1580,22 @@
 
         // Add default plan button
         document.getElementById("addDefaultPlanBtn").addEventListener("click", function() {
-          const planId = preloadedPlanIdCounter++;
+          // Use current count + 1 for plan ID so numbering restarts from 1 when all plans are deleted
+          const container = document.getElementById("preloadedPlansContainer");
+          const existingPlans = container.querySelectorAll(".preloaded-plan-card");
+          const planId = existingPlans.length + 1;
+          
           createPreloadedPlanCard(planId, DEFAULT_SEASONED_PLAN, "14:00", "Wednesday");
           updatePreloadedPlanData(planId);
         });
 
         // Add custom plan button
         document.getElementById("addCustomPlanBtn").addEventListener("click", function() {
-          const planId = preloadedPlanIdCounter++;
+          // Use current count + 1 for plan ID so numbering restarts from 1 when all plans are deleted
+          const container = document.getElementById("preloadedPlansContainer");
+          const existingPlans = container.querySelectorAll(".preloaded-plan-card");
+          const planId = existingPlans.length + 1;
+          
           createPreloadedPlanCard(planId, [], "12:00", "Monday");
           updatePreloadedPlanData(planId);
         });

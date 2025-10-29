@@ -378,24 +378,11 @@ class CoordinatedActionPredictorAgent(Agent):
         """Print debug information."""
         print(f"CURRENT STATE: {self.last_summary}")
         print(f"SUPPLYING {len(available_primary_actions)} ACTIONS TO LLM: {available_primary_actions}")
-        
-        # Show plan adaptation info
-        if not self.plan_repository.is_empty():
-            total_plans = self.plan_repository.get_plan_count()
-            print(f"PLAN ADAPTATION: Using {total_plans} successful plans (most recent prioritized)")
-            # Show a summary of all plans sorted by recency
-            all_plans = self.plan_repository.get_plans_sorted_by_recency()
-            for i, plan in enumerate(all_plans):
-                priority = "MOST RECENT" if i == 0 else f"OLDER #{i+1}"
-                print(f"  {priority}: {' → '.join(plan['actions'][:3])}{'...' if len(plan['actions']) > 3 else ''}")
-        else:
-            print("PLAN ADAPTATION: Using original user plan (no successful plans yet)")
     
     def _track_and_adapt_plan(self, predicted_human_action: str):
         """Track actions and adapt plan based on success."""
         # Track primary action for plan adaptation
         self.action_tracker.record_action(predicted_human_action, self.last_summary)
-        print(f"PLAN TRACKING: Recorded action '{predicted_human_action}' (sequence length: {len(self.action_tracker.get_current_sequence())})")
         
         # Check if soup was served (success detection)
         if self.last_summary and self.last_summary.get('soup_served', False):

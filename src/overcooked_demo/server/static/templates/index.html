@@ -143,6 +143,21 @@
       </div>
 
       <div id="task-section" class="container mt-5 pt-4">
+        
+        <!-- Mode Selection Buttons -->
+        <div class="mb-4">
+          <div class="btn-group" role="group">
+            <button id="editCurrentPlanBtn" class="btn btn-primary mode-btn active-mode">
+              Edit Current Plan
+            </button>
+            <button id="loadPreviousPlansBtn" class="btn btn-outline-primary mode-btn">
+              Load Previous Plans
+            </button>
+          </div>
+        </div>
+
+        <!-- Edit Current Plan Section -->
+        <div id="editCurrentPlanSection">
         <h4 class="mb-4">Define Your Task</h4>
         <!-- Task Title -->
         <div class="form-group">
@@ -202,41 +217,14 @@
                 </button>
               </div>
             </div>
-                         <div class="col-md-4">
-               <button id="askLlmBtn" class="btn btn-light-orange btn-block">
-                 Ask LLM
-               </button>
-               <button id="testSubtasksBtn" class="btn btn-light-yellow btn-block mt-2">
-                 Onion Soup Subtasks (Testing)
-               </button>
-               <button id="testChoppedOnionBtn" class="btn btn-light-green btn-block mt-2">
-                 Chopped Onion Soup (Testing)
-               </button>
-               <button id="testTomatoBtn" class="btn btn-light-red btn-block mt-2">
-                 Tomato Soup Subtasks (Testing)
-               </button>
-               <button id="testChoppedTomatoBtn" class="btn btn-light-pink btn-block mt-2">
-                 Chopped Tomato Soup (Testing)
-               </button>
-               <button id="testOnionTomatoBtn" class="btn btn-light-blue btn-block mt-2">
-                 Onion & Tomato Soup Subtasks (Testing)
-               </button>
-               <button id="testChoppedOnionTomatoBtn" class="btn btn-light-cyan btn-block mt-2">
-                 Chopped Onion and Tomato Soup (Testing)
-               </button>
-               <button id="testOnionChoppedTomatoBtn" class="btn btn-light-indigo btn-block mt-2">
-                 Onion and Chopped Tomato Soup (Testing)
-               </button>
-               <button id="testChoppedBtn" class="btn btn-light-purple btn-block mt-2">
-                 Chopped Onion and Chopped Tomato Soup (Testing)
-               </button>
-               <button id="testWashingBtn" class="btn btn-light-teal btn-block mt-2" style="white-space: normal; height: auto; padding: 8px 12px; line-height: 1.2;">
-                 Both Ingredients Washed and Chopped (Testing)
-               </button>
-               <button id="testSeasonedBtn" class="btn btn-light-green btn-block mt-2" style="white-space: normal; height: auto; padding: 8px 12px; line-height: 1.2;">
-                 Washed, Chopped, Salted, and Peppered Soup (Testing)
-               </button>
-             </div>
+            <div class="col-md-4">
+              <button id="askLlmBtn" class="btn btn-light-orange btn-block">
+                Ask LLM
+              </button>
+              <button id="makeSoupRecipeBtn" class="btn btn-light-blue btn-block mt-2">
+                Use Usual Soup Recipe
+              </button>
+            </div>
           </div>
           <small class="form-text text-muted mt-2">
             Create subtasks individually or ask LLM to generate them from your
@@ -277,6 +265,34 @@
             </div>
           </div>
         </div>
+        </div>
+        <!-- End Edit Current Plan Section -->
+
+        <!-- Load Previous Plans Section -->
+        <div id="loadPreviousPlansSection" style="display: none;">
+          <h4 class="mb-4">Load Previous Successful Plans</h4>
+          <p class="text-muted mb-3">
+            Add historical successful plans to provide context to the AI agent. These plans will be loaded when the game starts.
+          </p>
+          
+          <!-- Control Buttons -->
+          <div class="mb-3">
+            <button id="addDefaultPlanBtn" class="btn btn-success">
+              Add Default Plan (Seasoned Soup)
+            </button>
+            <button id="addCustomPlanBtn" class="btn btn-primary ml-2">
+              Add Custom Plan
+            </button>
+          </div>
+          
+          <!-- Pre-loaded Plans Container -->
+          <div id="preloadedPlansContainer">
+            <p class="text-muted text-center" id="noPreloadedPlansMessage">
+              No pre-loaded plans yet. Click "Add Default Plan" or "Add Custom Plan" to get started.
+            </p>
+          </div>
+        </div>
+        <!-- End Load Previous Plans Section -->
       </div>
 
       <!-- Plan Creation Overlay -->
@@ -289,6 +305,7 @@
           </div>
         </div>
       </div>
+
       </div>
     </div>
 
@@ -391,7 +408,7 @@
         min-width: 100px;
       }
 
-      /* Optional: lighten the “Ask LLM” button to match new palette */
+      /* Ask LLM button styling */
       .btn-light-orange {
         background-color: #ffe0b2;
         border-color: #ffcc80;
@@ -403,31 +420,7 @@
         color: #212121;
       }
 
-      /* Light yellow button for Onion Soup */
-      .btn-light-yellow {
-        background-color: #fff3cd;
-        border-color: #ffeaa7;
-        color: #856404;
-      }
-      .btn-light-yellow:hover {
-        background-color: #ffeaa7;
-        border-color: #fdcb6e;
-        color: #5d4e00;
-      }
-
-      /* Light red button for Tomato Soup */
-      .btn-light-red {
-        background-color: #f8d7da;
-        border-color: #f5c6cb;
-        color: #721c24;
-      }
-      .btn-light-red:hover {
-        background-color: #f5c6cb;
-        border-color: #f1b0b7;
-        color: #491217;
-      }
-
-      /* Light blue button for Onion & Tomato Soup */
+      /* Make Soup Recipe button styling */
       .btn-light-blue {
         background-color: #d1ecf1;
         border-color: #bee5eb;
@@ -437,78 +430,6 @@
         background-color: #bee5eb;
         border-color: #abdde5;
         color: #062c33;
-      }
-
-      /* Light purple button for Chopped Onion and Tomato */
-      .btn-light-purple {
-        background-color: #e6e6fa;
-        border-color: #d8bfd8;
-        color: #4b0082;
-      }
-      .btn-light-purple:hover {
-        background-color: #d8bfd8;
-        border-color: #c8a2c8;
-        color: #2d004d;
-      }
-
-      /* Light green button for Chopped Onion Soup */
-      .btn-light-green {
-        background-color: #d4edda;
-        border-color: #c3e6cb;
-        color: #155724;
-      }
-      .btn-light-green:hover {
-        background-color: #c3e6cb;
-        border-color: #b1dfbb;
-        color: #0f5132;
-      }
-
-      /* Light pink button for Chopped Tomato Soup */
-      .btn-light-pink {
-        background-color: #fce4ec;
-        border-color: #f8bbd9;
-        color: #880e4f;
-      }
-      .btn-light-pink:hover {
-        background-color: #f8bbd9;
-        border-color: #f48fb1;
-        color: #4a148c;
-      }
-
-      /* Light cyan button for Chopped Onion and Tomato Soup */
-      .btn-light-cyan {
-        background-color: #e0f2f1;
-        border-color: #b2dfdb;
-        color: #004d40;
-      }
-      .btn-light-cyan:hover {
-        background-color: #b2dfdb;
-        border-color: #80cbc4;
-        color: #00251a;
-      }
-
-      /* Light indigo button for Onion and Chopped Tomato Soup */
-      .btn-light-indigo {
-        background-color: #e8eaf6;
-        border-color: #c5cae9;
-        color: #1a237e;
-      }
-      .btn-light-indigo:hover {
-        background-color: #c5cae9;
-        border-color: #9fa8da;
-        color: #0d47a1;
-      }
-
-      /* Light teal button for Ingredient Washing */
-      .btn-light-teal {
-        background-color: #e0f2f1;
-        border-color: #b2dfdb;
-        color: #004d40;
-      }
-      .btn-light-teal:hover {
-        background-color: #b2dfdb;
-        border-color: #80cbc4;
-        color: #00251a;
       }
 
       .subtask-edit {
@@ -621,9 +542,199 @@
         border-right-color: transparent;
         box-shadow: 0 0 10px rgba(0, 123, 255, 0.3);
       }
+
+      /* Mode Selection Buttons */
+      .mode-btn {
+        padding: 8px 20px;
+        font-size: 14px;
+        transition: all 0.2s ease;
+        border-radius: 0;
+      }
+
+      .mode-btn:focus,
+      .mode-btn:active,
+      .mode-btn:active:focus {
+        outline: none;
+        box-shadow: none !important;
+      }
+
+      .mode-btn:first-child {
+        border-top-left-radius: 4px;
+        border-bottom-left-radius: 4px;
+      }
+
+      .mode-btn:last-child {
+        border-top-right-radius: 4px;
+        border-bottom-right-radius: 4px;
+      }
+
+      .mode-btn.active-mode {
+        font-weight: 600;
+      }
+
+      .btn-group {
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      }
+
+      /* Pre-loaded Plans Section Styling */
+      #preloadedPlansContainer {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+      }
+
+      .preloaded-plan-card {
+        border: 2px solid #6c757d;
+        border-radius: 8px;
+        padding: 20px;
+        background-color: #f8f9fa;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      }
+
+      .plan-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 15px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid #dee2e6;
+      }
+
+      .plan-title {
+        font-size: 18px;
+        font-weight: 600;
+        color: #495057;
+      }
+
+      .plan-time-inputs {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+      }
+
+      .plan-time-inputs input,
+      .plan-time-inputs select {
+        font-size: 14px;
+        padding: 5px 10px;
+        border: 1px solid #ced4da;
+        border-radius: 4px;
+      }
+
+      .plan-subtasks-container {
+        min-height: 60px;
+        border: 2px dashed #adb5bd;
+        border-radius: 6px;
+        padding: 12px;
+        background-color: #ffffff;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .plan-subtasks-container.drag-over {
+        background-color: #e3f2fd;
+        border-color: #2196f3;
+      }
+
+      .preloaded-subtask-card {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        background: #ffffff;
+        border: 1px solid #adb5bd;
+        border-radius: 6px;
+        padding: 10px 14px;
+        cursor: grab;
+        transition: box-shadow 0.2s, background 0.2s;
+      }
+
+      .preloaded-subtask-card:hover {
+        background: #f1f3f5;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+      }
+
+      .preloaded-subtask-card.dragging {
+        opacity: 0.6;
+        cursor: grabbing;
+        background: #eef4fb;
+      }
+
+      .delete-plan-btn {
+        background: #dc3545;
+        color: white;
+        border: none;
+        padding: 5px 15px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+        transition: background 0.2s;
+      }
+
+      .delete-plan-btn:hover {
+        background: #c82333;
+      }
+
+      .add-preloaded-subtask-btn {
+        background: #28a745;
+        color: white;
+        border: none;
+        padding: 5px 15px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+        margin-top: 10px;
+        transition: background 0.2s;
+      }
+
+      .add-preloaded-subtask-btn:hover {
+        background: #218838;
+      }
     </style>
 
     <script>
+      // Default seasoned soup recipe
+      const DEFAULT_SEASONED_PLAN = [
+        "Robot Fetch onion",
+        "Wash Onion",
+        "Robot Fetch onion",
+        "Chop Onion",
+        "Robot Fetch onion",
+        "Salt Onion",
+        "Robot Fetch onion",
+        "Pepper Onion",
+        "Robot Fetch onion",
+        "Stage Onion",
+        "Human Grab Onion",
+        "Place onion in pot",
+        "Robot Fetch tomato",
+        "Robot Fetch tomato",
+        "Wash Tomato",
+        "Robot Fetch tomato",
+        "Chop Tomato",
+        "Robot Fetch tomato",
+        "Salt Tomato",
+        "Robot Fetch tomato",
+        "Pepper Tomato",
+        "Robot Fetch tomato",
+        "Stage Tomato",
+        "Human Grab Tomato",
+        "Place tomato in pot",
+        "Turn stove on",
+        "Wait for ingredients to cook",
+        "Robot Fetch dish",
+        "Stage dish",
+        "Human Grab dish",
+        "Pour soup",
+        "Human Stage Soup",
+        "Wait For Robot To Serve Soup",
+        "Robot fetch soup",
+        "Robot place soup on serving station"
+      ];
+
+      // Pre-loaded plans state management
+      window.preloadedPlans = [];
+      let preloadedPlanIdCounter = 1;
+
       document.addEventListener("DOMContentLoaded", function () {
         const createBtn = document.getElementById("create");
         createBtn.addEventListener(
@@ -881,9 +992,9 @@
             }
           });
 
-        // Test subtasks functionality
+        // Make Soup Recipe functionality
         document
-          .getElementById("testSubtasksBtn")
+          .getElementById("makeSoupRecipeBtn")
           .addEventListener("click", function (e) {
             e.preventDefault();
             
@@ -895,374 +1006,8 @@
             }
             container.innerHTML = "";
 
-            // Predefined test subtasks
-            const testSubtasks = [
-              "Robot Fetch onion",
-              "Stage Onion",
-              "Human Grab Onion",
-              "Place onion in pot",
-              "Turn stove on",
-              "Wait for ingredients to cook",
-              "Robot Fetch dish",
-              "Stage dish",
-              "Human Grab dish",
-              "Pour soup",
-              "Human Stage Soup",
-              "Wait For Robot To Serve Soup",
-              "Robot place soup on serving station"
-            ];
-
-                         // Create cards for each test subtask
-             testSubtasks.forEach((subtask) => {
-               createSubtaskCard(subtask);
-             });
-           });
-
-        // Tomato soup test functionality
-        document
-          .getElementById("testTomatoBtn")
-          .addEventListener("click", function (e) {
-            e.preventDefault();
-            
-            // Clear existing subtasks
-            const container = document.getElementById("subtaskContainer");
-            const empty = document.getElementById("emptyMessage");
-            if (empty) {
-              empty.style.display = "none";
-            }
-            container.innerHTML = "";
-
-            // Tomato soup subtasks (same as onion but with tomato)
-            const tomatoSubtasks = [
-              "Robot Fetch tomato",
-              "Stage Tomato",
-              "Human Grab Tomato",
-              "Place tomato in pot",
-              "Turn stove on",
-              "Wait for ingredients to cook",
-              "Robot Fetch dish",
-              "Stage dish",
-              "Human Grab dish",
-              "Pour soup",
-              "Human Stage Soup",
-              "Wait For Robot To Serve Soup",
-              "Robot place soup on serving station"
-            ];
-
-            // Create cards for each tomato subtask
-            tomatoSubtasks.forEach((subtask) => {
-              createSubtaskCard(subtask);
-            });
-          });
-
-        // Onion & Tomato soup test functionality
-        document
-          .getElementById("testOnionTomatoBtn")
-          .addEventListener("click", function (e) {
-            e.preventDefault();
-            
-            // Clear existing subtasks
-            const container = document.getElementById("subtaskContainer");
-            const empty = document.getElementById("emptyMessage");
-            if (empty) {
-              empty.style.display = "none";
-            }
-            container.innerHTML = "";
-
-            // Onion & Tomato soup subtasks (from your Modelfile)
-            const onionTomatoSubtasks = [
-              "Robot Fetch onion",
-              "Stage Onion",
-              "Human Grab Onion",
-              "Place onion in pot",
-              "Robot Fetch tomato",
-              "Stage Tomato",
-              "Human Grab Tomato",
-              "Place tomato in pot",
-              "Turn stove on",
-              "Wait for ingredients to cook",
-              "Robot Fetch dish",
-              "Stage dish",
-              "Human Grab dish",
-              "Pour soup",
-              "Human Stage Soup",
-              "Wait For Robot To Serve Soup",
-              "Robot fetch soup",
-              "Robot place soup on serving station"
-            ];
-
-            // Create cards for each onion & tomato subtask
-            onionTomatoSubtasks.forEach((subtask) => {
-              createSubtaskCard(subtask);
-            });
-          });
-
-        // Chopped Onion and Tomato test functionality
-        document
-          .getElementById("testChoppedBtn")
-          .addEventListener("click", function (e) {
-            e.preventDefault();
-            
-            // Clear existing subtasks
-            const container = document.getElementById("subtaskContainer");
-            const empty = document.getElementById("emptyMessage");
-            if (empty) {
-              empty.style.display = "none";
-            }
-            container.innerHTML = "";
-
-            // Chopped Onion and Tomato subtasks
-            const choppedSubtasks = [
-              "Robot Fetch onion",
-              "Stage Onion",
-              "Human Grab Chopped Onion",
-              "Place onion in pot",
-              "Robot Fetch tomato",
-              "Stage Tomato",
-              "Human Grab Chopped Tomato",
-              "Place tomato in pot",
-              "Turn stove on",
-              "Wait for ingredients to cook",
-              "Robot Fetch dish",
-              "Stage dish",
-              "Human Grab dish",
-              "Pour soup",
-              "Human Stage Soup",
-              "Wait For Robot To Serve Soup",
-              "Robot fetch soup",
-              "Robot place soup on serving station"
-            ];
-
-            // Create cards for each chopped subtask
-            choppedSubtasks.forEach((subtask) => {
-              createSubtaskCard(subtask);
-            });
-          });
-
-        // Chopped Onion Soup test functionality
-        document
-          .getElementById("testChoppedOnionBtn")
-          .addEventListener("click", function (e) {
-            e.preventDefault();
-            
-            // Clear existing subtasks
-            const container = document.getElementById("subtaskContainer");
-            const empty = document.getElementById("emptyMessage");
-            if (empty) {
-              empty.style.display = "none";
-            }
-            container.innerHTML = "";
-
-            // Chopped Onion Soup subtasks
-            const choppedOnionSubtasks = [
-              "Robot Fetch onion",
-              "Stage Onion",
-              "Human Grab Chopped Onion",
-              "Place onion in pot",
-              "Turn stove on",
-              "Wait for ingredients to cook",
-              "Robot Fetch dish",
-              "Stage dish",
-              "Human Grab dish",
-              "Pour soup",
-              "Human Stage Soup",
-              "Wait For Robot To Serve Soup",
-              "Robot place soup on serving station"
-            ];
-
-            // Create cards for each chopped onion subtask
-            choppedOnionSubtasks.forEach((subtask) => {
-              createSubtaskCard(subtask);
-            });
-          });
-
-        // Chopped Tomato Soup test functionality
-        document
-          .getElementById("testChoppedTomatoBtn")
-          .addEventListener("click", function (e) {
-            e.preventDefault();
-            
-            // Clear existing subtasks
-            const container = document.getElementById("subtaskContainer");
-            const empty = document.getElementById("emptyMessage");
-            if (empty) {
-              empty.style.display = "none";
-            }
-            container.innerHTML = "";
-
-            // Chopped Tomato Soup subtasks
-            const choppedTomatoSubtasks = [
-              "Robot Fetch tomato",
-              "Stage Tomato",
-              "Human Grab Chopped Tomato",
-              "Place tomato in pot",
-              "Turn stove on",
-              "Wait for ingredients to cook",
-              "Robot Fetch dish",
-              "Stage dish",
-              "Human Grab dish",
-              "Pour soup",
-              "Human Stage Soup",
-              "Wait For Robot To Serve Soup",
-              "Robot place soup on serving station"
-            ];
-
-            // Create cards for each chopped tomato subtask
-            choppedTomatoSubtasks.forEach((subtask) => {
-              createSubtaskCard(subtask);
-            });
-          });
-
-        // Chopped Onion and Tomato Soup test functionality
-        document
-          .getElementById("testChoppedOnionTomatoBtn")
-          .addEventListener("click", function (e) {
-            e.preventDefault();
-            
-            // Clear existing subtasks
-            const container = document.getElementById("subtaskContainer");
-            const empty = document.getElementById("emptyMessage");
-            if (empty) {
-              empty.style.display = "none";
-            }
-            container.innerHTML = "";
-
-            // Chopped Onion and Tomato Soup subtasks
-            const choppedOnionTomatoSubtasks = [
-              "Robot Fetch onion",
-              "Stage Onion",
-              "Human Grab Chopped Onion",
-              "Place onion in pot",
-              "Robot Fetch tomato",
-              "Stage Tomato",
-              "Human Grab Tomato",
-              "Place tomato in pot",
-              "Turn stove on",
-              "Wait for ingredients to cook",
-              "Robot Fetch dish",
-              "Stage dish",
-              "Human Grab dish",
-              "Pour soup",
-              "Human Stage Soup",
-              "Wait For Robot To Serve Soup",
-              "Robot fetch soup",
-              "Robot place soup on serving station"
-            ];
-
-            // Create cards for each chopped onion and tomato subtask
-            choppedOnionTomatoSubtasks.forEach((subtask) => {
-              createSubtaskCard(subtask);
-            });
-          });
-
-        // Onion and Chopped Tomato Soup test functionality
-        document
-          .getElementById("testOnionChoppedTomatoBtn")
-          .addEventListener("click", function (e) {
-            e.preventDefault();
-            
-            // Clear existing subtasks
-            const container = document.getElementById("subtaskContainer");
-            const empty = document.getElementById("emptyMessage");
-            if (empty) {
-              empty.style.display = "none";
-            }
-            container.innerHTML = "";
-
-            // Onion and Chopped Tomato Soup subtasks
-            const onionChoppedTomatoSubtasks = [
-              "Robot Fetch onion",
-              "Stage Onion",
-              "Human Grab Onion",
-              "Place onion in pot",
-              "Robot Fetch tomato",
-              "Stage Tomato",
-              "Human Grab Chopped Tomato",
-              "Place tomato in pot",
-              "Turn stove on",
-              "Wait for ingredients to cook",
-              "Robot Fetch dish",
-              "Stage dish",
-              "Human Grab dish",
-              "Pour soup",
-              "Human Stage Soup",
-              "Wait For Robot To Serve Soup",
-              "Robot fetch soup",
-              "Robot place soup on serving station"
-            ];
-
-            // Create cards for each onion and chopped tomato subtask
-            onionChoppedTomatoSubtasks.forEach((subtask) => {
-              createSubtaskCard(subtask);
-            });
-          });
-
-        // Ingredient Washing test functionality
-        document
-          .getElementById("testWashingBtn")
-          .addEventListener("click", function (e) {
-            e.preventDefault();
-            
-            // Clear existing subtasks
-            const container = document.getElementById("subtaskContainer");
-            const empty = document.getElementById("emptyMessage");
-            if (empty) {
-              empty.style.display = "none";
-            }
-            container.innerHTML = "";
-
-            // Ingredient Washing subtasks
-            const washingSubtasks = [
-              "Robot Fetch onion",
-              "Wash Onion",
-              "Robot Fetch onion",
-              "Chop Onion",
-              "Robot Fetch onion",
-              "Stage Onion",
-              "Human Grab Onion",
-              "Robot Fetch tomato",
-              "Robot Fetch tomato",
-              "Wash Tomato",
-              "Robot Fetch tomato",
-              "Chop Tomato",
-              "Robot Fetch tomato",
-              "Stage Tomato",
-              "Human Grab Tomato",
-              "Place tomato in pot",
-              "Turn stove on",
-              "Wait for ingredients to cook",
-              "Robot Fetch dish",
-              "Stage dish",
-              "Human Grab dish",
-              "Pour soup",
-              "Human Stage Soup",
-              "Wait For Robot To Serve Soup",
-              "Robot fetch soup",
-              "Robot place soup on serving station"
-            ];
-
-            // Create cards for each washing subtask
-            washingSubtasks.forEach((subtask) => {
-              createSubtaskCard(subtask);
-            });
-          });
-
-        // Washed, Chopped, Salted, and Peppered Soup test functionality
-        document
-          .getElementById("testSeasonedBtn")
-          .addEventListener("click", function (e) {
-            e.preventDefault();
-            
-            // Clear existing subtasks
-            const container = document.getElementById("subtaskContainer");
-            const empty = document.getElementById("emptyMessage");
-            if (empty) {
-              empty.style.display = "none";
-            }
-            container.innerHTML = "";
-
-            // Washed, Chopped, Salted, and Peppered Soup subtasks
-            const seasonedSubtasks = [
+            // Soup recipe subtasks (Washed, Chopped, Salted, and Peppered)
+            const recipeSubtasks = [
               "Robot Fetch onion",
               "Wash Onion",
               "Robot Fetch onion",
@@ -1300,8 +1045,8 @@
               "Robot place soup on serving station"
             ];
 
-            // Create cards for each seasoned subtask
-            seasonedSubtasks.forEach((subtask) => {
+            // Create cards for each recipe subtask
+            recipeSubtasks.forEach((subtask) => {
               createSubtaskCard(subtask);
             });
           });
@@ -1466,6 +1211,334 @@
             // showPicker() not supported in some browsers, ignore
           }
         });
+
+        // ===== MODE SWITCHING FUNCTIONALITY =====
+
+        // Switch between Edit Current Plan and Load Previous Plans
+        document.getElementById("editCurrentPlanBtn").addEventListener("click", function() {
+          // Show edit current plan section
+          document.getElementById("editCurrentPlanSection").style.display = "block";
+          document.getElementById("loadPreviousPlansSection").style.display = "none";
+          
+          // Update button styles
+          this.classList.add("active-mode");
+          this.classList.remove("btn-outline-primary");
+          this.classList.add("btn-primary");
+          
+          document.getElementById("loadPreviousPlansBtn").classList.remove("active-mode");
+          document.getElementById("loadPreviousPlansBtn").classList.remove("btn-primary");
+          document.getElementById("loadPreviousPlansBtn").classList.add("btn-outline-primary");
+        });
+
+        document.getElementById("loadPreviousPlansBtn").addEventListener("click", function() {
+          // Show load previous plans section
+          document.getElementById("editCurrentPlanSection").style.display = "none";
+          document.getElementById("loadPreviousPlansSection").style.display = "block";
+          
+          // Update button styles
+          this.classList.add("active-mode");
+          this.classList.remove("btn-outline-primary");
+          this.classList.add("btn-primary");
+          
+          document.getElementById("editCurrentPlanBtn").classList.remove("active-mode");
+          document.getElementById("editCurrentPlanBtn").classList.remove("btn-primary");
+          document.getElementById("editCurrentPlanBtn").classList.add("btn-outline-primary");
+        });
+
+        // ===== PRE-LOADED PLANS FUNCTIONALITY =====
+
+        // Create a preloaded plan card
+        function createPreloadedPlanCard(planId, subtasks = [], planTime = "14:00", planDay = "Wednesday") {
+          const container = document.getElementById("preloadedPlansContainer");
+          const noMessage = document.getElementById("noPreloadedPlansMessage");
+          
+          if (noMessage) {
+            noMessage.style.display = "none";
+          }
+
+          const card = document.createElement("div");
+          card.className = "preloaded-plan-card";
+          card.setAttribute("data-plan-id", planId);
+
+          card.innerHTML = `
+            <div class="plan-header">
+              <div>
+                <span class="plan-title">Plan #${planId}</span>
+              </div>
+              <div class="plan-time-inputs">
+                <input type="time" class="plan-time-input" value="${planTime}" data-plan-id="${planId}">
+                <select class="plan-day-select" data-plan-id="${planId}">
+                  <option value="Monday" ${planDay === "Monday" ? "selected" : ""}>Monday</option>
+                  <option value="Tuesday" ${planDay === "Tuesday" ? "selected" : ""}>Tuesday</option>
+                  <option value="Wednesday" ${planDay === "Wednesday" ? "selected" : ""}>Wednesday</option>
+                  <option value="Thursday" ${planDay === "Thursday" ? "selected" : ""}>Thursday</option>
+                  <option value="Friday" ${planDay === "Friday" ? "selected" : ""}>Friday</option>
+                  <option value="Saturday" ${planDay === "Saturday" ? "selected" : ""}>Saturday</option>
+                  <option value="Sunday" ${planDay === "Sunday" ? "selected" : ""}>Sunday</option>
+                </select>
+                <button class="delete-plan-btn" onclick="deletePreloadedPlan(${planId})">Delete Plan</button>
+              </div>
+            </div>
+            <div class="plan-subtasks-container" data-plan-id="${planId}">
+              <p class="text-muted text-center empty-subtasks-message">No subtasks yet. Add some below!</p>
+            </div>
+            <input type="text" class="form-control mt-2 subtask-input-field" placeholder="Enter subtask..." data-plan-id="${planId}">
+            <button class="add-preloaded-subtask-btn" data-plan-id="${planId}">Add Subtask</button>
+          `;
+
+          container.appendChild(card);
+
+          // Add existing subtasks if provided
+          if (subtasks.length > 0) {
+            const subtasksContainer = card.querySelector('.plan-subtasks-container');
+            const emptyMsg = subtasksContainer.querySelector('.empty-subtasks-message');
+            if (emptyMsg) emptyMsg.style.display = "none";
+            
+            subtasks.forEach(subtask => {
+              createPreloadedSubtaskCard(planId, subtask);
+            });
+          }
+
+          // Event listener for time input
+          card.querySelector('.plan-time-input').addEventListener('change', function() {
+            updatePreloadedPlanData(planId);
+          });
+
+          // Event listener for day select
+          card.querySelector('.plan-day-select').addEventListener('change', function() {
+            updatePreloadedPlanData(planId);
+          });
+
+          // Event listener for add subtask button
+          card.querySelector('.add-preloaded-subtask-btn').addEventListener('click', function() {
+            const input = card.querySelector('.subtask-input-field');
+            const text = input.value.trim();
+            if (text) {
+              createPreloadedSubtaskCard(planId, text);
+              input.value = "";
+              updatePreloadedPlanData(planId);
+            }
+          });
+
+          // Event listener for enter key in subtask input
+          card.querySelector('.subtask-input-field').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              card.querySelector('.add-preloaded-subtask-btn').click();
+            }
+          });
+
+          // Setup drag and drop
+          setupPlanDragAndDrop(planId);
+
+          return card;
+        }
+
+        // Create a subtask card within a preloaded plan
+        function createPreloadedSubtaskCard(planId, text) {
+          const container = document.querySelector(`.plan-subtasks-container[data-plan-id="${planId}"]`);
+          const emptyMsg = container.querySelector('.empty-subtasks-message');
+          if (emptyMsg) {
+            emptyMsg.style.display = "none";
+          }
+
+          const card = document.createElement("div");
+          card.className = "preloaded-subtask-card";
+          card.draggable = true;
+
+          const subtaskNumber = container.querySelectorAll(".preloaded-subtask-card").length + 1;
+          card.innerHTML = `
+            <span class="subtask-number">${subtaskNumber}</span>
+            <span class="subtask-text">${text}</span>
+            <button class="subtask-edit" onclick="editPreloadedSubtask(this, ${planId})" title="Edit">&#9998;</button>
+            <button class="subtask-delete" onclick="removePreloadedSubtask(this, ${planId})">&times;</button>
+          `;
+
+          // Drag event listeners
+          card.addEventListener("dragstart", function(e) {
+            this.classList.add("dragging");
+            e.dataTransfer.effectAllowed = "move";
+          });
+
+          card.addEventListener("dragend", function(e) {
+            this.classList.remove("dragging");
+            updatePreloadedSubtaskNumbers(planId);
+            updatePreloadedPlanData(planId);
+          });
+
+          container.appendChild(card);
+        }
+
+        // Setup drag and drop for a plan's subtasks
+        function setupPlanDragAndDrop(planId) {
+          const container = document.querySelector(`.plan-subtasks-container[data-plan-id="${planId}"]`);
+
+          container.addEventListener("dragover", function(e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = "move";
+            this.classList.add("drag-over");
+          });
+
+          container.addEventListener("dragleave", function(e) {
+            this.classList.remove("drag-over");
+          });
+
+          container.addEventListener("drop", function(e) {
+            e.preventDefault();
+            this.classList.remove("drag-over");
+
+            const dragging = this.querySelector(".dragging");
+            if (dragging) {
+              const afterElement = getDragAfterElementInPlan(this, e.clientY);
+              if (afterElement == null) {
+                this.appendChild(dragging);
+              } else {
+                this.insertBefore(dragging, afterElement);
+              }
+              updatePreloadedSubtaskNumbers(planId);
+              updatePreloadedPlanData(planId);
+            }
+          });
+        }
+
+        function getDragAfterElementInPlan(container, y) {
+          const draggableElements = [...container.querySelectorAll(".preloaded-subtask-card:not(.dragging)")];
+
+          return draggableElements.reduce((closest, child) => {
+            const box = child.getBoundingClientRect();
+            const offset = y - box.top - box.height / 2;
+
+            if (offset < 0 && offset > closest.offset) {
+              return { offset: offset, element: child };
+            } else {
+              return closest;
+            }
+          }, { offset: Number.NEGATIVE_INFINITY }).element;
+        }
+
+        // Update subtask numbers for a plan
+        function updatePreloadedSubtaskNumbers(planId) {
+          const container = document.querySelector(`.plan-subtasks-container[data-plan-id="${planId}"]`);
+          const cards = container.querySelectorAll(".preloaded-subtask-card");
+          cards.forEach((card, index) => {
+            const numberSpan = card.querySelector(".subtask-number");
+            numberSpan.textContent = index + 1;
+          });
+        }
+
+        // Update preloaded plan data in window.preloadedPlans
+        function updatePreloadedPlanData(planId) {
+          const card = document.querySelector(`.preloaded-plan-card[data-plan-id="${planId}"]`);
+          const timeInput = card.querySelector('.plan-time-input');
+          const daySelect = card.querySelector('.plan-day-select');
+          const subtasksContainer = card.querySelector('.plan-subtasks-container');
+          const subtaskCards = subtasksContainer.querySelectorAll('.preloaded-subtask-card');
+
+          const subtasks = Array.from(subtaskCards).map(card => 
+            card.querySelector('.subtask-text').textContent.trim()
+          );
+
+          // Find or create plan in window.preloadedPlans
+          const existingPlanIndex = window.preloadedPlans.findIndex(p => p.id === planId);
+          const planData = {
+            id: planId,
+            subtasks: subtasks,
+            planTime: timeInput.value,
+            planDay: daySelect.value
+          };
+
+          if (existingPlanIndex >= 0) {
+            window.preloadedPlans[existingPlanIndex] = planData;
+          } else {
+            window.preloadedPlans.push(planData);
+          }
+        }
+
+        // Remove a preloaded subtask
+        window.removePreloadedSubtask = function(button, planId) {
+          const card = button.parentElement;
+          card.remove();
+          updatePreloadedSubtaskNumbers(planId);
+          updatePreloadedPlanData(planId);
+
+          // Show empty message if no cards left
+          const container = document.querySelector(`.plan-subtasks-container[data-plan-id="${planId}"]`);
+          const cards = container.querySelectorAll(".preloaded-subtask-card");
+          if (cards.length === 0) {
+            const emptyMsg = container.querySelector('.empty-subtasks-message');
+            if (emptyMsg) {
+              emptyMsg.style.display = "block";
+            }
+          }
+        };
+
+        // Edit a preloaded subtask
+        window.editPreloadedSubtask = function(button, planId) {
+          const card = button.parentElement;
+          const textSpan = card.querySelector(".subtask-text");
+          const oldText = textSpan.textContent.trim();
+
+          const input = document.createElement("input");
+          input.type = "text";
+          input.className = "subtask-edit-input";
+          input.value = oldText;
+          input.style.flexGrow = "1";
+
+          function saveEdit() {
+            const newText = input.value.trim();
+            if (newText) {
+              textSpan.textContent = newText;
+              updatePreloadedPlanData(planId);
+            }
+            card.replaceChild(textSpan, input);
+          }
+
+          input.addEventListener("keypress", function(e) {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              saveEdit();
+            }
+          });
+
+          input.addEventListener("blur", saveEdit);
+
+          card.replaceChild(input, textSpan);
+          input.focus();
+        };
+
+        // Delete a preloaded plan
+        window.deletePreloadedPlan = function(planId) {
+          const card = document.querySelector(`.preloaded-plan-card[data-plan-id="${planId}"]`);
+          card.remove();
+
+          // Remove from window.preloadedPlans
+          window.preloadedPlans = window.preloadedPlans.filter(p => p.id !== planId);
+
+          // Show empty message if no plans left
+          const container = document.getElementById("preloadedPlansContainer");
+          const cards = container.querySelectorAll(".preloaded-plan-card");
+          if (cards.length === 0) {
+            const noMessage = document.getElementById("noPreloadedPlansMessage");
+            if (noMessage) {
+              noMessage.style.display = "block";
+            }
+          }
+        };
+
+        // Add default plan button
+        document.getElementById("addDefaultPlanBtn").addEventListener("click", function() {
+          const planId = preloadedPlanIdCounter++;
+          createPreloadedPlanCard(planId, DEFAULT_SEASONED_PLAN, "14:00", "Wednesday");
+          updatePreloadedPlanData(planId);
+        });
+
+        // Add custom plan button
+        document.getElementById("addCustomPlanBtn").addEventListener("click", function() {
+          const planId = preloadedPlanIdCounter++;
+          createPreloadedPlanCard(planId, [], "12:00", "Monday");
+          updatePreloadedPlanData(planId);
+        });
+
       });
     </script>
 

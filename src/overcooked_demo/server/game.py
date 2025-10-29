@@ -423,6 +423,7 @@ class OvercookedGame(Game):
         randomized=False,
         ticks_per_ai_action=1,
         plan_session_id=None,
+        preloaded_plans=None,
         **kwargs
     ):
         super(OvercookedGame, self).__init__(**kwargs)
@@ -450,6 +451,7 @@ class OvercookedGame(Game):
         self.human_players = set()
         self.npc_players = set()
         self.plan_session_id = plan_session_id
+        self.preloaded_plans = preloaded_plans if preloaded_plans is not None else []
 
         if randomized:
             random.shuffle(self.layouts)
@@ -897,6 +899,10 @@ class OvercookedGame(Game):
             plan_id = getattr(self, "plan_session_id", None)
             if plan_id:
                 agent.set_plan(plan_id)
+            # Load pre-loaded plans into the repository
+            preloaded_plans = getattr(self, "preloaded_plans", [])
+            if preloaded_plans:
+                agent.load_preloaded_plans(preloaded_plans)
             return agent
         if npc_id.lower().startswith("rllib"):
             try:

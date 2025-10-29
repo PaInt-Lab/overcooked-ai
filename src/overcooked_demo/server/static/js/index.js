@@ -13,6 +13,7 @@ $(function () {
       params: params,
       game_name: "overcooked",
       plan_session_id: window.planSessionId,
+      preloaded_plans: window.preloadedPlans || [],
       create_if_not_found: false,
     };
     socket.emit("create", data);

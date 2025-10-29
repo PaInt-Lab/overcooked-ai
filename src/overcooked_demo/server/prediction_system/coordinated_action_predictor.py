@@ -130,6 +130,34 @@ class CoordinatedActionPredictorAgent(Agent):
         if hasattr(self.plan, 'plan_day'):
             self.plan_day = self.plan.plan_day
     
+    def load_preloaded_plans(self, preloaded_plans: List[Dict]):
+        """
+        Load pre-loaded plans into the plan repository.
+        
+        Args:
+            preloaded_plans: List of plan dictionaries with structure:
+                {
+                    'id': int,
+                    'subtasks': List[str],
+                    'planTime': str (HH:MM format),
+                    'planDay': str (day of week)
+                }
+        """
+        print(f"Loading {len(preloaded_plans)} pre-loaded plans into repository...")
+        for plan_data in preloaded_plans:
+            successful_plan = {
+                'actions': plan_data.get('subtasks', []),
+                'duration': 0.0,  # Unknown duration for pre-loaded plans
+                'recipe_type': 'preloaded',
+                'plan_time': plan_data.get('planTime', ''),
+                'plan_day': plan_data.get('planDay', ''),
+                'preloaded': True  # Flag to distinguish from actual successful plans
+            }
+            self.plan_repository.add_successful_plan(successful_plan)
+            print(f"  Loaded Plan #{plan_data.get('id', '?')}: {len(successful_plan['actions'])} actions ({successful_plan['plan_day']} at {successful_plan['plan_time']})")
+        
+        print(f"Plan repository now has {self.plan_repository.get_plan_count()} total plans")
+    
     def _extract_primary_tasks_from_plan(self) -> List[str]:
         """
         Extract only primary tasks from the full plan.

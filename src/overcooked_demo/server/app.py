@@ -129,6 +129,7 @@ app.logger.addHandler(handler)
 
 def try_create_game(game_name, **kwargs):
     plan_id = kwargs.pop('plan_session_id', None)  # <-- This removes it from kwargs
+    preloaded_plans = kwargs.pop('preloaded_plans', [])  # Extract preloaded_plans
     try:
         # keep popping until we find a genuinely free ID or exhaust the queue
         while True:
@@ -137,10 +138,8 @@ def try_create_game(game_name, **kwargs):
                 break
 
         game_cls = GAME_NAME_TO_CLS.get(game_name, OvercookedGame)
-        if plan_id is not None:
-            game = game_cls(id=curr_id, plan_session_id=plan_id, **kwargs)
-        else:
-            game = game_cls(id=curr_id, **kwargs)
+        # Pass both plan_id and preloaded_plans to game constructor
+        game = game_cls(id=curr_id, plan_session_id=plan_id, preloaded_plans=preloaded_plans, **kwargs)
 
     except queue.Empty:
         # from `from queue import Empty` at the top
@@ -569,8 +568,12 @@ def on_create(data):
 
         params = data.get("params", {})
         plan_id = data.get("plan_session_id")
+        preloaded_plans = data.get("preloaded_plans", [])
+        
         if plan_id:
             params["plan_session_id"] = plan_id
+        if preloaded_plans:
+            params["preloaded_plans"] = preloaded_plans
         creation_params(params)
 
         game_name = data.get("game_name", "overcooked")
@@ -580,6 +583,8 @@ def on_create(data):
         game = get_game(game_id)
         if plan_id and game is not None:
             game.plan_session_id = plan_id
+        if preloaded_plans and game is not None:
+            game.preloaded_plans = preloaded_plans
 
 
 @socketio.on("join")

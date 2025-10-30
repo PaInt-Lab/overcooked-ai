@@ -128,6 +128,9 @@ class TileManager:
         if layout_name == 'counter_circuit':
             # Override tomato staging tile to be at (2,2) for counter_circuit
             self.tomato_staging_tiles = [(2, 2)]
+        elif layout_name == 'custom_counter_circuit':
+            # Override tomato staging tile to be at (4,3) for custom_counter_circuit
+            self.tomato_staging_tiles = [(4, 3)]
         
         # Create chopping stations
         if layout_name == 'cramped_room_tomato':
@@ -155,16 +158,25 @@ class TileManager:
         elif layout_name == 'cramped_room_tomato':
             # For cramped_room_tomato: sink at (2,3)
             self.sink_stations.append((2, 3))
+        elif layout_name == 'custom_counter_circuit':
+            # For custom_counter_circuit: sink at (0,3)
+            self.sink_stations.append((0, 3))
         
         # Create salt stations
         if layout_name == 'counter_circuit':
             # For counter_circuit: salt at (5,2)
             self.salt_stations.append((5, 2))
+        elif layout_name == 'custom_counter_circuit':
+            # For custom_counter_circuit: salt at (6,3)
+            self.salt_stations.append((6, 3))
         
         # Create pepper stations
         if layout_name == 'counter_circuit':
             # For counter_circuit: pepper at (6,2)
             self.pepper_stations.append((6, 2))
+        elif layout_name == 'custom_counter_circuit':
+            # For custom_counter_circuit: pepper at (7,3)
+            self.pepper_stations.append((7, 3))
         
         # Compute frontiers
         self.ingredient_frontier = compute_frontier(self.ingredient_spawns, terrain)

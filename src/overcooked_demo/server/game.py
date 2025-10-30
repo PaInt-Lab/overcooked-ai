@@ -883,6 +883,9 @@ class OvercookedGame(Game):
             if layout_name == 'counter_circuit':
                 if 0 <= 2 < H and 0 <= 2 < W:
                     graphics_terrain[2][2] = 'R'
+            elif layout_name == 'custom_counter_circuit':
+                if 0 <= 3 < H and 0 <= 4 < W:
+                    graphics_terrain[3][4] = 'R'
             
             # Send the MODIFIED terrain copy to graphics
             obj_dict["terrain"] = graphics_terrain

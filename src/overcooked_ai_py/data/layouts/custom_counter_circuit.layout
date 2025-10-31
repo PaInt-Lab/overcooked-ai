@@ -1,11 +1,11 @@
 {
-    "grid":  """XXXXXPDPXXXXX
-                X           X
-                X     2     X
-                X   XXXXX   X
-                X     1     X
-                X           X
-                XXXXXOSTXXXXX""",
+    "grid":  """XXXXXPDPXXX
+                X         X
+                X    2    X
+                X  XXXXX  X
+                X    1    X
+                X         X
+                XXXXXOSTXXX""",
     "start_bonus_orders": [
         { "ingredients" : ["onion", "tomato"]},
     ],

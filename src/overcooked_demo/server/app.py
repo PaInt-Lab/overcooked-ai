@@ -64,6 +64,9 @@ MAX_GAMES = CONFIG["MAX_GAMES"]
 # Frames per second cap for serving to client
 MAX_FPS = CONFIG["MAX_FPS"]
 
+# Action delay in seconds (time between actions for each player)
+ACTION_DELAY = CONFIG.get("ACTION_DELAY", 3.0)
+
 # Default configuration for predefined experiment
 PREDEFINED_CONFIG = json.dumps(CONFIG["predefined"])
 
@@ -145,8 +148,9 @@ def try_create_game(game_name, **kwargs):
                 break
 
         game_cls = GAME_NAME_TO_CLS.get(game_name, OvercookedGame)
-        # Pass both plan_id and preloaded_plans to game constructor
-        game = game_cls(id=curr_id, plan_session_id=plan_id, preloaded_plans=preloaded_plans, **kwargs)
+        # Pass both plan_id and preloaded_plans to game constructor, along with action_delay
+        game = game_cls(id=curr_id, plan_session_id=plan_id, preloaded_plans=preloaded_plans, 
+                       action_delay=ACTION_DELAY, **kwargs)
 
     except queue.Empty:
         # from `from queue import Empty` at the top

@@ -1,0 +1,413 @@
+/* Container: full‐width vertical list with clearer drop‐area */
+#subtaskContainer {
+  min-height: 80px;
+  border: 2px dashed #ced4da;
+  border-radius: 6px;
+  padding: 12px;
+  background-color: #fafbfc;
+  transition: background-color 0.2s, border-color 0.2s;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+#subtaskContainer.drag-over {
+  background-color: #e3f2fd;
+  border-color: #2196f3;
+}
+
+/* Empty‑state text */
+#emptyMessage {
+  color: #6c757d;
+  text-align: center;
+  margin: 0 auto;
+}
+
+/* Subtask card: block‑level, full width */
+.subtask-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #ffffff;
+  border: 1px solid #ced4da;
+  border-radius: 6px;
+  padding: 10px 14px;
+  cursor: grab;
+  transition: box-shadow 0.2s, background 0.2s;
+}
+
+.subtask-card:hover {
+  background: #f1f3f5;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+}
+
+.subtask-card.dragging {
+  opacity: 0.6;
+  cursor: grabbing;
+  background: #eef4fb;
+}
+
+/* Number badge */
+.subtask-number {
+  flex-shrink: 0;
+  background: #007bff;
+  color: #fff;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  text-align: center;
+  font-size: 13px;
+  line-height: 24px;
+  font-weight: 600;
+  margin-right: 12px;
+}
+
+/* Text area grows to fill remaining space */
+.subtask-text {
+  flex-grow: 1;
+  font-size: 14px;
+  color: #333;
+  word-break: break-word;
+}
+
+/* Delete button */
+.subtask-delete {
+  flex-shrink: 0;
+  margin-left: 12px;
+  width: 22px;
+  height: 22px;
+  background: #dc3545;
+  color: #fff;
+  border: none;
+  border-radius: 50%;
+  font-size: 14px;
+  line-height: 22px;
+  text-align: center;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.subtask-delete:hover {
+  background: #c82333;
+}
+
+/* "Create" button spacing */
+#createSubtaskBtn {
+  min-width: 100px;
+}
+
+/* Ask LLM button styling */
+.btn-light-orange {
+  background-color: #ffe0b2;
+  border-color: #ffcc80;
+  color: #37474f;
+}
+.btn-light-orange:hover {
+  background-color: #ffcc80;
+  border-color: #ffb74d;
+  color: #212121;
+}
+
+/* Make Soup Recipe button styling */
+.btn-light-blue {
+  background-color: #d1ecf1;
+  border-color: #bee5eb;
+  color: #0c5460;
+}
+.btn-light-blue:hover {
+  background-color: #bee5eb;
+  border-color: #abdde5;
+  color: #062c33;
+}
+
+.subtask-edit {
+  flex-shrink: 0;
+  margin-left: 6px;
+  background: transparent;
+  color: black;
+  border: none;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+.subtask-edit:hover {
+  color: gray;
+}
+
+.subtask-edit-input {
+  font-size: 14px;
+  padding: 4px 6px;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+}
+
+.subtask-card.confirmed {
+  background-color: #e6f9e6;
+  border-color: #a3dca3;
+  cursor: default !important;
+}
+
+#confirmSequence:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+#planLoadingContainer {
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  padding: 15px;
+  border: 1px solid #dee2e6;
+}
+
+/* Overlay styles */
+.overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.8);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.overlay-content {
+  background-color: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  border-radius: 15px;
+  padding: 40px;
+  text-align: center;
+  max-width: 500px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  }
+  50% {
+    transform: scale(1.02);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+  }
+}
+
+.text-light-50 {
+  color: rgba(255, 255, 255, 0.7) !important;
+}
+
+/* Custom spinner styling */
+.spinner-border {
+  border-width: 0.25em;
+  animation: spinner-border 0.75s linear infinite;
+}
+
+/* Overlay spinner specific styling */
+#planCreationOverlay .spinner-border {
+  border-color: #ffffff;
+  border-right-color: transparent;
+  box-shadow: 0 0 20px rgba(255, 255, 255, 0.3);
+}
+
+/* Task section spinner styling */
+#planLoadingContainer .spinner-border {
+  border-color: #007bff;
+  border-right-color: transparent;
+  box-shadow: 0 0 10px rgba(0, 123, 255, 0.3);
+}
+
+/* Mode Selection Buttons */
+.mode-btn {
+  padding: 8px 20px;
+  font-size: 14px;
+  transition: all 0.2s ease;
+  border-radius: 0;
+}
+
+.mode-btn:focus,
+.mode-btn:active,
+.mode-btn:active:focus {
+  outline: none;
+  box-shadow: none !important;
+}
+
+.mode-btn:first-child {
+  border-top-left-radius: 4px;
+  border-bottom-left-radius: 4px;
+}
+
+.mode-btn:last-child {
+  border-top-right-radius: 4px;
+  border-bottom-right-radius: 4px;
+}
+
+.mode-btn.active-mode {
+  font-weight: 600;
+}
+
+.btn-group {
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Pre-loaded Plans Section Styling */
+#preloadedPlansContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.preloaded-plan-card {
+  border: 2px solid #6c757d;
+  border-radius: 8px;
+  padding: 20px;
+  background-color: #f8f9fa;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.plan-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #dee2e6;
+  cursor: pointer;
+  user-select: none;
+}
+
+.plan-header:hover {
+  background-color: #e9ecef;
+  margin: -5px -10px 15px -10px;
+  padding: 5px 10px 10px 10px;
+  border-radius: 4px;
+}
+
+.plan-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #495057;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.collapse-icon {
+  font-size: 14px;
+  transition: transform 0.3s ease;
+}
+
+.collapse-icon.collapsed {
+  transform: rotate(-90deg);
+}
+
+.plan-content {
+  transition: max-height 0.3s ease, opacity 0.3s ease;
+  overflow: hidden;
+}
+
+.plan-content.collapsed {
+  max-height: 0 !important;
+  opacity: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.plan-time-inputs {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.plan-time-inputs input,
+.plan-time-inputs select {
+  font-size: 14px;
+  padding: 5px 10px;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+}
+
+.plan-subtasks-container {
+  min-height: 60px;
+  border: 2px dashed #adb5bd;
+  border-radius: 6px;
+  padding: 12px;
+  background-color: #ffffff;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.plan-subtasks-container.drag-over {
+  background-color: #e3f2fd;
+  border-color: #2196f3;
+}
+
+.preloaded-subtask-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #ffffff;
+  border: 1px solid #adb5bd;
+  border-radius: 6px;
+  padding: 10px 14px;
+  cursor: grab;
+  transition: box-shadow 0.2s, background 0.2s;
+}
+
+.preloaded-subtask-card:hover {
+  background: #f1f3f5;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+}
+
+.preloaded-subtask-card.dragging {
+  opacity: 0.6;
+  cursor: grabbing;
+  background: #eef4fb;
+}
+
+.delete-plan-btn {
+  background: #dc3545;
+  color: white;
+  border: none;
+  padding: 5px 15px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background 0.2s;
+}
+
+.delete-plan-btn:hover {
+  background: #c82333;
+}
+
+.add-preloaded-subtask-btn {
+  background: #28a745;
+  color: white;
+  border: none;
+  padding: 5px 15px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  margin-top: 10px;
+  transition: background 0.2s;
+}
+
+.add-preloaded-subtask-btn:hover {
+  background: #218838;
+}
+

@@ -135,6 +135,11 @@ class OvercookedScene extends Phaser.Scene {
     this.load.image("pepper", this.assets_loc + "stations/pepper.png");
     this.load.image("chop", this.assets_loc + "stations/chop.png");
     this.load.image("staging", this.assets_loc + "stations/staging.png");
+    // Load custom terrain images
+    this.load.image("stove", this.assets_loc + "stations/stove.png");
+    this.load.image("dishes", this.assets_loc + "stations/dishes.png");
+    this.load.image("tomatoes", this.assets_loc + "stations/tomatoes.png");
+    this.load.image("onions", this.assets_loc + "stations/onions.png");
   }
 
   create() {
@@ -183,70 +188,134 @@ class OvercookedScene extends Phaser.Scene {
         let [x, y] = [col, row];
         let ttype = pos_dict[row][col];
         
-        let tile = this.add.sprite(
-          this.tileSize * x,
-          this.tileSize * y,
-          "tiles",
-          terrain_to_img[ttype]
-        );
-        tile.setDisplaySize(this.tileSize, this.tileSize);
-        tile.setOrigin(0);
+        // Render base tile first (skip for custom terrain images)
+        const hasCustomTerrainImage = (ttype === 'P' || ttype === 'D' || ttype === 'T' || ttype === 'O');
         
-        // Apply custom images for special tiles
+        if (!hasCustomTerrainImage) {
+          // Use atlas for tiles without custom images
+          let baseTileImg = terrain_to_img[ttype];
+          if (baseTileImg) {
+            let tile = this.add.sprite(
+              this.tileSize * x,
+              this.tileSize * y,
+              "tiles",
+              baseTileImg
+            );
+            tile.setDisplaySize(this.tileSize, this.tileSize);
+            tile.setOrigin(0);
+          }
+        }
+        
+        // Apply custom images for special tiles (larger size)
+        const stationImageSize = this.tileSize * 1.5; // 50% bigger than tile size
+        const terrainImageSize = this.tileSize * 1.5; // Make terrain images larger too
+        
+        // Render custom terrain images (stove, dishes, tomatoes, onions) - replace base tile
+        // First render base counter tile underneath
+        if (hasCustomTerrainImage) {
+          let baseCounter = this.add.sprite(
+            this.tileSize * x,
+            this.tileSize * y,
+            "tiles",
+            "counter.png"
+          );
+          baseCounter.setDisplaySize(this.tileSize, this.tileSize);
+          baseCounter.setOrigin(0);
+        }
+        
+        // Then render custom terrain images on top
+        if (ttype === 'P') {
+          // Stove - Use custom stove image
+          let stoveTile = this.add.sprite(
+            this.tileSize * x + this.tileSize / 2,
+            this.tileSize * y + this.tileSize / 2,
+            "stove"
+          );
+          stoveTile.setDisplaySize(terrainImageSize, terrainImageSize);
+          stoveTile.setOrigin(0.5);
+        } else if (ttype === 'D') {
+          // Dishes - Use custom dishes image
+          let dishesTile = this.add.sprite(
+            this.tileSize * x + this.tileSize / 2,
+            this.tileSize * y + this.tileSize / 2,
+            "dishes"
+          );
+          dishesTile.setDisplaySize(terrainImageSize, terrainImageSize);
+          dishesTile.setOrigin(0.5);
+        } else if (ttype === 'T') {
+          // Tomatoes - Use custom tomatoes image
+          let tomatoesTile = this.add.sprite(
+            this.tileSize * x + this.tileSize / 2,
+            this.tileSize * y + this.tileSize / 2,
+            "tomatoes"
+          );
+          tomatoesTile.setDisplaySize(terrainImageSize, terrainImageSize);
+          tomatoesTile.setOrigin(0.5);
+        } else if (ttype === 'O') {
+          // Onions - Use custom onions image
+          let onionsTile = this.add.sprite(
+            this.tileSize * x + this.tileSize / 2,
+            this.tileSize * y + this.tileSize / 2,
+            "onions"
+          );
+          onionsTile.setDisplaySize(terrainImageSize, terrainImageSize);
+          onionsTile.setOrigin(0.5);
+        }
+        
         if (ttype === 'G') {
           // Onion/Dish staging station - Use staging image
           let stagingTile = this.add.sprite(
-            this.tileSize * x,
-            this.tileSize * y,
+            this.tileSize * x + this.tileSize / 2,
+            this.tileSize * y + this.tileSize / 2,
             "staging"
           );
-          stagingTile.setDisplaySize(this.tileSize, this.tileSize);
-          stagingTile.setOrigin(0);
+          stagingTile.setDisplaySize(stationImageSize, stationImageSize);
+          stagingTile.setOrigin(0.5);
         } else if (ttype === 'C') {
           // Chopping station - Use chop image
           let chopTile = this.add.sprite(
-            this.tileSize * x,
-            this.tileSize * y,
+            this.tileSize * x + this.tileSize / 2,
+            this.tileSize * y + this.tileSize / 2,
             "chop"
           );
-          chopTile.setDisplaySize(this.tileSize, this.tileSize);
-          chopTile.setOrigin(0);
+          chopTile.setDisplaySize(stationImageSize, stationImageSize);
+          chopTile.setOrigin(0.5);
         } else if (ttype === 'W') {
           // Sink station - Use sink-rotated image
           let sinkTile = this.add.sprite(
-            this.tileSize * x,
-            this.tileSize * y,
+            this.tileSize * x + this.tileSize / 2,
+            this.tileSize * y + this.tileSize / 2,
             "sink"
           );
-          sinkTile.setDisplaySize(this.tileSize, this.tileSize);
-          sinkTile.setOrigin(0);
+          sinkTile.setDisplaySize(stationImageSize, stationImageSize);
+          sinkTile.setOrigin(0.5);
         } else if (ttype === 'R') {
           // Tomato staging station - Use staging image
           let tomatoStagingTile = this.add.sprite(
-            this.tileSize * x,
-            this.tileSize * y,
+            this.tileSize * x + this.tileSize / 2,
+            this.tileSize * y + this.tileSize / 2,
             "staging"
           );
-          tomatoStagingTile.setDisplaySize(this.tileSize, this.tileSize);
-          tomatoStagingTile.setOrigin(0);
+          tomatoStagingTile.setDisplaySize(stationImageSize, stationImageSize);
+          tomatoStagingTile.setOrigin(0.5);
         } else if (ttype === 'L') {
           // Salt station - Use salt image
           let saltTile = this.add.sprite(
-            this.tileSize * x,
-            this.tileSize * y,
+            this.tileSize * x + this.tileSize / 2,
+            this.tileSize * y + this.tileSize / 2,
             "salt"
           );
-          saltTile.setDisplaySize(this.tileSize, this.tileSize);
-          saltTile.setOrigin(0);
+          saltTile.setDisplaySize(stationImageSize, stationImageSize);
+          saltTile.setOrigin(0.5);
         } else if (ttype === 'Q') {
           // Pepper station - Use pepper image
           let pepperTile = this.add.sprite(
-            this.tileSize * x,
-            this.tileSize * y,
+            this.tileSize * x + this.tileSize / 2,
+            this.tileSize * y + this.tileSize / 2,
             "pepper"
           );
-          pepperTile.setDisplaySize(this.tileSize, this.tileSize);
-          pepperTile.setOrigin(0);
+          pepperTile.setDisplaySize(stationImageSize, stationImageSize);
+          pepperTile.setOrigin(0.5);
         }
       }
     }

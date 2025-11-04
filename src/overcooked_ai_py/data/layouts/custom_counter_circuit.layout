@@ -5,7 +5,7 @@
                 X  XXX  X
                 X   1   X
                 X       X
-                XXXOSTXXX""",
+                XXOXSXTXX""",
     "start_bonus_orders": [
         { "ingredients" : ["onion", "tomato"]},
     ],

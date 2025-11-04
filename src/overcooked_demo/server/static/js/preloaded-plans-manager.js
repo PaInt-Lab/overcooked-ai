@@ -313,6 +313,17 @@
       updatePreloadedPlanData(planId);
     });
 
+    // Add tomato plan button
+    document.getElementById("addTomatoPlanBtn").addEventListener("click", function() {
+      // Use current count + 1 for plan ID so numbering restarts from 1 when all plans are deleted
+      const container = document.getElementById("preloadedPlansContainer");
+      const existingPlans = container.querySelectorAll(".preloaded-plan-card");
+      const planId = existingPlans.length + 1;
+      
+      createPreloadedPlanCard(planId, DEFAULT_TOMATO_PLAN, "14:00", "Wednesday");
+      updatePreloadedPlanData(planId);
+    });
+
     // Add custom plan button
     document.getElementById("addCustomPlanBtn").addEventListener("click", function() {
       // Use current count + 1 for plan ID so numbering restarts from 1 when all plans are deleted

@@ -422,7 +422,7 @@ class OvercookedGame(Game):
 
     def __init__(
         self,
-        layouts=["cramped_room"],
+        layouts=["custom_counter_circuit"],
         mdp_params={},
         num_players=2,
         gameTime=30,
@@ -461,6 +461,8 @@ class OvercookedGame(Game):
         self.npc_players = set()
         self.plan_session_id = plan_session_id
         self.preloaded_plans = preloaded_plans if preloaded_plans is not None else []
+        # Track moves for each player (excluding STAY actions)
+        self.player_moves = [0] * int(num_players)  # One counter per player
 
         if randomized:
             random.shuffle(self.layouts)
@@ -603,6 +605,11 @@ class OvercookedGame(Game):
         
         # Execute the joint action if any actions were buffered
         if actions_to_execute:
+            # Count moves for each player (excluding STAY actions)
+            for i in range(len(joint_action)):
+                if joint_action[i] != Action.STAY:
+                    self.player_moves[i] += 1
+            
             # Apply overcooked game logic to get state transition
             prev_state = self.state
             self.state, info = self.mdp.get_state_transition(prev_state, joint_action)
@@ -614,12 +621,21 @@ class OvercookedGame(Game):
                 if info and info.get("event_infos", {}).get("soup_delivery", [False, False]):
                     soup_delivery = info.get("event_infos", {}).get("soup_delivery", [False, False])
                     if any(soup_delivery):
-                        agent.soup_served_flag = True
+                        # Calculate time elapsed since game started
+                        time_elapsed = time() - self.start_time
+                        # Get move counts for each player
+                        player0_moves = self.player_moves[0] if len(self.player_moves) > 0 else 0
+                        player1_moves = self.player_moves[1] if len(self.player_moves) > 1 else 0
                         # Determine who delivered the soup
                         if soup_delivery[0]:  # Agent (robot) delivered
                             agent.soup_delivered_by = "agent"
+                            print(f"[SOUP DELIVERED] Agent delivered soup in {time_elapsed:.2f} seconds | Player 0: {player0_moves} moves, Player 1: {player1_moves} moves")
                         elif soup_delivery[1]:  # Partner (human) delivered
                             agent.soup_delivered_by = "partner"
+                            print(f"[SOUP DELIVERED] Human delivered soup in {time_elapsed:.2f} seconds | Player 0: {player0_moves} moves, Player 1: {player1_moves} moves")
+                        else:
+                            print(f"[SOUP DELIVERED] Soup delivered in {time_elapsed:.2f} seconds | Player 0: {player0_moves} moves, Player 1: {player1_moves} moves")
+                        agent.soup_served_flag = True
 
             if self.show_potential:
                 self.phi = self.mdp.potential_function(prev_state, self.mp, gamma=0.99)
@@ -677,6 +693,8 @@ class OvercookedGame(Game):
             # Reset turn timer and clear buffered actions
             self.turn_start_time = time()
             self.buffered_actions = [None] * len(self.players)
+            # Reset move counters
+            self.player_moves = [0] * len(self.players)
 
     def tick(self):
         self.curr_tick += 1
@@ -713,6 +731,8 @@ class OvercookedGame(Game):
         # Initialize synchronized turn system
         self.turn_start_time = self.start_time
         self.buffered_actions = [None] * len(self.players)
+        # Reset move counters for new game
+        self.player_moves = [0] * len(self.players)
         
         self.threads = []
         for npc_policy in self.npc_policies:

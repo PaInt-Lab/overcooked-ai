@@ -73,7 +73,8 @@
               <label for="layout">Layout</label>
               <select class="form-control" id="layout" name="layout">
                 {% for layout in layouts %}
-                <option value="{{layout}}" {% if layout == "counter_circuit" %}selected{% endif %}>{{layout}}</option>
+                <!-- <option value="{{layout}}" {% if layout == "counter_circuit" %}selected{% endif %}>{{layout}}</option> -->
+                <option value="{{layout}}" {% if layout == "custom_counter_circuit" %}selected{% endif %}>{{layout}}</option>
                 {% endfor %}
               </select>
             </div>
@@ -279,7 +280,10 @@
           <!-- Control Buttons -->
           <div class="mb-3">
             <button id="addDefaultPlanBtn" class="btn btn-success">
-              Add Default Recipe
+              Add Default Recipe (Onion First)
+            </button>
+            <button id="addTomatoPlanBtn" class="btn btn-success ml-2">
+              Add Default Recipe (Tomato First)
             </button>
             <button id="addCustomPlanBtn" class="btn btn-primary ml-2">
               Add Custom Recipe
@@ -289,7 +293,7 @@
           <!-- Pre-loaded Plans Container -->
           <div id="preloadedPlansContainer">
             <p class="text-muted text-center" id="noPreloadedPlansMessage">
-              No pre-loaded plans yet. Click "Add Default Plan" or "Add Custom Plan" to get started.
+              No pre-loaded plans yet. Click "Add Default Recipe (Onion First)", "Add Default Recipe (Tomato First)", or "Add Custom Plan" to get started.
             </p>
           </div>
         </div>

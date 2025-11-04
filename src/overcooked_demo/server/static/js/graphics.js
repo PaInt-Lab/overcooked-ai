@@ -129,6 +129,12 @@ class OvercookedScene extends Phaser.Scene {
       this.assets_loc + "soups.json",
       this.assets_loc
     );
+    // Load station images
+    this.load.image("sink", this.assets_loc + "stations/sink-rotated.png");
+    this.load.image("salt", this.assets_loc + "stations/salt.png");
+    this.load.image("pepper", this.assets_loc + "stations/pepper.png");
+    this.load.image("chop", this.assets_loc + "stations/chop.png");
+    this.load.image("staging", this.assets_loc + "stations/staging.png");
   }
 
   create() {
@@ -164,7 +170,9 @@ class OvercookedScene extends Phaser.Scene {
       G: "counter.png",  // Staging station
       C: "counter.png",  // Chopping station
       W: "counter.png",  // Sink station
-      R: "counter.png"   // Red tomato staging station
+      R: "counter.png",  // Red tomato staging station
+      L: "counter.png",  // Salt station
+      Q: "counter.png"   // Pepper station
     };
     let pos_dict = this.terrain;
     for (let row in pos_dict) {
@@ -184,97 +192,61 @@ class OvercookedScene extends Phaser.Scene {
         tile.setDisplaySize(this.tileSize, this.tileSize);
         tile.setOrigin(0);
         
-        // Apply solid colors for special tiles instead of tinting
+        // Apply custom images for special tiles
         if (ttype === 'G') {
-          // Onion/Dish staging station - Solid golden yellow rectangle
-          this.add.rectangle(
-            this.tileSize * x + this.tileSize/2,
-            this.tileSize * y + this.tileSize/2,
-            this.tileSize,
-            this.tileSize,
-            0xFFD700  // Golden yellow color
+          // Onion/Dish staging station - Use staging image
+          let stagingTile = this.add.sprite(
+            this.tileSize * x,
+            this.tileSize * y,
+            "staging"
           );
-          this.add.text(
-            this.tileSize * x + this.tileSize/2,
-            this.tileSize * y + this.tileSize/2,
-            "ONION/DISH\nSTAGING",
-            { fontSize: '12px', fill: '#000000', fontWeight: 'bold', align: 'center' }
-          ).setOrigin(0.5);
+          stagingTile.setDisplaySize(this.tileSize, this.tileSize);
+          stagingTile.setOrigin(0);
         } else if (ttype === 'C') {
-          // Chopping station - Solid orange rectangle
-          this.add.rectangle(
-            this.tileSize * x + this.tileSize/2,
-            this.tileSize * y + this.tileSize/2,
-            this.tileSize,
-            this.tileSize,
-            0xFF8C00  // Dark orange color
+          // Chopping station - Use chop image
+          let chopTile = this.add.sprite(
+            this.tileSize * x,
+            this.tileSize * y,
+            "chop"
           );
-          this.add.text(
-            this.tileSize * x + this.tileSize/2,
-            this.tileSize * y + this.tileSize/2,
-            "CHOP",
-            { fontSize: '14px', fill: '#000000', fontWeight: 'bold', align: 'center' }
-          ).setOrigin(0.5);
+          chopTile.setDisplaySize(this.tileSize, this.tileSize);
+          chopTile.setOrigin(0);
         } else if (ttype === 'W') {
-          // Sink station - Solid light blue rectangle
-          this.add.rectangle(
-            this.tileSize * x + this.tileSize/2,
-            this.tileSize * y + this.tileSize/2,
-            this.tileSize,
-            this.tileSize,
-            0x87CEEB  // Light blue color
+          // Sink station - Use sink-rotated image
+          let sinkTile = this.add.sprite(
+            this.tileSize * x,
+            this.tileSize * y,
+            "sink"
           );
-          this.add.text(
-            this.tileSize * x + this.tileSize/2,
-            this.tileSize * y + this.tileSize/2,
-            "SINK",
-            { fontSize: '14px', fill: '#000000', fontWeight: 'bold', align: 'center' }
-          ).setOrigin(0.5);
+          sinkTile.setDisplaySize(this.tileSize, this.tileSize);
+          sinkTile.setOrigin(0);
         } else if (ttype === 'R') {
-          // Tomato staging station - Solid medium red rectangle
-          this.add.rectangle(
-            this.tileSize * x + this.tileSize/2,
-            this.tileSize * y + this.tileSize/2,
-            this.tileSize,
-            this.tileSize,
-            0xFF8A8A  // Medium red color
+          // Tomato staging station - Use staging image
+          let tomatoStagingTile = this.add.sprite(
+            this.tileSize * x,
+            this.tileSize * y,
+            "staging"
           );
-          this.add.text(
-            this.tileSize * x + this.tileSize/2,
-            this.tileSize * y + this.tileSize/2,
-            "TOMATO\nSTAGING",
-            { fontSize: '14px', fill: '#000000', fontWeight: 'bold', align: 'center' }
-          ).setOrigin(0.5);
+          tomatoStagingTile.setDisplaySize(this.tileSize, this.tileSize);
+          tomatoStagingTile.setOrigin(0);
         } else if (ttype === 'L') {
-          // Salt station - Solid light yellow rectangle
-          this.add.rectangle(
-            this.tileSize * x + this.tileSize/2,
-            this.tileSize * y + this.tileSize/2,
-            this.tileSize,
-            this.tileSize,
-            0xFFF8DC  // Light yellow color
+          // Salt station - Use salt image
+          let saltTile = this.add.sprite(
+            this.tileSize * x,
+            this.tileSize * y,
+            "salt"
           );
-          this.add.text(
-            this.tileSize * x + this.tileSize/2,
-            this.tileSize * y + this.tileSize/2,
-            "SALT",
-            { fontSize: '14px', fill: '#000000', fontWeight: 'bold', align: 'center' }
-          ).setOrigin(0.5);
+          saltTile.setDisplaySize(this.tileSize, this.tileSize);
+          saltTile.setOrigin(0);
         } else if (ttype === 'Q') {
-          // Pepper station - Solid light yellow rectangle  
-          this.add.rectangle(
-            this.tileSize * x + this.tileSize/2,
-            this.tileSize * y + this.tileSize/2,
-            this.tileSize,
-            this.tileSize,
-            0xFFF8DC  // Light yellow color (same as salt station)
+          // Pepper station - Use pepper image
+          let pepperTile = this.add.sprite(
+            this.tileSize * x,
+            this.tileSize * y,
+            "pepper"
           );
-          this.add.text(
-            this.tileSize * x + this.tileSize/2,
-            this.tileSize * y + this.tileSize/2,
-            "PEPPER",
-            { fontSize: '14px', fill: '#000000', fontWeight: 'bold', align: 'center' }
-          ).setOrigin(0.5);
+          pepperTile.setDisplaySize(this.tileSize, this.tileSize);
+          pepperTile.setOrigin(0);
         }
       }
     }

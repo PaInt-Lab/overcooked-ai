@@ -167,16 +167,16 @@ class TileManager:
             # For counter_circuit: salt at (5,2)
             self.salt_stations.append((5, 2))
         elif layout_name == 'custom_counter_circuit':
-            # For custom_counter_circuit: salt at (6,3)
-            self.salt_stations.append((6, 3))
+            # For custom_counter_circuit: salt at (5,3) - counter tile in row 3
+            self.salt_stations.append((5, 3))
         
         # Create pepper stations
         if layout_name == 'counter_circuit':
             # For counter_circuit: pepper at (6,2)
             self.pepper_stations.append((6, 2))
         elif layout_name == 'custom_counter_circuit':
-            # For custom_counter_circuit: pepper at (7,3)
-            self.pepper_stations.append((7, 3))
+            # For custom_counter_circuit: pepper at (8,3) - counter tile in row 3
+            self.pepper_stations.append((8, 3))
         
         # Compute frontiers
         self.ingredient_frontier = compute_frontier(self.ingredient_spawns, terrain)

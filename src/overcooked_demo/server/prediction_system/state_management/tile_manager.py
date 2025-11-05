@@ -124,11 +124,8 @@ class TileManager:
         # Get layout name for special handling
         layout_name = getattr(mdp, 'layout_name', 'unknown')
         
-        # Special handling for counter_circuit layout
-        if layout_name == 'counter_circuit':
-            # Override tomato staging tile to be at (2,2) for counter_circuit
-            self.tomato_staging_tiles = [(2, 2)]
-        elif layout_name == 'custom_counter_circuit':
+        # Special handling for custom layouts
+        if layout_name == 'custom_counter_circuit':
             # Override tomato staging tile to be at (4,3) for custom_counter_circuit
             self.tomato_staging_tiles = [(4, 3)]
         elif layout_name == 'custom_cramped_room':
@@ -160,10 +157,7 @@ class TileManager:
             self.tomato_chopping_stations = self.onion_chopping_stations.copy()
 
         # Create sink stations
-        if layout_name == 'counter_circuit':
-            # For counter_circuit: sink at (0,2)
-            self.sink_stations.append((0, 2))
-        elif layout_name == 'cramped_room_tomato':
+        if layout_name == 'cramped_room_tomato':
             # For cramped_room_tomato: sink at (2,3)
             self.sink_stations.append((2, 3))
         elif layout_name == 'custom_counter_circuit':
@@ -174,10 +168,7 @@ class TileManager:
             self.sink_stations.append((0, 3))
         
         # Create salt stations
-        if layout_name == 'counter_circuit':
-            # For counter_circuit: salt at (5,2)
-            self.salt_stations.append((5, 2))
-        elif layout_name == 'custom_counter_circuit':
+        if layout_name == 'custom_counter_circuit':
             # For custom_counter_circuit: salt at (5,3) - counter tile in row 3
             self.salt_stations.append((5, 3))
         elif layout_name == 'custom_cramped_room':
@@ -185,10 +176,7 @@ class TileManager:
             self.salt_stations.append((4, 2))
         
         # Create pepper stations
-        if layout_name == 'counter_circuit':
-            # For counter_circuit: pepper at (6,2)
-            self.pepper_stations.append((6, 2))
-        elif layout_name == 'custom_counter_circuit':
+        if layout_name == 'custom_counter_circuit':
             # For custom_counter_circuit: pepper at (8,3) - counter tile in row 3
             self.pepper_stations.append((8, 3))
         elif layout_name == 'custom_cramped_room':

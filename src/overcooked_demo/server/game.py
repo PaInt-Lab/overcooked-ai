@@ -875,12 +875,9 @@ class OvercookedGame(Game):
                 if 0 <= y < H and 0 <= x < W:
                     graphics_terrain[y][x] = 'Q'
             
-            # Add red tomato staging tile for counter_circuit layout at position (2,2)
+            # Add red tomato staging tile for custom layouts
             layout_name = getattr(self.mdp, 'layout_name', 'unknown')
-            if layout_name == 'counter_circuit':
-                if 0 <= 2 < H and 0 <= 2 < W:
-                    graphics_terrain[2][2] = 'R'
-            elif layout_name == 'custom_counter_circuit':
+            if layout_name == 'custom_counter_circuit':
                 if 0 <= 3 < H and 0 <= 4 < W:
                     graphics_terrain[3][4] = 'R'
             elif layout_name == 'custom_cramped_room':

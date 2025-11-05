@@ -883,7 +883,7 @@ class OvercookedGame(Game):
             elif layout_name == 'custom_counter_circuit':
                 if 0 <= 3 < H and 0 <= 4 < W:
                     graphics_terrain[3][4] = 'R'
-            elif layout_name == 'open_kitchen':
+            elif layout_name == 'custom_cramped_room':
                 # Tomato staging at (3,0) - right side of stove
                 if 0 <= 0 < H and 0 <= 3 < W:
                     graphics_terrain[0][3] = 'R'

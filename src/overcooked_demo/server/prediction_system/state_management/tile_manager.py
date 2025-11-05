@@ -131,10 +131,18 @@ class TileManager:
         elif layout_name == 'custom_counter_circuit':
             # Override tomato staging tile to be at (4,3) for custom_counter_circuit
             self.tomato_staging_tiles = [(4, 3)]
+        elif layout_name == 'open_kitchen':
+            # Override staging tiles: left staging at (1,0), right staging at (3,0) - both sides of stove at (2,0)
+            self.onion_staging_tiles = [(1, 0)]  # Left side of stove
+            self.tomato_staging_tiles = [(3, 0)]  # Right side of stove
         
         # Create chopping stations
         if layout_name == 'cramped_room_tomato':
             # For cramped_room_tomato: use hardcoded chopping station at (0,2)
+            self.onion_chopping_stations = [(0, 2)]
+            self.tomato_chopping_stations = [(0, 2)]
+        elif layout_name == 'open_kitchen':
+            # For open_kitchen: chopping station beneath dish station - dish at (0,1), chopping at (0,2)
             self.onion_chopping_stations = [(0, 2)]
             self.tomato_chopping_stations = [(0, 2)]
         else:
@@ -161,6 +169,9 @@ class TileManager:
         elif layout_name == 'custom_counter_circuit':
             # For custom_counter_circuit: sink at (0,3)
             self.sink_stations.append((0, 3))
+        elif layout_name == 'open_kitchen':
+            # For open_kitchen: sink station beneath chopping station - chopping at (0,2), sink at (0,3)
+            self.sink_stations.append((0, 3))
         
         # Create salt stations
         if layout_name == 'counter_circuit':
@@ -169,6 +180,9 @@ class TileManager:
         elif layout_name == 'custom_counter_circuit':
             # For custom_counter_circuit: salt at (5,3) - counter tile in row 3
             self.salt_stations.append((5, 3))
+        elif layout_name == 'open_kitchen':
+            # For open_kitchen: salt at (4,2) - right side wall counter (layout is 5 columns, so col 4 is right wall)
+            self.salt_stations.append((4, 2))
         
         # Create pepper stations
         if layout_name == 'counter_circuit':
@@ -177,6 +191,9 @@ class TileManager:
         elif layout_name == 'custom_counter_circuit':
             # For custom_counter_circuit: pepper at (8,3) - counter tile in row 3
             self.pepper_stations.append((8, 3))
+        elif layout_name == 'open_kitchen':
+            # For open_kitchen: pepper at (4,3) - right side wall counter, below salt
+            self.pepper_stations.append((4, 3))
         
         # Compute frontiers
         self.ingredient_frontier = compute_frontier(self.ingredient_spawns, terrain)

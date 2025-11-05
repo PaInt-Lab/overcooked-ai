@@ -305,10 +305,12 @@ class CoordinatedActionPredictorAgent(Agent):
         DECISION PROCESS:
         1. Analyze the current state - what has been completed so far?
 
-        2. Compare plans:
-        - Consider all plans with equal weight
+        2. Compare plans (IMPORTANT: Date and time are critical factors):
+        - FIRST, prioritize plans that match the CURRENT TIME & DAY - these are more likely to reflect current human preferences
+        - If multiple plans match the current date/time, consider all of them with equal weight
+        - If no plans match the current date/time, then consider all plans with equal weight
         - Identify which plan's sequence best matches where you are now
-        - Choose the plan that best aligns with the current state
+        - Choose the plan that best aligns with the current state, giving preference to plans with matching dates/times when available
 
         3. Find the next step:
         - Look at the matching plan sequence
@@ -323,7 +325,6 @@ class CoordinatedActionPredictorAgent(Agent):
         RETURN FORMAT:
         Primary: <action_name>
         """
-        print(plan_to_use)
         # Display essential information for testing
         self._print_debug_info(available_primary_actions)
         

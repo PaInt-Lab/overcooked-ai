@@ -11,6 +11,7 @@ import ray
 from utils import DOCKER_VOLUME, create_dirs
 
 from prediction_system import CoordinatedActionPredictorAgent
+from prediction_system.state_management.tile_manager import TileManager
 from human_aware_rl.rllib.rllib import load_agent
 from overcooked_ai_py.mdp.actions import Action, Direction
 from overcooked_ai_py.mdp.overcooked_env import OvercookedEnv
@@ -463,6 +464,9 @@ class OvercookedGame(Game):
         self.preloaded_plans = preloaded_plans if preloaded_plans is not None else []
         # Track moves for each player (excluding STAY actions)
         self.player_moves = [0] * int(num_players)  # One counter per player
+        
+        # TileManager for graphics rendering (works with any agent type)
+        self.tile_manager = TileManager()
 
         if randomized:
             random.shuffle(self.layouts)
@@ -714,6 +718,8 @@ class OvercookedGame(Game):
         # Set layout name on MDP for agent access
         self.mdp.layout_name = self.curr_layout
         
+        # Initialize tile manager from MDP for graphics rendering (works with any agent)
+        self.tile_manager.initialize_from_mdp(self.mdp)
 
         if self.show_potential:
             self.mp = MotionPlanner.from_pickle_or_compute(
@@ -811,7 +817,7 @@ class OvercookedGame(Game):
             for (x, y) in staging_positions:
                 graphics_terrain[y][x] = 'G'
             
-            # Get chopping stations from agent (for layouts with hardcoded positions) or use dynamic detection
+            # Get chopping stations - try agent first, then fallback to tile_manager, then dynamic detection
             chopping_positions = []
             agent_chopping_positions = []
             for npc_policy in self.npc_policies.values():
@@ -822,6 +828,9 @@ class OvercookedGame(Game):
             if agent_chopping_positions:
                 # Use agent's hardcoded positions
                 chopping_positions = agent_chopping_positions
+            elif self.tile_manager.onion_chopping_stations:
+                # Fallback to tile_manager for custom layouts with hardcoded positions
+                chopping_positions = self.tile_manager.onion_chopping_stations
             else:
                 # Use dynamic detection for layouts without hardcoded positions
                 for staging_pos in staging_positions:
@@ -839,36 +848,48 @@ class OvercookedGame(Game):
             for (x, y) in chopping_positions:
                 graphics_terrain[y][x] = 'C'
             
-            # Add sink stations if using LLM agent with sink support
+            # Add sink stations - try agent first, then fallback to tile_manager
             sink_positions = []
             for npc_policy in self.npc_policies.values():
                 if hasattr(npc_policy, 'sink_stations') and npc_policy.sink_stations:
                     sink_positions.extend(npc_policy.sink_stations)
                     break  # Only need one agent's sink positions
             
+            # Fallback to tile_manager if agent doesn't have sink stations
+            if not sink_positions and self.tile_manager.sink_stations:
+                sink_positions = self.tile_manager.sink_stations
+            
             # Mark sink tiles as 'W' in the COPY
             for (x, y) in sink_positions:
                 if 0 <= y < H and 0 <= x < W:
                     graphics_terrain[y][x] = 'W'
             
-            # Add salt stations if using LLM agent with salt support
+            # Add salt stations - try agent first, then fallback to tile_manager
             salt_positions = []
             for npc_policy in self.npc_policies.values():
                 if hasattr(npc_policy, 'salt_stations') and npc_policy.salt_stations:
                     salt_positions.extend(npc_policy.salt_stations)
                     break  # Only need one agent's salt positions
             
+            # Fallback to tile_manager if agent doesn't have salt stations
+            if not salt_positions and self.tile_manager.salt_stations:
+                salt_positions = self.tile_manager.salt_stations
+            
             # Mark salt tiles as 'L' in the COPY
             for (x, y) in salt_positions:
                 if 0 <= y < H and 0 <= x < W:
                     graphics_terrain[y][x] = 'L'
             
-            # Add pepper stations if using LLM agent with pepper support
+            # Add pepper stations - try agent first, then fallback to tile_manager
             pepper_positions = []
             for npc_policy in self.npc_policies.values():
                 if hasattr(npc_policy, 'pepper_stations') and npc_policy.pepper_stations:
                     pepper_positions.extend(npc_policy.pepper_stations)
                     break  # Only need one agent's pepper positions
+            
+            # Fallback to tile_manager if agent doesn't have pepper stations
+            if not pepper_positions and self.tile_manager.pepper_stations:
+                pepper_positions = self.tile_manager.pepper_stations
             
             # Mark pepper tiles as 'Q' in the COPY
             for (x, y) in pepper_positions:

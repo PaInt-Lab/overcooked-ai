@@ -278,13 +278,13 @@ class CoordinatedActionPredictorAgent(Agent):
         # **CRITICAL: Follow the plan sequence step-by-step!**
         # - DO NOT skip to the next ingredient if you're currently holding an item that is involved in the current steps for the plan.
         # - If the plan's next step involves an item that someone is holding, there are higher odds that that is the next correct action!
-        # - When multiple plans are available, PRIORITIZE the most recent plan as it better represents current human preferences
-        # - Older plans can be used as backup guidance if the most recent plan doesn't fit the current state
+        # - When multiple plans are available, consider all plans with equal weight
+        # - Choose the plan whose sequence best matches the current state
         # - The plans are very important and are designed to be followed in order!
         # - Don't skip ahead to later steps
         # - Only choose actions that are both AVAILABLE and the NEXT LOGICAL STEP in the plan
 
-        # Select the action that best aligns with the day of the week of previously completed plans and the most recent plan regarding the current state.
+        # Select the action that best aligns with the current state and available plans.
 
         # Build prompt for LLM
         prompt = f"""
@@ -296,7 +296,7 @@ class CoordinatedActionPredictorAgent(Agent):
         CURRENT STATE:
         {self.last_summary}
 
-        AVAILABLE PLANS (most recent first):
+        AVAILABLE PLANS:
         {plan_to_use}
 
         AVAILABLE ACTIONS:
@@ -306,9 +306,9 @@ class CoordinatedActionPredictorAgent(Agent):
         1. Analyze the current state - what has been completed so far?
 
         2. Compare plans:
-        - Start with the MOST RECENT PLAN (prioritize this if it aligns with current state)
-        - If the most recent plan doesn't fit the current progress, check OLDER PLANS as backup
+        - Consider all plans with equal weight
         - Identify which plan's sequence best matches where you are now
+        - Choose the plan that best aligns with the current state
 
         3. Find the next step:
         - Look at the matching plan sequence
@@ -323,7 +323,7 @@ class CoordinatedActionPredictorAgent(Agent):
         RETURN FORMAT:
         Primary: <action_name>
         """
-        
+        print(plan_to_use)
         # Display essential information for testing
         self._print_debug_info(available_primary_actions)
         
@@ -369,31 +369,44 @@ class CoordinatedActionPredictorAgent(Agent):
     
     def _get_plan_to_use(self, plan_text: str) -> str:
         """Determine which plan to use based on plan repository."""
-        if not self.plan_repository.is_empty():
-            # Use all successful plans with priority indicators (most recent first)
-            all_plans = self.plan_repository.get_plans_sorted_by_recency()
-            plan_lines = []
+        plan_lines = []
+        plan_counter = 1
+        
+        # Always include the original user plan first, formatted as PLAN #1
+        if hasattr(self, 'primary_tasks') and self.primary_tasks:
+            # Build time/day info if available
+            time_info = ""
+            if self.plan_time and self.plan_day:
+                time_info = f" (for {self.plan_day} at {self.plan_time})"
             
-            for i, plan in enumerate(all_plans):
+            # Format original plan same as successful plans
+            plan_label = f"PLAN #{plan_counter}{time_info}"
+            actions_str = " → ".join(self.primary_tasks)
+            plan_lines.append(f"{plan_label}:\n{actions_str}")
+            plan_counter += 1
+        
+        # Add all successful plans from repository with equal weight
+        if not self.plan_repository.is_empty():
+            all_plans = self.plan_repository.get_plans_sorted_by_recency()
+            
+            for plan in all_plans:
                 # Build time/day info if available
                 time_info = ""
                 if plan.get('plan_time') and plan.get('plan_day'):
                     time_info = f" (executed {plan['plan_day']} at {plan['plan_time']})"
                 
-                if i == 0:
-                    # Most recent plan - better represents current human preferences
-                    priority_label = f"MOST RECENT PLAN{time_info} (prioritize this - represents current human preferences)"
-                else:
-                    # Older plans - use as backup reference
-                    priority_label = f"OLDER PLAN #{i+1}{time_info} (use as backup reference)"
+                # All plans have equal weight - same format as original plan
+                plan_label = f"PLAN #{plan_counter}{time_info}"
                 
                 actions_str = " → ".join(plan['actions'])
-                plan_lines.append(f"{priority_label}:\n{actions_str}")
-            
+                plan_lines.append(f"{plan_label}:\n{actions_str}")
+                plan_counter += 1
+        
+        # Return combined plans or fallback message
+        if plan_lines:
             return "\n\n".join(plan_lines)
         else:
-            # Use original user plan for first time
-            return f"USER PLAN (follow in order):\n{plan_text}"
+            return "No plans available"
     
     def _print_debug_info(self, available_primary_actions):
         """Print debug information."""

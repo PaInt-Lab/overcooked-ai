@@ -336,7 +336,7 @@ This system enables research in:
 
 ## Authors & Acknowledgments
 
-- **Lead LLM Agent Developer:** Vito Rizzuto  
+- **This Variation of Overcooked-AI:** Vito Rizzuto  
 - **Original Overcooked-AI:** Micah Carroll (mdc@berkeley.edu), Center for Human-Compatible AI
 - **Special Thanks:** OpenAI, Ollama, and the open-source LLM communities
 

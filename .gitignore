@@ -180,3 +180,5 @@ src/overcooked_demo/server/overcooked_ai/
 # Ignore large cache files
 *.pkl
 complete_state_graph_cache.pkl
+
+claude.md

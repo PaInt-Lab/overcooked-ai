@@ -211,19 +211,7 @@ def _smart_select_secondary_action(game_state: Dict, predicted_primary_action: s
     
     # Handle NOOP case (when no primary action predicted)
     if predicted_primary_action == "NOOP":
-        # Default behavior: prepare ingredients (soup handling moved to "Serve Soup" case)
-        if "onion" in task_title.lower() and not game_state.get('onion_in_pot', False):
-            if game_state.get('onion_hand') == 'none':
-                return "pickup(onion)"
-            elif game_state.get('onion_hand') == 'agent':
-                return "place(onion, staging_station)"
-        elif "tomato" in task_title.lower() and not game_state.get('tomato_in_pot', False):
-            if game_state.get('tomato_hand') == 'none':
-                return "pickup(tomato)"
-            elif game_state.get('tomato_hand') == 'agent':
-                return "place(tomato, staging_station)"
-        else:
-            return "NOOP"
+        return "NOOP"
     
     # Handle washing actions
     if predicted_primary_action == "Wash Onion":

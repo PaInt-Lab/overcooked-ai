@@ -301,21 +301,24 @@ class CoordinatedActionPredictorAgent(Agent):
         {available_primary_actions}
 
         DECISION PROCESS:
-        1. Analyze the current state - what has been completed so far?
+        1. FIRST, carefully review ALL training data to identify patterns:
+        - Read through each sequence completely - don't just look at the first action
+        - Identify what the human tends to prefer: do they favor onion or tomato overall?
+        - Look for common themes: do most sequences process one ingredient before the other?
 
-        2. Consider training data:
-        - Review past successful action sequences to understand common patterns
-        - Understand what the human prefers and is most likely to do based on the training data and the current state
+        2. Analyze the current state:
+        - What has been completed so far?
+        - What items are currently being held?
 
-        3. Determine the next logical action:
-        - Based on what's been completed and what remains, identify what should happen next
-        - Consider patterns from training data if helpful, but adapt to the current situation
+        3. Determine the next action:
+        - If at the START: look at the overall preference pattern from training data - what does the human usually do first?
+        - If mid-sequence: continue in a way that's consistent with how similar states progressed in training data
         - Verify the action exists in AVAILABLE ACTIONS
 
         4. Select the action:
-        - Choose the action from AVAILABLE ACTIONS that represents the NEXT logical step
-        - Use training data as guidance but prioritize what makes sense for the current state
-        - Be flexible and adaptive rather than rigidly following any single sequence
+        - Choose the action that aligns with the human's demonstrated preferences from training data
+        - When training data shows a clear preference (e.g., most sequences favor one ingredient), respect that preference
+        - Adapt to current state but stay consistent with learned human behavior patterns
 
         RETURN FORMAT:
         Primary: <action_name>

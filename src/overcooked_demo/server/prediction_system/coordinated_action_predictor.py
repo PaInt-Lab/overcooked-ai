@@ -275,20 +275,18 @@ class CoordinatedActionPredictorAgent(Agent):
         if self.plan_time and self.plan_day:
             temporal_context = f"{self.plan_day} and {self.plan_time}"
         
-        # **CRITICAL: Follow the plan sequence step-by-step!**
-        # - DO NOT skip to the next ingredient if you're currently holding an item that is involved in the current steps for the plan.
-        # - If the plan's next step involves an item that someone is holding, there are higher odds that that is the next correct action!
-        # - When multiple plans are available, consider all plans with equal weight
-        # - Choose the plan whose sequence best matches the current state
-        # - The plans are very important and are designed to be followed in order!
-        # - Don't skip ahead to later steps
-        # - Only choose actions that are both AVAILABLE and the NEXT LOGICAL STEP in the plan
+        # **Training Data Approach:**
+        # - Past successful sequences are provided as training data, not rigid plans to follow
+        # - The agent should consider patterns from training data but adapt to the current state
+        # - Time/day matching helps identify relevant patterns (human preferences vary by time)
+        # - If no training data exists, the agent makes decisions based solely on the current state
+        # - Flexibility is encouraged - use training data as guidance, not strict instructions
 
-        # Select the action that best aligns with the current state and available plans.
+        # Select the action that best aligns with the current state, informed by training data when available.
 
         # Build prompt for LLM
         prompt = f"""
-        You are helping a human cook soup. You need to select the best next action based on multiple available plans and the current state.
+        You are helping a human cook soup. Select the best next action based on the current state and available training data.
 
         CURRENT TIME & DAY: 
         {temporal_context}
@@ -296,7 +294,7 @@ class CoordinatedActionPredictorAgent(Agent):
         CURRENT STATE:
         {self.last_summary}
 
-        AVAILABLE PLANS:
+        TRAINING DATA:
         {plan_to_use}
 
         AVAILABLE ACTIONS:
@@ -305,22 +303,19 @@ class CoordinatedActionPredictorAgent(Agent):
         DECISION PROCESS:
         1. Analyze the current state - what has been completed so far?
 
-        2. Compare plans (IMPORTANT: Date and time are critical factors):
-        - FIRST, prioritize plans that match the CURRENT TIME & DAY - these are more likely to reflect current human preferences
-        - If multiple plans match the current date/time, consider all of them with equal weight
-        - If no plans match the current date/time, then consider all plans with equal weight
-        - Identify which plan's sequence best matches where you are now
-        - Choose the plan that best aligns with the current state, giving preference to plans with matching dates/times when available
+        2. Consider training data:
+        - Review past successful action sequences to understand common patterns
+        - Understand what the human prefers and is most likely to do based on the training data and the current state
 
-        3. Find the next step:
-        - Look at the matching plan sequence
-        - Find the FIRST uncompleted step in that sequence
-        - Verify that step exists in AVAILABLE ACTIONS
+        3. Determine the next logical action:
+        - Based on what's been completed and what remains, identify what should happen next
+        - Consider patterns from training data if helpful, but adapt to the current situation
+        - Verify the action exists in AVAILABLE ACTIONS
 
         4. Select the action:
         - Choose the action from AVAILABLE ACTIONS that represents the NEXT logical step
-        - Stay within one plan's sequence (don't mix different plans)
-        - Follow steps sequentially within that plan
+        - Use training data as guidance but prioritize what makes sense for the current state
+        - Be flexible and adaptive rather than rigidly following any single sequence
 
         RETURN FORMAT:
         Primary: <action_name>
@@ -369,24 +364,24 @@ class CoordinatedActionPredictorAgent(Agent):
             return "No primary tasks available"
     
     def _get_plan_to_use(self, plan_text: str) -> str:
-        """Determine which plan to use based on plan repository."""
-        plan_lines = []
-        plan_counter = 1
+        """Build training data text from plan repository and current session."""
+        training_lines = []
+        sequence_counter = 1
         
-        # Always include the original user plan first, formatted as PLAN #1
+        # Include the original user plan first as initial training data
         if hasattr(self, 'primary_tasks') and self.primary_tasks:
             # Build time/day info if available
             time_info = ""
             if self.plan_time and self.plan_day:
-                time_info = f" (for {self.plan_day} at {self.plan_time})"
+                time_info = f" ({self.plan_day} at {self.plan_time})"
             
-            # Format original plan same as successful plans
-            plan_label = f"PLAN #{plan_counter}{time_info}"
+            # Format as training sequence
+            sequence_label = f"SEQUENCE #{sequence_counter}{time_info}"
             actions_str = " → ".join(self.primary_tasks)
-            plan_lines.append(f"{plan_label}:\n{actions_str}")
-            plan_counter += 1
+            training_lines.append(f"{sequence_label}:\n{actions_str}")
+            sequence_counter += 1
         
-        # Add all successful plans from repository with equal weight
+        # Add all successful sequences from repository
         if not self.plan_repository.is_empty():
             all_plans = self.plan_repository.get_plans_sorted_by_recency()
             
@@ -394,20 +389,20 @@ class CoordinatedActionPredictorAgent(Agent):
                 # Build time/day info if available
                 time_info = ""
                 if plan.get('plan_time') and plan.get('plan_day'):
-                    time_info = f" (executed {plan['plan_day']} at {plan['plan_time']})"
+                    time_info = f" ({plan['plan_day']} at {plan['plan_time']})"
                 
-                # All plans have equal weight - same format as original plan
-                plan_label = f"PLAN #{plan_counter}{time_info}"
+                # Format as training sequence
+                sequence_label = f"SEQUENCE #{sequence_counter}{time_info}"
                 
                 actions_str = " → ".join(plan['actions'])
-                plan_lines.append(f"{plan_label}:\n{actions_str}")
-                plan_counter += 1
+                training_lines.append(f"{sequence_label}:\n{actions_str}")
+                sequence_counter += 1
         
-        # Return combined plans or fallback message
-        if plan_lines:
-            return "\n\n".join(plan_lines)
+        # Return combined training data or indicate none available
+        if training_lines:
+            return "\n\n".join(training_lines)
         else:
-            return "No plans available"
+            return "No training data available - make decisions based on current state"
     
     def _print_debug_info(self, available_primary_actions):
         """Print debug information."""

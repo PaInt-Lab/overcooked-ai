@@ -1,6 +1,6 @@
 // Subtask Management Module
-(function() {
-  'use strict';
+(function () {
+  "use strict";
 
   let draggedElement = null;
   let isConfirmed = false;
@@ -8,7 +8,9 @@
 
   document.addEventListener("DOMContentLoaded", function () {
     const container = document.getElementById("subtaskContainer");
-    const confirmContainer = document.getElementById("confirmSequenceContainer");
+    const confirmContainer = document.getElementById(
+      "confirmSequenceContainer"
+    );
     const confirmBtn = document.getElementById("confirmSequence");
 
     // Create subtask functionality
@@ -207,12 +209,12 @@
         }
       });
 
-    // Make Soup Recipe functionality
+    // Make Default Onion Recipe functionality
     document
-      .getElementById("makeSoupRecipeBtn")
+      .getElementById("makeDefaultOnionRecipeBtn")
       .addEventListener("click", function (e) {
         e.preventDefault();
-        
+
         // Clear existing subtasks
         const empty = document.getElementById("emptyMessage");
         if (empty) {
@@ -220,8 +222,65 @@
         }
         container.innerHTML = "";
 
-        // Create cards for each recipe subtask using the default recipe from constants
+        // Create cards for each recipe subtask using the default onion recipe from constants
         DEFAULT_SEASONED_PLAN.forEach((subtask) => {
+          createSubtaskCard(subtask);
+        });
+      });
+
+    // Make Default Tomato Recipe functionality
+    document
+      .getElementById("makeDefaultTomatoRecipeBtn")
+      .addEventListener("click", function (e) {
+        e.preventDefault();
+
+        // Clear existing subtasks
+        const empty = document.getElementById("emptyMessage");
+        if (empty) {
+          empty.style.display = "none";
+        }
+        container.innerHTML = "";
+
+        // Create cards for each recipe subtask using the default tomato recipe from constants
+        DEFAULT_TOMATO_PLAN.forEach((subtask) => {
+          createSubtaskCard(subtask);
+        });
+      });
+
+    // Make Mixed Onion Recipe functionality
+    document
+      .getElementById("makeMixedOnionRecipeBtn")
+      .addEventListener("click", function (e) {
+        e.preventDefault();
+
+        // Clear existing subtasks
+        const empty = document.getElementById("emptyMessage");
+        if (empty) {
+          empty.style.display = "none";
+        }
+        container.innerHTML = "";
+
+        // Create cards for each recipe subtask using the mixed onion recipe from constants
+        MIXED_ONION_FIRST_PLAN.forEach((subtask) => {
+          createSubtaskCard(subtask);
+        });
+      });
+
+    // Make Mixed Tomato Recipe functionality
+    document
+      .getElementById("makeMixedTomatoRecipeBtn")
+      .addEventListener("click", function (e) {
+        e.preventDefault();
+
+        // Clear existing subtasks
+        const empty = document.getElementById("emptyMessage");
+        if (empty) {
+          empty.style.display = "none";
+        }
+        container.innerHTML = "";
+
+        // Create cards for each recipe subtask using the mixed tomato recipe from constants
+        MIXED_TOMATO_FIRST_PLAN.forEach((subtask) => {
           createSubtaskCard(subtask);
         });
       });
@@ -242,11 +301,7 @@
       this.classList.remove("drag-over");
 
       if (draggedElement) {
-        const afterElement = getDragAfterElement(
-          this,
-          e.clientX,
-          e.clientY
-        );
+        const afterElement = getDragAfterElement(this, e.clientX, e.clientY);
 
         if (afterElement == null) {
           this.appendChild(draggedElement);
@@ -304,15 +359,19 @@
 
       // Show loading state
       isPlanLoading = true;
-      const planLoadingContainer = document.getElementById("planLoadingContainer");
-      const planCreationOverlay = document.getElementById("planCreationOverlay");
+      const planLoadingContainer = document.getElementById(
+        "planLoadingContainer"
+      );
+      const planCreationOverlay = document.getElementById(
+        "planCreationOverlay"
+      );
       planLoadingContainer.style.display = "block";
       planCreationOverlay.style.display = "flex";
       confirmBtn.disabled = true;
       confirmBtn.textContent = "Creating Plan...";
 
-      const seq = [...container.querySelectorAll(".subtask-card")].map(
-        (c) => c.querySelector(".subtask-text").textContent.trim()
+      const seq = [...container.querySelectorAll(".subtask-card")].map((c) =>
+        c.querySelector(".subtask-text").textContent.trim()
       );
 
       // Get the task title, time, and day from input fields
@@ -323,11 +382,11 @@
       fetch("/confirm_subtasks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           subtasks: seq,
           taskTitle: taskTitle,
           planTime: planTime,
-          planDay: planDay
+          planDay: planDay,
         }),
       })
         .then((r) => r.json())
@@ -335,9 +394,22 @@
           console.log("confirm_subtasks response:", data);
           if (data.status === "success") {
             window.planSessionId = data.session_id;
-            window.taskTitle = data.taskTitle;  // Store task title globally
-            window.planTime = data.planTime;  // Store plan time globally
-            window.planDay = data.planDay;  // Store plan day globally
+            window.taskTitle = data.taskTitle; // Store task title globally
+            window.planTime = data.planTime; // Store plan time globally
+            window.planDay = data.planDay; // Store plan day globally
+
+            // Debug: Print initial user plan
+            console.log("=== INITIAL USER PLAN (DEBUG) ===");
+            console.log("Task Title:", data.taskTitle);
+            console.log("Plan Time:", data.planTime);
+            console.log("Plan Day:", data.planDay);
+            console.log("Session ID:", data.session_id);
+            console.log("Subtasks:");
+            seq.forEach((subtask, index) => {
+              console.log(`  ${index + 1}. ${subtask}`);
+            });
+            console.log("=================================");
+
             isConfirmed = true;
             document.querySelectorAll(".subtask-card").forEach((card) => {
               card.classList.add("confirmed");
@@ -345,7 +417,8 @@
             });
             confirmBtn.textContent = "Edit Sequence";
             planLoadingContainer.style.display = "none";
-            document.getElementById("planCreationOverlay").style.display = "none";
+            document.getElementById("planCreationOverlay").style.display =
+              "none";
             confirmBtn.disabled = false;
             isPlanLoading = false;
           } else {
@@ -367,7 +440,7 @@
 
     // Make time picker open when clicking anywhere on the input
     const planTimeInput = document.getElementById("planTime");
-    planTimeInput.addEventListener("click", function() {
+    planTimeInput.addEventListener("click", function () {
       try {
         // Show the time picker dropdown
         if (this.showPicker) {
@@ -385,9 +458,8 @@
       (e) => {
         const p0 = document.getElementById("playerZero").value;
         const p1 = document.getElementById("playerOne").value;
-        const llmSelected =
-          p0 === "overcooked_llm" || p1 === "overcooked_llm";
-        
+        const llmSelected = p0 === "overcooked_llm" || p1 === "overcooked_llm";
+
         // Check if plan is currently being created
         if (isPlanLoading) {
           e.preventDefault();
@@ -397,7 +469,7 @@
           );
           return;
         }
-        
+
         if (llmSelected && !isConfirmed) {
           e.preventDefault();
           e.stopImmediatePropagation();
@@ -411,4 +483,3 @@
     );
   });
 })();
-

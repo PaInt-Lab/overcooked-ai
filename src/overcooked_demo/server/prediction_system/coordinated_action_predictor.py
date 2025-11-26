@@ -301,24 +301,26 @@ class CoordinatedActionPredictorAgent(Agent):
         {available_primary_actions}
 
         DECISION PROCESS:
-        1. FIRST, carefully review ALL training data to identify patterns:
-        - Read through each sequence completely - don't just look at the first action
-        - Identify what the human tends to prefer: do they favor onion or tomato overall?
-        - Look for common themes: do most sequences process one ingredient before the other?
+        1. Identify your current position in the training sequence:
+        - Look at the current state and determine what has been completed
+        - Match completed actions to the training data sequence
+        - Find where you are in that sequence
 
-        2. Analyze the current state:
-        - What has been completed so far?
-        - What items are currently being held?
+        2. Determine the NEXT action in the sequence:
+        - What is the very next action that should come after your current position?
+        - Verify this action exists in AVAILABLE ACTIONS
+        - If the next action is NOT available, explain why and choose the closest alternative
 
-        3. Determine the next action:
-        - If at the START: look at the overall preference pattern from training data - what does the human usually do first?
-        - If mid-sequence: continue in a way that's consistent with how similar states progressed in training data
-        - Verify the action exists in AVAILABLE ACTIONS
+        3. Follow the sequence order strictly:
+        - ALWAYS prioritize continuing the sequence over opportunistic actions
+        - Do NOT skip ahead just because an item is in hand
+        - Do NOT jump to a later step just because it seems efficient
+        - EXAMPLE: If the sequence shows "Wash Tomato → Wash Onion → Chop Tomato" and you just finished washing the tomato, you MUST do "Wash Onion" next, even though you have a washed tomato in hand
 
         4. Select the action:
-        - Choose the action that aligns with the human's demonstrated preferences from training data
-        - When training data shows a clear preference (e.g., most sequences favor one ingredient), respect that preference
-        - Adapt to current state but stay consistent with learned human behavior patterns
+        - Choose the next action in the training sequence
+        - If multiple training sequences exist, prioritize the one matching the current time/day
+        - Stay faithful to the demonstrated sequence order
 
         RETURN FORMAT:
         Primary: <action_name>

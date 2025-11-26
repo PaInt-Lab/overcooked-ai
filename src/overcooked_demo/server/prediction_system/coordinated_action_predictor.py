@@ -231,7 +231,7 @@ class CoordinatedActionPredictorAgent(Agent):
         """Main action selection using optimized coordination system."""
         assert self.agent_index is not None, "agent_index is None in action!"
         
-        # Get current state summary
+        # Get current state summary (last_info contains event_infos from game.py)
         self.last_summary = self.summarize_state(state, getattr(self, 'last_info', {}))
         
         # Get available primary actions from our complete state graph with washing
@@ -411,7 +411,30 @@ class CoordinatedActionPredictorAgent(Agent):
         """Print debug information."""
         print(f"CURRENT STATE: {self.last_summary}")
         print(f"SUPPLYING {len(available_primary_actions)} ACTIONS TO LLM: {available_primary_actions}")
-    
+
+    def _infer_recipe_type(self) -> str:
+        """Infer recipe type from current game state."""
+        if not self.last_summary:
+            return 'unknown'
+
+        recipe_components = []
+
+        # Check for onion usage
+        if (self.last_summary.get('onion_in_pot') or
+            self.last_summary.get('onion_chopped') or
+            self.last_summary.get('onion_washed') or
+            self.last_summary.get('onion_staged')):
+            recipe_components.append('onion')
+
+        # Check for tomato usage
+        if (self.last_summary.get('tomato_in_pot') or
+            self.last_summary.get('tomato_chopped') or
+            self.last_summary.get('tomato_washed') or
+            self.last_summary.get('tomato_staged')):
+            recipe_components.append('tomato')
+
+        return '_'.join(recipe_components) if recipe_components else 'unknown'
+
     def _track_and_adapt_plan(self, predicted_human_action: str):
         """Track actions and adapt plan based on success."""
         # Track primary action for plan adaptation
@@ -421,20 +444,38 @@ class CoordinatedActionPredictorAgent(Agent):
         if self.last_summary and self.last_summary.get('soup_served', False):
             # Finalize and store the successful sequence
             if not self.action_tracker.is_empty():
+                # Infer recipe type dynamically from actual state
+                recipe_type = self._infer_recipe_type()
+
                 successful_plan = {
                     'actions': self.action_tracker.get_current_sequence(),
                     'duration': self.action_tracker.get_sequence_duration(),
-                    'recipe_type': 'onion_washed_chopped_tomato_washed_chopped',  # Fixed recipe type for now
+                    'recipe_type': recipe_type,
                     'plan_time': self.plan_time,  # Store time when plan was executed
                     'plan_day': self.plan_day  # Store day when plan was executed
                 }
+
+                # Print detailed plan debug output BEFORE saving
+                print("\n" + "="*80)
+                print("PLAN COMPLETED - DEBUG OUTPUT")
+                print("="*80)
+                print(f"Soup served by: {self.last_summary.get('soup_delivered_by', 'unknown')}")
+                print(f"Recipe type: {recipe_type}")
+                print(f"Duration: {successful_plan['duration']:.1f}s")
+                print(f"Plan time: {self.plan_time}")
+                print(f"Plan day: {self.plan_day}")
+                print(f"Number of actions: {len(successful_plan['actions'])}")
+                print(f"\nAction sequence:")
+                for i, action in enumerate(successful_plan['actions'], 1):
+                    print(f"  {i}. {action}")
+                print(f"\nFull plan object:")
+                import json
+                print(json.dumps(successful_plan, indent=2, default=str))
+                print("="*80 + "\n")
+
+                # Now save to repository
                 self.plan_repository.add_successful_plan(successful_plan)
-                
-                # Print detailed plan summary
-                print(f"PLAN SUCCESS: Soup served by {self.last_summary.get('soup_delivered_by', 'unknown')}!")
-                print(f"SAVED PLAN: {len(successful_plan['actions'])} actions over {successful_plan['duration']:.1f}s")
-                print(f"PLAN SEQUENCE: {' → '.join(successful_plan['actions'])}")
-                print(f"PLAN REPOSITORY: Now has {self.plan_repository.get_plan_count()} total plans")
+                print(f"✓ PLAN SAVED: Repository now has {self.plan_repository.get_plan_count()} total plans")
                 
                 # Reset tracker for next sequence
                 self.action_tracker.reset()

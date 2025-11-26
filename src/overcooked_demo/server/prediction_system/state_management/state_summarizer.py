@@ -213,10 +213,16 @@ class StateSummarizer:
         soup_served = False
         soup_delivered_by = "none"
         
-        # Check if soup was served (from external flag)
-        # This is set by the game.py when soup delivery is detected
-        # The flag is passed through the agent's soup_served_flag attribute
-        # We don't set it here, just read it if available
+        # Check if soup was served (from event_infos in info dict)
+        # This is set by the game environment when soup delivery is detected
+        if info and info.get("event_infos", {}).get("soup_delivery"):
+            soup_delivery = info.get("event_infos", {}).get("soup_delivery", [False, False])
+            if any(soup_delivery):
+                soup_served = True
+                if soup_delivery[0]:  # Agent delivered
+                    soup_delivered_by = "agent"
+                elif soup_delivery[1]:  # Partner delivered
+                    soup_delivered_by = "partner"
 
         return {
             "onion_hand": onion_hand,

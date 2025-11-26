@@ -79,11 +79,32 @@ class ActionTracker:
         # Don't record actions when soup is already served
         if game_state.get('soup_served', False):
             return
-        
+
         # Check if we should switch to sequential mode
-        if (game_state.get('onion_in_pot', False) and 
-            game_state.get('tomato_in_pot', False)):
-            self.sequential_mode = True
+        # Determine which ingredients are being used in this recipe
+        using_onion = (game_state.get('onion_in_pot', False) or
+                      game_state.get('onion_chopped', False) or
+                      game_state.get('onion_washed', False) or
+                      game_state.get('onion_staged', False))
+        using_tomato = (game_state.get('tomato_in_pot', False) or
+                       game_state.get('tomato_chopped', False) or
+                       game_state.get('tomato_washed', False) or
+                       game_state.get('tomato_staged', False))
+
+        # Switch to sequential mode based on recipe type
+        if using_onion and using_tomato:
+            # Both ingredients recipe - wait for both in pot
+            if (game_state.get('onion_in_pot', False) and
+                game_state.get('tomato_in_pot', False)):
+                self.sequential_mode = True
+        elif using_onion:
+            # Onion-only recipe - switch when onion in pot
+            if game_state.get('onion_in_pot', False):
+                self.sequential_mode = True
+        elif using_tomato:
+            # Tomato-only recipe - switch when tomato in pot
+            if game_state.get('tomato_in_pot', False):
+                self.sequential_mode = True
         
         if not self.sequential_mode:
             # Phase 1: State-based recording

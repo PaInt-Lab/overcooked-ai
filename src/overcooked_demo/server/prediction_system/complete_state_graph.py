@@ -599,31 +599,27 @@ class CompleteStateGraphGenerator:
         
         # Implement validation logic for each primary action
         if action == "Wash Onion":
-            # Valid if: sink is available, onion needs washing
-            return (not state.onion_at_sink and not state.tomato_at_sink and  # Sink available
-                    not state.onion_washed and  # Onion not already washed
+            # Valid if: onion not already washed and not in pot. Sink availability handled at execution time (may need to clear).
+            return (not state.onion_washed and  # Onion not already washed
                     not state.onion_in_pot and  # Onion not already used
                     soup_not_in_play)     # No soup in progress
             
         elif action == "Chop Onion":
-            # Valid if: chopping station available, onion not already chopped, onion not in pot
+            # Valid if: onion not already chopped, onion not in pot. Station availability handled at execution time.
             # Can chop raw onion OR already washed onion - chopping is independent of washing
-            return (not state.onion_at_chopping and not state.tomato_at_chopping and  # Station available
-                    not state.onion_chopped and  # Onion not already chopped
+            return (not state.onion_chopped and  # Onion not already chopped
                     not state.onion_in_pot and   # Onion not already used
                     soup_not_in_play)  # No soup in progress
             
         elif action == "Salt Onion":
-            # Valid if: salt station available, onion not already salted, onion not in pot
-            return (not state.onion_at_salt_station and not state.tomato_at_salt_station and  # Station available
-                    not state.onion_salted and  # Onion not already salted
+            # Valid if: onion not already salted, onion not in pot. Station availability handled at execution time.
+            return (not state.onion_salted and  # Onion not already salted
                     not state.onion_in_pot and   # Onion not already used
                     soup_not_in_play)  # No soup in progress
             
         elif action == "Pepper Onion":
-            # Valid if: pepper station available, onion not already peppered, onion not in pot
-            return (not state.onion_at_pepper_station and not state.tomato_at_pepper_station and  # Station available
-                    not state.onion_peppered and  # Onion not already peppered
+            # Valid if: onion not already peppered, onion not in pot. Station availability handled at execution time.
+            return (not state.onion_peppered and  # Onion not already peppered
                     not state.onion_in_pot and   # Onion not already used
                     soup_not_in_play)  # No soup in progress
             
@@ -645,31 +641,27 @@ class CompleteStateGraphGenerator:
             return state.onion_hand == "partner"
             
         elif action == "Wash Tomato":
-            # Valid if: sink is available, tomato needs washing, and agent restrictions allow it
-            return (not state.onion_at_sink and not state.tomato_at_sink and  # Sink available
-                    not state.tomato_washed and  # Tomato not already washed
+            # Valid if: tomato needs washing, not in pot. Sink availability handled at execution time.
+            return (not state.tomato_washed and  # Tomato not already washed
                     not state.tomato_in_pot and  # Tomato not already used
                     soup_not_in_play)  # Human not holding tomato (human should process what they have)
             
         elif action == "Chop Tomato":
-            # Valid if: chopping station available, tomato not already chopped, tomato not in pot
+            # Valid if: tomato not already chopped, tomato not in pot. Station availability handled at execution time.
             # Can chop raw tomato OR already washed tomato - chopping is independent of washing
-            return (not state.onion_at_chopping and not state.tomato_at_chopping and  # Station available
-                    not state.tomato_chopped and  # Tomato not already chopped
+            return (not state.tomato_chopped and  # Tomato not already chopped
                     not state.tomato_in_pot and   # Tomato not already used
                     soup_not_in_play)  # Human not holding tomato (human should process what they have)
             
         elif action == "Salt Tomato":
-            # Valid if: salt station available, tomato not already salted, tomato not in pot
-            return (not state.onion_at_salt_station and not state.tomato_at_salt_station and  # Station available
-                    not state.tomato_salted and  # Tomato not already salted
+            # Valid if: tomato not already salted, tomato not in pot. Station availability handled at execution time.
+            return (not state.tomato_salted and  # Tomato not already salted
                     not state.tomato_in_pot and   # Tomato not already used
                     soup_not_in_play)  # No soup in progress
             
         elif action == "Pepper Tomato":
-            # Valid if: pepper station available, tomato not already peppered, tomato not in pot
-            return (not state.onion_at_pepper_station and not state.tomato_at_pepper_station and  # Station available
-                    not state.tomato_peppered and  # Tomato not already peppered
+            # Valid if: tomato not already peppered, tomato not in pot. Station availability handled at execution time.
+            return (not state.tomato_peppered and  # Tomato not already peppered
                     not state.tomato_in_pot and   # Tomato not already used
                     soup_not_in_play)  # No soup in progress
             

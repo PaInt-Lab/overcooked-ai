@@ -21,6 +21,7 @@ from .llm import query_openai
 from .pathfinding import MovementPlanner
 from .action_parsing import ActionParser
 from .state_management import StateSummarizer, TileManager, BlockingDetector
+from .state_management.tile_manager import compute_frontier
 from .complete_state_graph import CompleteRecipeState
 from .graph_manager import get_global_graph
 from .human_channel import HumanInteractionChannel
@@ -343,7 +344,7 @@ class CoordinatedActionPredictorAgent(Agent):
         {available_primary_actions}
 
         DECISION PROCESS:
-        0. If HUMAN STEP ADVICE is present, choose the action that best matches it from AVAILABLE ACTIONS. Do this before following the training sequence. Only skip if it is impossible.
+        0. If HUMAN STEP ADVICE is present, choose the action that best matches it from AVAILABLE ACTIONS for this turn, then continue by using the training sequences on subsequent turns. Only skip if it is impossible.
         1. Identify your current position in the training sequence:
         - Look at the current state and determine what has been completed
         - Match completed actions to the training data sequence
@@ -372,7 +373,6 @@ class CoordinatedActionPredictorAgent(Agent):
         # Display essential information for testing
         self._print_debug_info(available_primary_actions)
 
-        print(f"PROMPT: {prompt}")
         
         # Call LLM to get predictions (using fixed temperature for consistency)
         response = query_openai(prompt, self.selected_model, temperature=0.3)
@@ -380,6 +380,9 @@ class CoordinatedActionPredictorAgent(Agent):
         # Parse the response - only need primary action now
         predicted_human_action = self.action_parser.parse_primary_action(response)
         reported_certainty = self.action_parser.parse_certainty(response)
+        if step_advice_text:
+            print(f"[ADVICE] Active step advice in prompt: {step_advice_text}")
+        print(f"[LLM CHOICE] Primary: {predicted_human_action} | Certainty: {reported_certainty}")
 
         # Compute uncertainty from LLM-reported certainty (0=uncertain,1=certain)
         uncertainty_score = self.human_channel.compute_uncertainty_from_certainty(reported_certainty)
@@ -560,19 +563,25 @@ class CoordinatedActionPredictorAgent(Agent):
             if func_name == "NOOP":
                 return self._handle_noop(my_pos, state, response, predicted_human_action, 
                                         robot_action, available_primary_actions)
-            
-            # Execute the compound action
-            if func_name == "pickup":
-                action_plan = self.movement_planner.pickup(item_info, my_pos, my_ori)
-            elif func_name == "place":
-                if isinstance(item_info, tuple):
-                    item_to_place, destination = item_info
-                    action_plan = self.movement_planner.place(item_to_place, my_pos, my_ori, destination)
-                else:
-                    action_plan = self.movement_planner.place(item_info, my_pos, my_ori, "default")
+
+            # Build optional pre-plan to clear wrong ingredient from target station
+            clear_plan = self._build_clear_station_plan(func_name, item_info, state, my_pos, my_ori)
+
+            if clear_plan:
+                action_plan = clear_plan
             else:
-                # Fallback to simple movement
-                action_plan = [Action.STAY]
+                # Execute the compound action
+                if func_name == "pickup":
+                    action_plan = self.movement_planner.pickup(item_info, my_pos, my_ori)
+                elif func_name == "place":
+                    if isinstance(item_info, tuple):
+                        item_to_place, destination = item_info
+                        action_plan = self.movement_planner.place(item_to_place, my_pos, my_ori, destination)
+                    else:
+                        action_plan = self.movement_planner.place(item_info, my_pos, my_ori, "default")
+                else:
+                    # Fallback to simple movement
+                    action_plan = [Action.STAY]
 
             # Return first action from the plan
             if action_plan:
@@ -635,6 +644,88 @@ class CoordinatedActionPredictorAgent(Agent):
             "blocking_prevention": False,
             "action_plan": []
         }
+
+    def _build_clear_station_plan(self, func_name: str, item_info, state, my_pos, my_ori) -> List[Action]:
+        """
+        If the target station (sink/chopping/salt/pepper) has the wrong ingredient,
+        build a plan to move that item to a safe counter before executing the intended action.
+        """
+        # Only apply to station-bound actions
+        target_station = None
+        desired = None
+        station_frontier = None
+
+        def any_obj_on(pos_set):
+            sd = state.to_dict()
+            objs = sd.get("objects", [])
+            for obj in objs:
+                p = tuple(obj.get("position", ()))
+                if p in pos_set:
+                    ing = obj.get("ingredient") or obj.get("name")
+                    yield p, ing
+
+        if func_name == "place" and isinstance(item_info, tuple):
+            desired, destination = item_info
+            if destination == "sink":
+                target_station = set(self.tile_manager.sink_stations)
+                station_frontier = self.tile_manager.sink_frontier
+            elif destination == "chopping_station":
+                target_station = set(self.tile_manager.onion_chopping_stations or self.tile_manager.tomato_chopping_stations)
+                station_frontier = self.tile_manager.onion_chopping_frontier or self.tile_manager.tomato_chopping_frontier
+            elif destination == "salt_station":
+                target_station = set(self.tile_manager.salt_stations)
+                station_frontier = self.tile_manager.salt_frontier
+            elif destination == "pepper_station":
+                target_station = set(self.tile_manager.pepper_stations)
+                station_frontier = self.tile_manager.pepper_frontier
+        # If no target station, nothing to clear
+        if not target_station or not station_frontier:
+            return []
+
+        # Check occupancy
+        wrong_pos = None
+        for pos, ing in any_obj_on(target_station):
+            if ing != desired:
+                wrong_pos = pos
+                break
+        if not wrong_pos:
+            return []
+
+        # Pick a counter to drop the wrong item
+        avoid = set(target_station)
+        drop_counter = self.blocking_detector.find_nearest_empty_counter(state, avoid_positions=avoid)
+        if not drop_counter:
+            return []
+
+        # Build a plan: go to station frontier, interact (pickup wrong), go to counter frontier, interact (drop)
+        terrain = self.mdp.terrain_mtx if self.mdp else None
+        if not terrain:
+            return []
+
+        # Choose nearest frontier to station and counter
+        start_pair = (my_pos, tuple(my_ori))
+
+        station_goal = min(station_frontier, key=lambda mo: abs(mo[0][0] - my_pos[0]) + abs(mo[0][1] - my_pos[1])) if station_frontier else None
+        if not station_goal:
+            return []
+        to_station = self.movement_planner.get_action_plan(start_pair, station_goal)
+        if not to_station:
+            return []
+        # Prepare counter frontier
+        counter_frontier = compute_frontier([drop_counter], terrain)
+        counter_goal = min(counter_frontier, key=lambda mo: abs(mo[0][0] - station_goal[0][0]) + abs(mo[0][1] - station_goal[0][1])) if counter_frontier else None
+        if not counter_goal:
+            return []
+        to_counter = self.movement_planner.get_action_plan(station_goal, counter_goal)
+        if to_counter is None:
+            to_counter = []
+
+        plan = []
+        plan.extend(to_station)
+        plan.append(Action.INTERACT)  # pick up wrong item
+        plan.extend(to_counter)
+        plan.append(Action.INTERACT)  # drop on counter
+        return plan
 
     def actions(self, states, agent_indices):
         return [self.action(s) for s in states]

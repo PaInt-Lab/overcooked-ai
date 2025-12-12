@@ -80,8 +80,7 @@ class HumanInteractionChannel:
             "text": clean_text,
             "turn": turn,
             "state": snapshot or {},
-            # No TTL drop: rely on task completion or explicit clear
-            "expires_at": None,
+            "expires_at": turn + max(self.advice_fresh_turns, 6),
         }
         print(f"[HUMAN ADVICE] Stored step advice: '{clean_text}' (turn {turn})")
 
@@ -115,8 +114,7 @@ class HumanInteractionChannel:
             self.pending_step_advice = None
 
     def _is_advice_stale(self, advice: Dict, turn: int, current_state: Optional[dict]) -> bool:
-        expires_at = advice.get("expires_at", None)
-        if expires_at is not None and turn > expires_at:
+        if turn > advice.get("expires_at", turn):
             return True
         saved_state = advice.get("state") or {}
         current = current_state or {}

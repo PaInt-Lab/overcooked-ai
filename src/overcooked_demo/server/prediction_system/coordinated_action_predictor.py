@@ -343,6 +343,7 @@ class CoordinatedActionPredictorAgent(Agent):
         {available_primary_actions}
 
         DECISION PROCESS:
+        0. If HUMAN STEP ADVICE is present, choose the action that best matches it from AVAILABLE ACTIONS. Do this before following the training sequence. Only skip if it is impossible.
         1. Identify your current position in the training sequence:
         - Look at the current state and determine what has been completed
         - Match completed actions to the training data sequence
@@ -370,6 +371,8 @@ class CoordinatedActionPredictorAgent(Agent):
         """
         # Display essential information for testing
         self._print_debug_info(available_primary_actions)
+
+        print(f"PROMPT: {prompt}")
         
         # Call LLM to get predictions (using fixed temperature for consistency)
         response = query_openai(prompt, self.selected_model, temperature=0.3)

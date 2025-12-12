@@ -135,12 +135,52 @@
         <button id="join">Join Existing Game</button>
         <button id="leave" style="display: none">Leave</button>
       </div>
-      <div id="overcooked-container" class="text-center">
-        <h4 id="game-title" style="display: none">Game in Progress</h4>
-        <h4 id="game-over" style="display: none">Game Over</h4>
-        <div id="overcooked"></div>
-        <div id="error-exit" style="display: none">
-          Game ended unexpectedly (probably due to another user disconnecting)
+      <div style="display: flex; gap: 16px; align-items: flex-start; flex-wrap: nowrap; justify-content: center; margin-top: 12px; width: 100%;">
+        <div id="overcooked-container" class="text-center">
+          <h4 id="game-title" style="display: none">Game in Progress</h4>
+          <h4 id="game-over" style="display: none">Game Over</h4>
+          <div id="overcooked"></div>
+          <div id="error-exit" style="display: none">
+            Game ended unexpectedly (probably due to another user disconnecting)
+          </div>
+        </div>
+
+        <div id="human-guidance" class="mt-3" style="display: none; max-width: 420px; width: 420px;">
+          <h5>Send Guidance to the LLM Agent</h5>
+          <div class="card">
+            <div class="card-body">
+              <div class="mb-2">
+                <div class="btn-group btn-group-toggle" data-toggle="buttons">
+                  <label class="btn btn-outline-primary active" id="guidanceStepLabel">
+                    <input type="radio" name="guidanceType" id="guidanceTypeStep" value="STEP" autocomplete="off" checked />
+                    Next Step Instruction
+                  </label>
+                  <label class="btn btn-outline-secondary" id="guidancePrefLabel">
+                    <input type="radio" name="guidanceType" id="guidanceTypePref" value="PREF" autocomplete="off" />
+                    Cooking Preference
+                  </label>
+                </div>
+              </div>
+              <div class="input-group">
+                <input
+                  type="text"
+                  id="humanMessageInput"
+                  class="form-control"
+                  placeholder="e.g., wash onions next"
+                  aria-label="Human guidance input"
+                  style="min-width: 0;"
+                />
+                <div class="input-group-append">
+                  <button id="sendHumanMessage" class="btn btn-primary" type="button">
+                    Send
+                  </button>
+                </div>
+              </div>
+              <small class="form-text text-muted mt-1">
+                STEP = immediate advice; PREF = longer-lived preference.
+              </small>
+            </div>
+          </div>
         </div>
       </div>
 

@@ -48,6 +48,34 @@ $(function () {
   });
 });
 
+// Human guidance input handlers
+$(function () {
+  $("#sendHumanMessage").click(function () {
+    sendHumanMessage();
+  });
+  $("#humanMessageInput").keypress(function (e) {
+    if (e.which === 13) {
+      sendHumanMessage();
+      return false;
+    }
+  });
+});
+
+function sendHumanMessage() {
+  const message = $("#humanMessageInput").val().trim();
+  if (!message) {
+    return;
+  }
+  const type = $("input[name='guidanceType']:checked").val() || "STEP";
+  const prefixed =
+    message.toLowerCase().startsWith("step:") ||
+    message.toLowerCase().startsWith("pref:")
+      ? message
+      : `${type}: ${message}`;
+  socket.emit("human_message", { message: prefixed });
+  $("#humanMessageInput").val("");
+}
+
 /* * * * * * * * * * * * *
  * Socket event handlers *
  * * * * * * * * * * * * */
@@ -108,6 +136,7 @@ socket.on("start_game", function (data) {
     start_info: data.start_info,
   };
   window.spectating = data.spectating;
+  window.llm_present = data.llm_present;
   $("#error-exit").hide();
   $("#overcooked").empty();
   $("#game-over").hide();
@@ -122,6 +151,12 @@ socket.on("start_game", function (data) {
   $("#leave").show();
   $("#leave").attr("disabled", false);
   $("#game-title").show();
+
+  if (window.llm_present) {
+    $("#human-guidance").show();
+  } else {
+    $("#human-guidance").hide();
+  }
 
   if (!window.spectating) {
     enable_key_listener();
@@ -162,6 +197,7 @@ socket.on("end_game", function (data) {
   if (!window.spectating) {
     disable_key_listener();
   }
+  $("#human-guidance").hide();
   $("#game-title").hide();
   $("#game-over").show();
   $("#join").show();
@@ -182,6 +218,7 @@ socket.on("end_game", function (data) {
 socket.on("end_lobby", function () {
   // Hide lobby
   $("#lobby").hide();
+  $("#human-guidance").hide();
   $("#join").show();
   $("#join").attr("disabled", false);
   $("#create").show();

@@ -22,16 +22,26 @@ class ActionParser:
         Expected format:
           Primary: <primary_action_name>
         """
-        # Default value
         predicted_human_action = "NOOP"
-        
-        # Parse primary action prediction
-        primary_match = re.search(r'Primary:\s*(.+?)(?:\n|$)', 
-                                 response, re.IGNORECASE)
+        primary_match = re.search(r'Primary:\s*(.+?)(?:\n|$)', response, re.IGNORECASE)
         if primary_match:
             predicted_human_action = primary_match.group(1).strip()
-        
         return predicted_human_action
+
+    def parse_certainty(self, response: str) -> Optional[float]:
+        """
+        Parse the LLM self-reported certainty (0-100) and return as 0-1 float.
+        Expected format:
+          Certainty: <number>
+        """
+        certainty_match = re.search(r'Certainty:\s*([0-9]+)', response, re.IGNORECASE)
+        if not certainty_match:
+            return None
+        try:
+            val = int(certainty_match.group(1))
+            return max(0.0, min(1.0, val / 100.0))
+        except ValueError:
+            return None
     
     def parse_robot_action(self, robot_action: str, game_state: Optional[dict] = None, 
                           state = None) -> Tuple[str, any]:

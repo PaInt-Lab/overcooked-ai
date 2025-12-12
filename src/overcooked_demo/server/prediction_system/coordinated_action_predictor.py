@@ -6,7 +6,7 @@ It predicts human behavior and coordinates accordingly, balancing goal progress
 with coordination quality while adapting to human actions dynamically.
 """
 
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Tuple
 from overcooked_ai_py.agents.agent import Agent
 from overcooked_ai_py.mdp.overcooked_mdp import OvercookedGridworld
 from overcooked_ai_py.planning.planners import MotionPlanner
@@ -23,6 +23,7 @@ from .action_parsing import ActionParser
 from .state_management import StateSummarizer, TileManager, BlockingDetector
 from .complete_state_graph import CompleteRecipeState
 from .graph_manager import get_global_graph
+from .human_channel import HumanInteractionChannel
 
 
 class CoordinatedActionPredictorAgent(Agent):
@@ -42,6 +43,7 @@ class CoordinatedActionPredictorAgent(Agent):
         self.planner = None
         self.agent_index = None
         self.last_summary = None
+        self.turn_counter = 0
         
         # Initialize modular components
         self.tile_manager = TileManager()
@@ -78,6 +80,15 @@ class CoordinatedActionPredictorAgent(Agent):
         # Plan session
         self.plan = None
         self.primary_tasks = []
+
+        # Human-in-the-loop channel
+        self.human_channel = HumanInteractionChannel(
+            prompt_callback=self._emit_uncertainty_prompt,
+            uncertainty_threshold=0.6,
+            prompt_timeout=2,
+            prompt_budget=3,
+            advice_fresh_turns=3,
+        )
 
     def _initialize_complete_state_graph(self):
         """Initialize the complete state graph using global singleton"""
@@ -230,9 +241,36 @@ class CoordinatedActionPredictorAgent(Agent):
     def action(self, state):
         """Main action selection using optimized coordination system."""
         assert self.agent_index is not None, "agent_index is None in action!"
-        
+        self.turn_counter += 1
+
         # Get current state summary (last_info contains event_infos from game.py)
         self.last_summary = self.summarize_state(state, getattr(self, 'last_info', {}))
+
+        # Ingest any live-channel human messages queued externally
+        self.human_channel.process_inbox(self.turn_counter, self.last_summary)
+
+        # If we are waiting for human and no advice yet, keep NOOPing (safe) until timeout
+        if self.human_channel.waiting_for_human:
+            # Try to apply any fresh step advice
+            advice_action = self.human_channel.consume_fresh_step_advice(
+                self.turn_counter, self.last_summary
+            )
+            if advice_action:
+                self.human_channel.clear_waiting()
+                predicted_human_action = advice_action
+                robot_action = select_secondary_action(self.last_summary, self.task_title, predicted_human_action)
+                return self._execute_robot_action(robot_action, state, "HUMAN_STEP_ADVICE", 
+                                                 predicted_human_action, [])
+
+            # Check timeout
+            if self.human_channel.waiting_timed_out(self.turn_counter):
+                # Timeout reached: clear waiting and continue autonomously
+                self.human_channel.clear_waiting()
+            else:
+                # Stay safe (NOOP with blocking prevention)
+                noop_action = "NOOP"
+                return self._execute_robot_action(noop_action, state, "WAITING_FOR_HUMAN", 
+                                                 "NOOP", [])
         
         # Get available primary actions from our complete state graph with washing
         try:
@@ -270,6 +308,16 @@ class CoordinatedActionPredictorAgent(Agent):
         # Determine which plan to use: original plan first, then all successful plans with priority
         plan_to_use = self._get_plan_to_use(plan_text)
 
+        # Compose human preference and step advice context
+        preferences_text = self.human_channel.format_preferences()
+        step_advice_text = self.human_channel.format_step_advice(self.turn_counter, self.last_summary)
+        pref_section = ""
+        if preferences_text:
+            pref_section = f"HUMAN PREFERENCES (persistent):\n{preferences_text}\n"
+        step_section = ""
+        if step_advice_text:
+            step_section = f"HUMAN STEP ADVICE (apply if relevant this turn):\n{step_advice_text}\n"
+
         # Build temporal context if available
         temporal_context = ""
         if self.plan_time and self.plan_day:
@@ -293,6 +341,8 @@ class CoordinatedActionPredictorAgent(Agent):
 
         CURRENT STATE:
         {self.last_summary}
+
+        {pref_section}{step_section}
 
         TRAINING DATA:
         {plan_to_use}
@@ -324,6 +374,7 @@ class CoordinatedActionPredictorAgent(Agent):
 
         RETURN FORMAT:
         Primary: <action_name>
+        Certainty: <0-100>
         """
         # Display essential information for testing
         self._print_debug_info(available_primary_actions)
@@ -333,6 +384,25 @@ class CoordinatedActionPredictorAgent(Agent):
         
         # Parse the response - only need primary action now
         predicted_human_action = self.action_parser.parse_primary_action(response)
+        reported_certainty = self.action_parser.parse_certainty(response)
+
+        # If we have a fresh pending step advice, override predicted action
+        advice_override = self.human_channel.consume_fresh_step_advice(
+            self.turn_counter, self.last_summary
+        )
+        if advice_override:
+            predicted_human_action = advice_override
+
+        # Compute uncertainty from LLM-reported certainty (0=uncertain,1=certain)
+        uncertainty_score = self.human_channel.compute_uncertainty_from_certainty(reported_certainty)
+
+        # If uncertain beyond threshold and budget available, ask human and NOOP this turn
+        if self.human_channel.should_prompt(uncertainty_score):
+            self.human_channel.start_waiting(self.turn_counter)
+            self.human_channel.emit_prompt(self.last_summary, available_primary_actions)
+            robot_action = "NOOP"
+            return self._execute_robot_action(robot_action, state, response, 
+                                             predicted_human_action, available_primary_actions)
         
         # Track primary action for plan adaptation
         self._track_and_adapt_plan(predicted_human_action)
@@ -580,3 +650,14 @@ class CoordinatedActionPredictorAgent(Agent):
 
     def actions(self, states, agent_indices):
         return [self.action(s) for s in states]
+
+    # --------------------
+    # Human prompt hook
+    # --------------------
+    def _emit_uncertainty_prompt(self, state_snapshot: dict, available_actions: List[str]):
+        """
+        Placeholder for emitting a human prompt. In production, this should send over socket/UI.
+        """
+        print(f"[HUMAN PROMPT] Uncertain now. State: {state_snapshot}")
+        print(f"Options: {available_actions}")
+        print("Reply with STEP: <next action> or PREF: <preference>.")

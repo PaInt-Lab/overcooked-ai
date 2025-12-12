@@ -366,6 +366,11 @@ class CoordinatedActionPredictorAgent(Agent):
         - If multiple training sequences exist, prioritize the one matching the current time/day
         - Stay faithful to the demonstrated sequence order
 
+        CERTAINTY GUIDELINES:
+        - Report Certainty as an integer 0-100.
+        - Use 100 only when fully confident with no reasonable alternative.
+        - If guessing or unsure, keep Certainty below 50.
+
         RETURN FORMAT:
         Primary: <action_name>
         Certainty: <0-100>
@@ -375,7 +380,7 @@ class CoordinatedActionPredictorAgent(Agent):
 
         
         # Call LLM to get predictions (using fixed temperature for consistency)
-        response = query_openai(prompt, self.selected_model, temperature=0.3)
+        response = query_openai(prompt, self.selected_model, temperature=0.0)
         
         # Parse the response - only need primary action now
         predicted_human_action = self.action_parser.parse_primary_action(response)

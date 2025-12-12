@@ -31,7 +31,7 @@ class HumanInteractionChannel:
         self.prompt_budget = prompt_budget
         self.prompts_sent = 0
         self.uncertainty_threshold = uncertainty_threshold
-        self.advice_fresh_turns = advice_fresh_turns
+        self.advice_fresh_turns = max(advice_fresh_turns, 1)
 
         self.prompt_callback = prompt_callback
 
@@ -83,7 +83,7 @@ class HumanInteractionChannel:
     # Advice lifecycle
     # --------------------
     def consume_fresh_step_advice(self, turn: int, current_state: Optional[dict]) -> Optional[str]:
-        """Return pending step advice if fresh; consume it."""
+        """Return pending step advice if fresh; consume it (used when waiting)."""
         if not self.pending_step_advice:
             return None
         if self._is_advice_stale(self.pending_step_advice, turn, current_state):
@@ -92,6 +92,15 @@ class HumanInteractionChannel:
         advice_text = self.pending_step_advice["text"]
         self.pending_step_advice = None
         return advice_text
+
+    def peek_step_advice(self, turn: int, current_state: Optional[dict]) -> Optional[str]:
+        """Return pending step advice if fresh; do not consume (for prompt context)."""
+        if not self.pending_step_advice:
+            return None
+        if self._is_advice_stale(self.pending_step_advice, turn, current_state):
+            self.pending_step_advice = None
+            return None
+        return self.pending_step_advice["text"]
 
     def _expire_stale_step_advice(self, turn: int, current_state: Optional[dict]):
         if self.pending_step_advice and self._is_advice_stale(self.pending_step_advice, turn, current_state):

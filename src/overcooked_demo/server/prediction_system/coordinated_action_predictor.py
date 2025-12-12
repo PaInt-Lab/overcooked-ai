@@ -251,19 +251,11 @@ class CoordinatedActionPredictorAgent(Agent):
 
         # If we are waiting for human and no advice yet, keep NOOPing (safe) until timeout
         if self.human_channel.waiting_for_human:
-            # Try to apply any fresh step advice
-            advice_action = self.human_channel.consume_fresh_step_advice(
-                self.turn_counter, self.last_summary
-            )
-            if advice_action:
+            # If advice arrived, clear waiting and proceed with normal flow (advice stays in prompt)
+            advice_present = self.human_channel.peek_step_advice(self.turn_counter, self.last_summary)
+            if advice_present:
                 self.human_channel.clear_waiting()
-                predicted_human_action = advice_action
-                robot_action = select_secondary_action(self.last_summary, self.task_title, predicted_human_action)
-                return self._execute_robot_action(robot_action, state, "HUMAN_STEP_ADVICE", 
-                                                 predicted_human_action, [])
-
-            # Check timeout
-            if self.human_channel.waiting_timed_out(self.turn_counter):
+            elif self.human_channel.waiting_timed_out(self.turn_counter):
                 # Timeout reached: clear waiting and continue autonomously
                 self.human_channel.clear_waiting()
             else:
@@ -310,7 +302,7 @@ class CoordinatedActionPredictorAgent(Agent):
 
         # Compose human preference and step advice context
         preferences_text = self.human_channel.format_preferences()
-        step_advice_text = self.human_channel.format_step_advice(self.turn_counter, self.last_summary)
+        step_advice_text = self.human_channel.peek_step_advice(self.turn_counter, self.last_summary)
         pref_section = ""
         if preferences_text:
             pref_section = f"HUMAN PREFERENCES (persistent):\n{preferences_text}\n"
@@ -385,13 +377,6 @@ class CoordinatedActionPredictorAgent(Agent):
         # Parse the response - only need primary action now
         predicted_human_action = self.action_parser.parse_primary_action(response)
         reported_certainty = self.action_parser.parse_certainty(response)
-
-        # If we have a fresh pending step advice, override predicted action
-        advice_override = self.human_channel.consume_fresh_step_advice(
-            self.turn_counter, self.last_summary
-        )
-        if advice_override:
-            predicted_human_action = advice_override
 
         # Compute uncertainty from LLM-reported certainty (0=uncertain,1=certain)
         uncertainty_score = self.human_channel.compute_uncertainty_from_certainty(reported_certainty)

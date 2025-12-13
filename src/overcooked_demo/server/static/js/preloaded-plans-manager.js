@@ -313,6 +313,39 @@
       updatePreloadedPlanData(planId);
     });
 
+    // Add tomato plan button
+    document.getElementById("addTomatoPlanBtn").addEventListener("click", function() {
+      // Use current count + 1 for plan ID so numbering restarts from 1 when all plans are deleted
+      const container = document.getElementById("preloadedPlansContainer");
+      const existingPlans = container.querySelectorAll(".preloaded-plan-card");
+      const planId = existingPlans.length + 1;
+      
+      createPreloadedPlanCard(planId, DEFAULT_TOMATO_PLAN, "14:00", "Wednesday");
+      updatePreloadedPlanData(planId);
+    });
+
+    // Add mixed onion plan button
+    document.getElementById("addMixedOnionPlanBtn").addEventListener("click", function() {
+      // Use current count + 1 for plan ID so numbering restarts from 1 when all plans are deleted
+      const container = document.getElementById("preloadedPlansContainer");
+      const existingPlans = container.querySelectorAll(".preloaded-plan-card");
+      const planId = existingPlans.length + 1;
+      
+      createPreloadedPlanCard(planId, MIXED_ONION_FIRST_PLAN, "14:00", "Wednesday");
+      updatePreloadedPlanData(planId);
+    });
+
+    // Add mixed tomato plan button
+    document.getElementById("addMixedTomatoPlanBtn").addEventListener("click", function() {
+      // Use current count + 1 for plan ID so numbering restarts from 1 when all plans are deleted
+      const container = document.getElementById("preloadedPlansContainer");
+      const existingPlans = container.querySelectorAll(".preloaded-plan-card");
+      const planId = existingPlans.length + 1;
+      
+      createPreloadedPlanCard(planId, MIXED_TOMATO_FIRST_PLAN, "14:00", "Wednesday");
+      updatePreloadedPlanData(planId);
+    });
+
     // Add custom plan button
     document.getElementById("addCustomPlanBtn").addEventListener("click", function() {
       // Use current count + 1 for plan ID so numbering restarts from 1 when all plans are deleted

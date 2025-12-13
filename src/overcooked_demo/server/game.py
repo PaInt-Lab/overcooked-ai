@@ -11,6 +11,7 @@ import ray
 from utils import DOCKER_VOLUME, create_dirs
 
 from prediction_system import CoordinatedActionPredictorAgent
+from prediction_system.state_management.tile_manager import TileManager
 from human_aware_rl.rllib.rllib import load_agent
 from overcooked_ai_py.mdp.actions import Action, Direction
 from overcooked_ai_py.mdp.overcooked_env import OvercookedEnv
@@ -89,6 +90,9 @@ class Game(ABC):
         pending_actions List[(Queue)]: Buffer of (player_id, action) pairs have submitted that haven't been commited yet
         lock (Lock):    Used to serialize updates to the game state
         is_active(bool): Whether the game is currently being played or not
+        action_delay (float): Time in seconds for each synchronized action cycle
+        turn_start_time (float): Timestamp when current turn started
+        buffered_actions (list): Most recent action from each player during current turn
         """
         self.players = []
         self.spectators = set()
@@ -96,6 +100,9 @@ class Game(ABC):
         self.id = kwargs.get("id", id(self))
         self.lock = Lock()
         self._is_active = False
+        self.action_delay = kwargs.get("action_delay", 3.0)  # Time delay for synchronized turns (default 3 seconds)
+        self.turn_start_time = 0  # When the current turn started
+        self.buffered_actions = []  # Buffer for actions during current turn
 
     @abstractmethod
     def is_full(self):
@@ -261,9 +268,11 @@ class Game(ABC):
         for _ in range(padding):
             self.players.append(self.EMPTY)
             self.pending_actions.append(self.EMPTY)
+            self.buffered_actions.append(None)
 
         self.players[idx] = player_id
         self.pending_actions[idx] = Queue(maxsize=buff_size)
+        self.buffered_actions[idx] = None
 
     def add_spectator(self, spectator_id):
         """
@@ -281,6 +290,7 @@ class Game(ABC):
             idx = self.players.index(player_id)
             self.players[idx] = self.EMPTY
             self.pending_actions[idx] = self.EMPTY
+            self.buffered_actions[idx] = None
         except ValueError:
             return False
         else:
@@ -413,7 +423,7 @@ class OvercookedGame(Game):
 
     def __init__(
         self,
-        layouts=["cramped_room"],
+        layouts=["custom_counter_circuit"],
         mdp_params={},
         num_players=2,
         gameTime=30,
@@ -452,6 +462,11 @@ class OvercookedGame(Game):
         self.npc_players = set()
         self.plan_session_id = plan_session_id
         self.preloaded_plans = preloaded_plans if preloaded_plans is not None else []
+        # Track moves for each player (excluding STAY actions)
+        self.player_moves = [0] * int(num_players)  # One counter per player
+        
+        # TileManager for graphics rendering (works with any agent type)
+        self.tile_manager = TileManager()
 
         if randomized:
             random.shuffle(self.layouts)
@@ -541,101 +556,64 @@ class OvercookedGame(Game):
         return super(OvercookedGame, self).is_ready() and not self.is_empty()
 
     def apply_action(self, player_idx, action):
-        """Apply a single human action immediately for real-time movement"""
+        """Buffer action for execution at end of current turn cycle"""
         if player_idx >= len(self.players):
-            return
+            return False
         
-        player_id = self.players[player_idx]
-        if player_id not in self.human_players:
-            # Only process human actions here
-            return
-            
-        # Action is already an overcooked action (converted in enqueue_action)
-        overcooked_action = action
-        
-        # Create a joint action with this human action and STAY for others
-        joint_action = [Action.STAY] * len(self.players)
-        joint_action[player_idx] = overcooked_action
-        
-        # Apply the action to the current state
-        prev_state = self.state
-        self.state, info = self.mdp.get_state_transition(prev_state, joint_action)
-        
-        # Update score if there was a reward
-        curr_reward = sum(info["sparse_reward_by_agent"])
-        self.score += curr_reward
-        
-        # Pass info to agents so they can detect soup delivery events
-        for agent in self.npc_policies.values():
-            agent.last_info = info
-            
-            # Check for soup delivery and set flag if detected
-            if info and info.get("event_infos", {}).get("soup_delivery", [False, False]):
-                soup_delivery = info.get("event_infos", {}).get("soup_delivery", [False, False])
-                if any(soup_delivery):
-                    agent.soup_served_flag = True
-                    # Determine who delivered the soup
-                    if soup_delivery[0]:  # Agent (robot) delivered
-                        agent.soup_delivered_by = "agent"
-                    elif soup_delivery[1]:  # Partner (human) delivered
-                        agent.soup_delivered_by = "partner"
-        
-        # Log the transition for trajectory
-        transition = {
-            "state": json.dumps(prev_state.to_dict()),
-            "joint_action": json.dumps(joint_action),
-            "reward": curr_reward,
-            "time_left": max(self.max_time - (time() - self.start_time), 0),
-            "score": self.score,
-            "time_elapsed": time() - self.start_time,
-            "cur_gameloop": self.curr_tick,
-            "layout": json.dumps(self.mdp.terrain_mtx),
-            "layout_name": self.curr_layout,
-            "trial_id": str(self.start_time),
-            "player_0_id": self.players[0],
-            "player_1_id": self.players[1],
-            "player_0_is_human": self.players[0] in self.human_players,
-            "player_1_is_human": self.players[1] in self.human_players,
-        }
-        self.trajectory.append(transition)
+        # Store the most recent action from this player for the current turn
+        # This overwrites any previous action from this player during this turn
+        self.buffered_actions[player_idx] = action
+        return True
 
     def apply_actions(self):
-        # Process human actions immediately (real-time movement)
-        for i in range(len(self.players)):
-            if self.players[i] in self.human_players:
-                try:
-                    # Check if pending_actions[i] is actually a Queue (not EMPTY string)
-                    if hasattr(self.pending_actions[i], 'get'):
-                        # Process all pending human actions immediately
-                        while True:
-                            action = self.pending_actions[i].get(block=False)
-                            self.apply_action(i, action)
-                except Empty:
-                    pass  # No more human actions to process
+        """
+        Execute buffered actions when the turn cycle completes.
+        During the cycle, actions are buffered. At the end, all buffered actions execute simultaneously.
+        """
+        current_time = time()
+        time_in_turn = current_time - self.turn_start_time
         
-        # Check if there are any agents in the game
-        if not self.npc_players:
-            # Human-only game, no agent actions to process
-            return None, None, None
-        
-        # Process agent actions when ready (blocking)
-        joint_action = [Action.STAY] * len(self.players)
-        agent_actions_processed = False
-        
+        # Collect agent actions into the buffer (non-blocking, just check if available)
         for i in range(len(self.players)):
             if self.players[i] not in self.human_players:
                 try:
                     # Check if pending_actions[i] is actually a Queue (not EMPTY string)
                     if hasattr(self.pending_actions[i], 'get'):
-                        # Block on agent actions to ensure they get to do one action per state
-                        joint_action[i] = self.pending_actions[i].get(block=True, timeout=0.1)
-                        agent_actions_processed = True
+                        # Non-blocking check for agent action
+                        action = self.pending_actions[i].get(block=False)
+                        # Buffer the action (overwrites any previous action from this agent this turn)
+                        self.buffered_actions[i] = action
                 except Empty:
-                    # Agent didn't respond in time, stay in place
+                    # No action available yet, that's fine
                     pass
-
-        # Only apply agent actions if at least one agent provided an action
-        if agent_actions_processed:
+        
+        # Check if the turn cycle has completed
+        if time_in_turn < self.action_delay:
+            # Still within the current turn, don't execute yet
+            return None, None, None
+        
+        # Turn cycle complete! Execute all buffered actions simultaneously
+        joint_action = [Action.STAY] * len(self.players)
+        actions_to_execute = False
+        
+        for i in range(len(self.players)):
+            if self.buffered_actions[i] is not None:
+                joint_action[i] = self.buffered_actions[i]
+                actions_to_execute = True
+        
+        # Clear the buffer for the next turn
+        self.buffered_actions = [None] * len(self.players)
+        
+        # Start the next turn
+        self.turn_start_time = current_time
+        
+        # Execute the joint action if any actions were buffered
+        if actions_to_execute:
+            # Count moves for each player (excluding STAY actions)
+            for i in range(len(joint_action)):
+                if joint_action[i] != Action.STAY:
+                    self.player_moves[i] += 1
+            
             # Apply overcooked game logic to get state transition
             prev_state = self.state
             self.state, info = self.mdp.get_state_transition(prev_state, joint_action)
@@ -647,12 +625,21 @@ class OvercookedGame(Game):
                 if info and info.get("event_infos", {}).get("soup_delivery", [False, False]):
                     soup_delivery = info.get("event_infos", {}).get("soup_delivery", [False, False])
                     if any(soup_delivery):
-                        agent.soup_served_flag = True
+                        # Calculate time elapsed since game started
+                        time_elapsed = time() - self.start_time
+                        # Get move counts for each player
+                        player0_moves = self.player_moves[0] if len(self.player_moves) > 0 else 0
+                        player1_moves = self.player_moves[1] if len(self.player_moves) > 1 else 0
                         # Determine who delivered the soup
                         if soup_delivery[0]:  # Agent (robot) delivered
                             agent.soup_delivered_by = "agent"
+                            print(f"[SOUP DELIVERED] Agent delivered soup in {time_elapsed:.2f} seconds | Player 0: {player0_moves} moves, Player 1: {player1_moves} moves")
                         elif soup_delivery[1]:  # Partner (human) delivered
                             agent.soup_delivered_by = "partner"
+                            print(f"[SOUP DELIVERED] Human delivered soup in {time_elapsed:.2f} seconds | Player 0: {player0_moves} moves, Player 1: {player1_moves} moves")
+                        else:
+                            print(f"[SOUP DELIVERED] Soup delivered in {time_elapsed:.2f} seconds | Player 0: {player0_moves} moves, Player 1: {player1_moves} moves")
+                        agent.soup_served_flag = True
 
             if self.show_potential:
                 self.phi = self.mdp.potential_function(prev_state, self.mp, gamma=0.99)
@@ -692,12 +679,13 @@ class OvercookedGame(Game):
     def enqueue_action(self, player_id, action):
         overcooked_action = self.action_to_overcooked_action[action]
         
-        # For human players, apply the action immediately for real-time movement
+        # Buffer the action for execution at the end of the current turn cycle
         if player_id in self.human_players:
             player_idx = self.players.index(player_id)
-            self.apply_action(player_idx, overcooked_action)
+            # Human actions are buffered directly
+            self.buffered_actions[player_idx] = overcooked_action
         else:
-            # For agents, queue the action normally
+            # For agents, queue the action normally (will be buffered in apply_actions)
             super(OvercookedGame, self).enqueue_action(player_id, overcooked_action)
 
     def reset(self):
@@ -705,6 +693,12 @@ class OvercookedGame(Game):
         if status == self.Status.RESET:
             # Hacky way of making sure game timer doesn't "start" until after reset timeout has passed
             self.start_time += self.reset_timeout / 1000
+            
+            # Reset turn timer and clear buffered actions
+            self.turn_start_time = time()
+            self.buffered_actions = [None] * len(self.players)
+            # Reset move counters
+            self.player_moves = [0] * len(self.players)
 
     def tick(self):
         self.curr_tick += 1
@@ -724,6 +718,8 @@ class OvercookedGame(Game):
         # Set layout name on MDP for agent access
         self.mdp.layout_name = self.curr_layout
         
+        # Initialize tile manager from MDP for graphics rendering (works with any agent)
+        self.tile_manager.initialize_from_mdp(self.mdp)
 
         if self.show_potential:
             self.mp = MotionPlanner.from_pickle_or_compute(
@@ -737,6 +733,13 @@ class OvercookedGame(Game):
         self.start_time = time()
         self.curr_tick = 0
         self.score = 0
+        
+        # Initialize synchronized turn system
+        self.turn_start_time = self.start_time
+        self.buffered_actions = [None] * len(self.players)
+        # Reset move counters for new game
+        self.player_moves = [0] * len(self.players)
+        
         self.threads = []
         for npc_policy in self.npc_policies:
             self.npc_policies[npc_policy].reset()
@@ -814,7 +817,7 @@ class OvercookedGame(Game):
             for (x, y) in staging_positions:
                 graphics_terrain[y][x] = 'G'
             
-            # Get chopping stations from agent (for layouts with hardcoded positions) or use dynamic detection
+            # Get chopping stations - try agent first, then fallback to tile_manager, then dynamic detection
             chopping_positions = []
             agent_chopping_positions = []
             for npc_policy in self.npc_policies.values():
@@ -825,6 +828,9 @@ class OvercookedGame(Game):
             if agent_chopping_positions:
                 # Use agent's hardcoded positions
                 chopping_positions = agent_chopping_positions
+            elif self.tile_manager.onion_chopping_stations:
+                # Fallback to tile_manager for custom layouts with hardcoded positions
+                chopping_positions = self.tile_manager.onion_chopping_stations
             else:
                 # Use dynamic detection for layouts without hardcoded positions
                 for staging_pos in staging_positions:
@@ -842,50 +848,63 @@ class OvercookedGame(Game):
             for (x, y) in chopping_positions:
                 graphics_terrain[y][x] = 'C'
             
-            # Add sink stations if using LLM agent with sink support
+            # Add sink stations - try agent first, then fallback to tile_manager
             sink_positions = []
             for npc_policy in self.npc_policies.values():
                 if hasattr(npc_policy, 'sink_stations') and npc_policy.sink_stations:
                     sink_positions.extend(npc_policy.sink_stations)
                     break  # Only need one agent's sink positions
             
+            # Fallback to tile_manager if agent doesn't have sink stations
+            if not sink_positions and self.tile_manager.sink_stations:
+                sink_positions = self.tile_manager.sink_stations
+            
             # Mark sink tiles as 'W' in the COPY
             for (x, y) in sink_positions:
                 if 0 <= y < H and 0 <= x < W:
                     graphics_terrain[y][x] = 'W'
             
-            # Add salt stations if using LLM agent with salt support
+            # Add salt stations - try agent first, then fallback to tile_manager
             salt_positions = []
             for npc_policy in self.npc_policies.values():
                 if hasattr(npc_policy, 'salt_stations') and npc_policy.salt_stations:
                     salt_positions.extend(npc_policy.salt_stations)
                     break  # Only need one agent's salt positions
             
+            # Fallback to tile_manager if agent doesn't have salt stations
+            if not salt_positions and self.tile_manager.salt_stations:
+                salt_positions = self.tile_manager.salt_stations
+            
             # Mark salt tiles as 'L' in the COPY
             for (x, y) in salt_positions:
                 if 0 <= y < H and 0 <= x < W:
                     graphics_terrain[y][x] = 'L'
             
-            # Add pepper stations if using LLM agent with pepper support
+            # Add pepper stations - try agent first, then fallback to tile_manager
             pepper_positions = []
             for npc_policy in self.npc_policies.values():
                 if hasattr(npc_policy, 'pepper_stations') and npc_policy.pepper_stations:
                     pepper_positions.extend(npc_policy.pepper_stations)
                     break  # Only need one agent's pepper positions
             
+            # Fallback to tile_manager if agent doesn't have pepper stations
+            if not pepper_positions and self.tile_manager.pepper_stations:
+                pepper_positions = self.tile_manager.pepper_stations
+            
             # Mark pepper tiles as 'Q' in the COPY
             for (x, y) in pepper_positions:
                 if 0 <= y < H and 0 <= x < W:
                     graphics_terrain[y][x] = 'Q'
             
-            # Add red tomato staging tile for counter_circuit layout at position (2,2)
+            # Add red tomato staging tile for custom layouts
             layout_name = getattr(self.mdp, 'layout_name', 'unknown')
-            if layout_name == 'counter_circuit':
-                if 0 <= 2 < H and 0 <= 2 < W:
-                    graphics_terrain[2][2] = 'R'
-            elif layout_name == 'custom_counter_circuit':
+            if layout_name == 'custom_counter_circuit':
                 if 0 <= 3 < H and 0 <= 4 < W:
                     graphics_terrain[3][4] = 'R'
+            elif layout_name == 'custom_cramped_room':
+                # Tomato staging at (3,0) - right side of stove
+                if 0 <= 0 < H and 0 <= 3 < W:
+                    graphics_terrain[0][3] = 'R'
             
             # Send the MODIFIED terrain copy to graphics
             obj_dict["terrain"] = graphics_terrain

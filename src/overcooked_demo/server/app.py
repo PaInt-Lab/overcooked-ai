@@ -21,12 +21,14 @@ from datetime import datetime
 from threading import Lock
 
 import game
+from prediction_system import CoordinatedActionPredictorAgent
 from flask import Flask, jsonify, render_template, request
 from flask_socketio import SocketIO, emit, join_room, leave_room
 from game import Game, OvercookedGame, OvercookedTutorial
 from utils import ThreadSafeDict, ThreadSafeSet
 
 from plan_creation import classify_subtasks, group_events, route_generate_subtasks
+from prediction_system import CoordinatedActionPredictorAgent
 
 ### Thoughts -- where I'll log potential issues/ideas as they come up
 # Should make game driver code more error robust -- if overcooked randomlly errors we should catch it and report it to user
@@ -63,6 +65,9 @@ MAX_GAMES = CONFIG["MAX_GAMES"]
 
 # Frames per second cap for serving to client
 MAX_FPS = CONFIG["MAX_FPS"]
+
+# Action delay in seconds (time between actions for each player)
+ACTION_DELAY = CONFIG.get("ACTION_DELAY", 3.0)
 
 # Default configuration for predefined experiment
 PREDEFINED_CONFIG = json.dumps(CONFIG["predefined"])
@@ -110,6 +115,12 @@ GAME_NAME_TO_CLS = {
     "tutorial": OvercookedTutorial,
 }
 
+def _has_llm_agent(game_obj):
+    return any(
+        k.startswith("overcooked_llm") or k == "overcooked_llm"
+        for k in getattr(game_obj, "npc_policies", {})
+    )
+
 game._configure(MAX_GAME_LENGTH, AGENT_DIR)
 
 
@@ -145,8 +156,9 @@ def try_create_game(game_name, **kwargs):
                 break
 
         game_cls = GAME_NAME_TO_CLS.get(game_name, OvercookedGame)
-        # Pass both plan_id and preloaded_plans to game constructor
-        game = game_cls(id=curr_id, plan_session_id=plan_id, preloaded_plans=preloaded_plans, **kwargs)
+        # Pass both plan_id and preloaded_plans to game constructor, along with action_delay
+        game = game_cls(id=curr_id, plan_session_id=plan_id, preloaded_plans=preloaded_plans, 
+                       action_delay=ACTION_DELAY, **kwargs)
 
     except queue.Empty:
         # from `from queue import Empty` at the top
@@ -294,7 +306,11 @@ def _create_game(user_id, game_name, params={}):
             ACTIVE_GAMES.add(game.id)
             emit(
                 "start_game",
-                {"spectating": spectating, "start_info": game.to_json()},
+                {
+                    "spectating": spectating,
+                    "start_info": game.to_json(),
+                    "llm_present": _has_llm_agent(game),
+                },
                 room=game.id,
             )
             socketio.start_background_task(play_game, game, fps=6)
@@ -633,7 +649,11 @@ def on_join(data):
                     ACTIVE_GAMES.add(game.id)
                     emit(
                         "start_game",
-                        {"spectating": False, "start_info": game.to_json()},
+                        {
+                            "spectating": False,
+                            "start_info": game.to_json(),
+                            "llm_present": _has_llm_agent(game),
+                        },
                         room=game.id,
                     )
                     socketio.start_background_task(play_game, game)
@@ -665,6 +685,36 @@ def on_action(data):
         return
 
     game.enqueue_action(user_id, action)
+
+
+@socketio.on("human_message")
+def on_human_message(data):
+    """
+    Receive human guidance and forward to the LLM agent's human channel.
+    Payload: { "message": "STEP: wash onions next" }
+    """
+    user_id = request.sid
+    message = data.get("message", "")
+    if not message:
+        return
+
+    game = get_curr_game(user_id)
+    if not game:
+        return
+
+    # Find the LLM agent (overcooked_llm) in this game
+    agent = None
+    for policy in getattr(game, "npc_policies", {}).values():
+        if isinstance(policy, CoordinatedActionPredictorAgent):
+            agent = policy
+            break
+
+    if agent:
+        snapshot = getattr(agent, "last_summary", None)
+        agent.human_channel.enqueue_message(message, snapshot)
+    else:
+        # If no LLM agent is present, ignore silently
+        return
 
 
 @socketio.on("connect")

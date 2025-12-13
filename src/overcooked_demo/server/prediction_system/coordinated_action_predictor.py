@@ -6,7 +6,7 @@ It predicts human behavior and coordinates accordingly, balancing goal progress
 with coordination quality while adapting to human actions dynamically.
 """
 
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Tuple
 from overcooked_ai_py.agents.agent import Agent
 from overcooked_ai_py.mdp.overcooked_mdp import OvercookedGridworld
 from overcooked_ai_py.planning.planners import MotionPlanner
@@ -21,8 +21,10 @@ from .llm import query_openai
 from .pathfinding import MovementPlanner
 from .action_parsing import ActionParser
 from .state_management import StateSummarizer, TileManager, BlockingDetector
+from .state_management.tile_manager import compute_frontier
 from .complete_state_graph import CompleteRecipeState
 from .graph_manager import get_global_graph
+from .human_channel import HumanInteractionChannel
 
 
 class CoordinatedActionPredictorAgent(Agent):
@@ -42,6 +44,7 @@ class CoordinatedActionPredictorAgent(Agent):
         self.planner = None
         self.agent_index = None
         self.last_summary = None
+        self.turn_counter = 0
         
         # Initialize modular components
         self.tile_manager = TileManager()
@@ -78,6 +81,15 @@ class CoordinatedActionPredictorAgent(Agent):
         # Plan session
         self.plan = None
         self.primary_tasks = []
+
+        # Human-in-the-loop channel
+        self.human_channel = HumanInteractionChannel(
+            prompt_callback=self._emit_uncertainty_prompt,
+            uncertainty_threshold=0.6,
+            prompt_timeout=2,
+            prompt_budget=3,
+            advice_fresh_turns=3,
+        )
 
     def _initialize_complete_state_graph(self):
         """Initialize the complete state graph using global singleton"""
@@ -230,9 +242,28 @@ class CoordinatedActionPredictorAgent(Agent):
     def action(self, state):
         """Main action selection using optimized coordination system."""
         assert self.agent_index is not None, "agent_index is None in action!"
-        
-        # Get current state summary
+        self.turn_counter += 1
+
+        # Get current state summary (last_info contains event_infos from game.py)
         self.last_summary = self.summarize_state(state, getattr(self, 'last_info', {}))
+
+        # Ingest any live-channel human messages queued externally
+        self.human_channel.process_inbox(self.turn_counter, self.last_summary)
+
+        # If we are waiting for human and no advice yet, keep NOOPing (safe) until timeout
+        if self.human_channel.waiting_for_human:
+            # If advice arrived, clear waiting and proceed with normal flow (advice stays in prompt)
+            advice_present = self.human_channel.peek_step_advice(self.turn_counter, self.last_summary)
+            if advice_present:
+                self.human_channel.clear_waiting()
+            elif self.human_channel.waiting_timed_out(self.turn_counter):
+                # Timeout reached: clear waiting and continue autonomously
+                self.human_channel.clear_waiting()
+            else:
+                # Stay safe (NOOP with blocking prevention)
+                noop_action = "NOOP"
+                return self._execute_robot_action(noop_action, state, "WAITING_FOR_HUMAN", 
+                                                 "NOOP", [])
         
         # Get available primary actions from our complete state graph with washing
         try:
@@ -270,25 +301,33 @@ class CoordinatedActionPredictorAgent(Agent):
         # Determine which plan to use: original plan first, then all successful plans with priority
         plan_to_use = self._get_plan_to_use(plan_text)
 
+        # Compose human preference and step advice context
+        preferences_text = self.human_channel.format_preferences()
+        step_advice_text = self.human_channel.peek_step_advice(self.turn_counter, self.last_summary)
+        pref_section = ""
+        if preferences_text:
+            pref_section = f"HUMAN PREFERENCES (persistent):\n{preferences_text}\n"
+        step_section = ""
+        if step_advice_text:
+            step_section = f"HUMAN STEP ADVICE (apply if relevant this turn):\n{step_advice_text}\n"
+
         # Build temporal context if available
         temporal_context = ""
         if self.plan_time and self.plan_day:
             temporal_context = f"{self.plan_day} and {self.plan_time}"
         
-        # **CRITICAL: Follow the plan sequence step-by-step!**
-        # - DO NOT skip to the next ingredient if you're currently holding an item that is involved in the current steps for the plan.
-        # - If the plan's next step involves an item that someone is holding, there are higher odds that that is the next correct action!
-        # - When multiple plans are available, PRIORITIZE the most recent plan as it better represents current human preferences
-        # - Older plans can be used as backup guidance if the most recent plan doesn't fit the current state
-        # - The plans are very important and are designed to be followed in order!
-        # - Don't skip ahead to later steps
-        # - Only choose actions that are both AVAILABLE and the NEXT LOGICAL STEP in the plan
+        # **Training Data Approach:**
+        # - Past successful sequences are provided as training data, not rigid plans to follow
+        # - The agent should consider patterns from training data but adapt to the current state
+        # - Time/day matching helps identify relevant patterns (human preferences vary by time)
+        # - If no training data exists, the agent makes decisions based solely on the current state
+        # - Flexibility is encouraged - use training data as guidance, not strict instructions
 
-        # Select the action that best aligns with the day of the week of previously completed plans and the most recent plan regarding the current state.
+        # Select the action that best aligns with the current state, informed by training data when available.
 
         # Build prompt for LLM
         prompt = f"""
-        You are helping a human cook soup. You need to select the best next action based on multiple available plans and the current state.
+        You are helping a human cook soup. Select the best next action based on the current state and available training data.
 
         CURRENT TIME & DAY: 
         {temporal_context}
@@ -296,42 +335,70 @@ class CoordinatedActionPredictorAgent(Agent):
         CURRENT STATE:
         {self.last_summary}
 
-        AVAILABLE PLANS (most recent first):
+        {pref_section}{step_section}
+
+        TRAINING DATA:
         {plan_to_use}
 
         AVAILABLE ACTIONS:
         {available_primary_actions}
 
         DECISION PROCESS:
-        1. Analyze the current state - what has been completed so far?
+        0. If HUMAN STEP ADVICE is present, choose the action that best matches it from AVAILABLE ACTIONS for this turn, then continue by using the training sequences on subsequent turns. Only skip if it is impossible.
+        1. Identify your current position in the training sequence:
+        - Look at the current state and determine what has been completed
+        - Match completed actions to the training data sequence
+        - Find where you are in that sequence
 
-        2. Compare plans:
-        - Start with the MOST RECENT PLAN (prioritize this if it aligns with current state)
-        - If the most recent plan doesn't fit the current progress, check OLDER PLANS as backup
-        - Identify which plan's sequence best matches where you are now
+        2. Determine the NEXT action in the sequence:
+        - What is the very next action that should come after your current position?
+        - Verify this action exists in AVAILABLE ACTIONS
+        - If the next action is NOT available, explain why and choose the closest alternative
 
-        3. Find the next step:
-        - Look at the matching plan sequence
-        - Find the FIRST uncompleted step in that sequence
-        - Verify that step exists in AVAILABLE ACTIONS
+        3. Follow the sequence order strictly:
+        - ALWAYS prioritize continuing the sequence over opportunistic actions
+        - Do NOT skip ahead just because an item is in hand
+        - Do NOT jump to a later step just because it seems efficient
+        - EXAMPLE: If the sequence shows "Wash Tomato → Wash Onion → Chop Tomato" and you just finished washing the tomato, you MUST do "Wash Onion" next, even though you have a washed tomato in hand
 
         4. Select the action:
-        - Choose the action from AVAILABLE ACTIONS that represents the NEXT logical step
-        - Stay within one plan's sequence (don't mix different plans)
-        - Follow steps sequentially within that plan
+        - Choose the next action in the training sequence
+        - If multiple training sequences exist, prioritize the one matching the current time/day
+        - Stay faithful to the demonstrated sequence order
+
+        CERTAINTY GUIDELINES:
+        - Report Certainty as an integer 0-100.
+        - Use 100 only when fully confident with no reasonable alternative.
+        - If guessing or unsure, keep Certainty below 50.
 
         RETURN FORMAT:
         Primary: <action_name>
+        Certainty: <0-100>
         """
-        
         # Display essential information for testing
         self._print_debug_info(available_primary_actions)
+
         
         # Call LLM to get predictions (using fixed temperature for consistency)
-        response = query_openai(prompt, self.selected_model, temperature=0.3)
+        response = query_openai(prompt, self.selected_model, temperature=0.0)
         
         # Parse the response - only need primary action now
         predicted_human_action = self.action_parser.parse_primary_action(response)
+        reported_certainty = self.action_parser.parse_certainty(response)
+        if step_advice_text:
+            print(f"[ADVICE] Active step advice in prompt: {step_advice_text}")
+        print(f"[LLM CHOICE] Primary: {predicted_human_action} | Certainty: {reported_certainty}")
+
+        # Compute uncertainty from LLM-reported certainty (0=uncertain,1=certain)
+        uncertainty_score = self.human_channel.compute_uncertainty_from_certainty(reported_certainty)
+
+        # If uncertain beyond threshold and budget available, ask human and NOOP this turn
+        if self.human_channel.should_prompt(uncertainty_score):
+            self.human_channel.start_waiting(self.turn_counter)
+            self.human_channel.emit_prompt(self.last_summary, available_primary_actions)
+            robot_action = "NOOP"
+            return self._execute_robot_action(robot_action, state, response, 
+                                             predicted_human_action, available_primary_actions)
         
         # Track primary action for plan adaptation
         self._track_and_adapt_plan(predicted_human_action)
@@ -368,38 +435,74 @@ class CoordinatedActionPredictorAgent(Agent):
             return "No primary tasks available"
     
     def _get_plan_to_use(self, plan_text: str) -> str:
-        """Determine which plan to use based on plan repository."""
-        if not self.plan_repository.is_empty():
-            # Use all successful plans with priority indicators (most recent first)
-            all_plans = self.plan_repository.get_plans_sorted_by_recency()
-            plan_lines = []
+        """Build training data text from plan repository and current session."""
+        training_lines = []
+        sequence_counter = 1
+        
+        # Include the original user plan first as initial training data
+        if hasattr(self, 'primary_tasks') and self.primary_tasks:
+            # Build time/day info if available
+            time_info = ""
+            if self.plan_time and self.plan_day:
+                time_info = f" ({self.plan_day} at {self.plan_time})"
             
-            for i, plan in enumerate(all_plans):
+            # Format as training sequence
+            sequence_label = f"SEQUENCE #{sequence_counter}{time_info}"
+            actions_str = " → ".join(self.primary_tasks)
+            training_lines.append(f"{sequence_label}:\n{actions_str}")
+            sequence_counter += 1
+        
+        # Add all successful sequences from repository
+        if not self.plan_repository.is_empty():
+            all_plans = self.plan_repository.get_plans_sorted_by_recency()
+            
+            for plan in all_plans:
                 # Build time/day info if available
                 time_info = ""
                 if plan.get('plan_time') and plan.get('plan_day'):
-                    time_info = f" (executed {plan['plan_day']} at {plan['plan_time']})"
+                    time_info = f" ({plan['plan_day']} at {plan['plan_time']})"
                 
-                if i == 0:
-                    # Most recent plan - better represents current human preferences
-                    priority_label = f"MOST RECENT PLAN{time_info} (prioritize this - represents current human preferences)"
-                else:
-                    # Older plans - use as backup reference
-                    priority_label = f"OLDER PLAN #{i+1}{time_info} (use as backup reference)"
+                # Format as training sequence
+                sequence_label = f"SEQUENCE #{sequence_counter}{time_info}"
                 
                 actions_str = " → ".join(plan['actions'])
-                plan_lines.append(f"{priority_label}:\n{actions_str}")
-            
-            return "\n\n".join(plan_lines)
+                training_lines.append(f"{sequence_label}:\n{actions_str}")
+                sequence_counter += 1
+        
+        # Return combined training data or indicate none available
+        if training_lines:
+            return "\n\n".join(training_lines)
         else:
-            # Use original user plan for first time
-            return f"USER PLAN (follow in order):\n{plan_text}"
+            return "No training data available - make decisions based on current state"
     
     def _print_debug_info(self, available_primary_actions):
         """Print debug information."""
         print(f"CURRENT STATE: {self.last_summary}")
         print(f"SUPPLYING {len(available_primary_actions)} ACTIONS TO LLM: {available_primary_actions}")
-    
+
+    def _infer_recipe_type(self) -> str:
+        """Infer recipe type from current game state."""
+        if not self.last_summary:
+            return 'unknown'
+
+        recipe_components = []
+
+        # Check for onion usage
+        if (self.last_summary.get('onion_in_pot') or
+            self.last_summary.get('onion_chopped') or
+            self.last_summary.get('onion_washed') or
+            self.last_summary.get('onion_staged')):
+            recipe_components.append('onion')
+
+        # Check for tomato usage
+        if (self.last_summary.get('tomato_in_pot') or
+            self.last_summary.get('tomato_chopped') or
+            self.last_summary.get('tomato_washed') or
+            self.last_summary.get('tomato_staged')):
+            recipe_components.append('tomato')
+
+        return '_'.join(recipe_components) if recipe_components else 'unknown'
+
     def _track_and_adapt_plan(self, predicted_human_action: str):
         """Track actions and adapt plan based on success."""
         # Track primary action for plan adaptation
@@ -409,20 +512,38 @@ class CoordinatedActionPredictorAgent(Agent):
         if self.last_summary and self.last_summary.get('soup_served', False):
             # Finalize and store the successful sequence
             if not self.action_tracker.is_empty():
+                # Infer recipe type dynamically from actual state
+                recipe_type = self._infer_recipe_type()
+
                 successful_plan = {
                     'actions': self.action_tracker.get_current_sequence(),
                     'duration': self.action_tracker.get_sequence_duration(),
-                    'recipe_type': 'onion_washed_chopped_tomato_washed_chopped',  # Fixed recipe type for now
+                    'recipe_type': recipe_type,
                     'plan_time': self.plan_time,  # Store time when plan was executed
                     'plan_day': self.plan_day  # Store day when plan was executed
                 }
+
+                # Print detailed plan debug output BEFORE saving
+                print("\n" + "="*80)
+                print("PLAN COMPLETED - DEBUG OUTPUT")
+                print("="*80)
+                print(f"Soup served by: {self.last_summary.get('soup_delivered_by', 'unknown')}")
+                print(f"Recipe type: {recipe_type}")
+                print(f"Duration: {successful_plan['duration']:.1f}s")
+                print(f"Plan time: {self.plan_time}")
+                print(f"Plan day: {self.plan_day}")
+                print(f"Number of actions: {len(successful_plan['actions'])}")
+                print(f"\nAction sequence:")
+                for i, action in enumerate(successful_plan['actions'], 1):
+                    print(f"  {i}. {action}")
+                print(f"\nFull plan object:")
+                import json
+                print(json.dumps(successful_plan, indent=2, default=str))
+                print("="*80 + "\n")
+
+                # Now save to repository
                 self.plan_repository.add_successful_plan(successful_plan)
-                
-                # Print detailed plan summary
-                print(f"PLAN SUCCESS: Soup served by {self.last_summary.get('soup_delivered_by', 'unknown')}!")
-                print(f"SAVED PLAN: {len(successful_plan['actions'])} actions over {successful_plan['duration']:.1f}s")
-                print(f"PLAN SEQUENCE: {' → '.join(successful_plan['actions'])}")
-                print(f"PLAN REPOSITORY: Now has {self.plan_repository.get_plan_count()} total plans")
+                print(f"✓ PLAN SAVED: Repository now has {self.plan_repository.get_plan_count()} total plans")
                 
                 # Reset tracker for next sequence
                 self.action_tracker.reset()
@@ -447,19 +568,25 @@ class CoordinatedActionPredictorAgent(Agent):
             if func_name == "NOOP":
                 return self._handle_noop(my_pos, state, response, predicted_human_action, 
                                         robot_action, available_primary_actions)
-            
-            # Execute the compound action
-            if func_name == "pickup":
-                action_plan = self.movement_planner.pickup(item_info, my_pos, my_ori)
-            elif func_name == "place":
-                if isinstance(item_info, tuple):
-                    item_to_place, destination = item_info
-                    action_plan = self.movement_planner.place(item_to_place, my_pos, my_ori, destination)
-                else:
-                    action_plan = self.movement_planner.place(item_info, my_pos, my_ori, "default")
+
+            # Build optional pre-plan to clear wrong ingredient from target station
+            clear_plan = self._build_clear_station_plan(func_name, item_info, state, my_pos, my_ori)
+
+            if clear_plan:
+                action_plan = clear_plan
             else:
-                # Fallback to simple movement
-                action_plan = [Action.STAY]
+                # Execute the compound action
+                if func_name == "pickup":
+                    action_plan = self.movement_planner.pickup(item_info, my_pos, my_ori)
+                elif func_name == "place":
+                    if isinstance(item_info, tuple):
+                        item_to_place, destination = item_info
+                        action_plan = self.movement_planner.place(item_to_place, my_pos, my_ori, destination)
+                    else:
+                        action_plan = self.movement_planner.place(item_info, my_pos, my_ori, "default")
+                else:
+                    # Fallback to simple movement
+                    action_plan = [Action.STAY]
 
             # Return first action from the plan
             if action_plan:
@@ -523,5 +650,98 @@ class CoordinatedActionPredictorAgent(Agent):
             "action_plan": []
         }
 
+    def _build_clear_station_plan(self, func_name: str, item_info, state, my_pos, my_ori) -> List[Action]:
+        """
+        If the target station (sink/chopping/salt/pepper) has the wrong ingredient,
+        build a plan to move that item to a safe counter before executing the intended action.
+        """
+        # Only apply to station-bound actions
+        target_station = None
+        desired = None
+        station_frontier = None
+
+        def any_obj_on(pos_set):
+            sd = state.to_dict()
+            objs = sd.get("objects", [])
+            for obj in objs:
+                p = tuple(obj.get("position", ()))
+                if p in pos_set:
+                    ing = obj.get("ingredient") or obj.get("name")
+                    yield p, ing
+
+        if func_name == "place" and isinstance(item_info, tuple):
+            desired, destination = item_info
+            if destination == "sink":
+                target_station = set(self.tile_manager.sink_stations)
+                station_frontier = self.tile_manager.sink_frontier
+            elif destination == "chopping_station":
+                target_station = set(self.tile_manager.onion_chopping_stations or self.tile_manager.tomato_chopping_stations)
+                station_frontier = self.tile_manager.onion_chopping_frontier or self.tile_manager.tomato_chopping_frontier
+            elif destination == "salt_station":
+                target_station = set(self.tile_manager.salt_stations)
+                station_frontier = self.tile_manager.salt_frontier
+            elif destination == "pepper_station":
+                target_station = set(self.tile_manager.pepper_stations)
+                station_frontier = self.tile_manager.pepper_frontier
+        # If no target station, nothing to clear
+        if not target_station or not station_frontier:
+            return []
+
+        # Check occupancy
+        wrong_pos = None
+        for pos, ing in any_obj_on(target_station):
+            if ing != desired:
+                wrong_pos = pos
+                break
+        if not wrong_pos:
+            return []
+
+        # Pick a counter to drop the wrong item
+        avoid = set(target_station)
+        drop_counter = self.blocking_detector.find_nearest_empty_counter(state, avoid_positions=avoid)
+        if not drop_counter:
+            return []
+
+        # Build a plan: go to station frontier, interact (pickup wrong), go to counter frontier, interact (drop)
+        terrain = self.mdp.terrain_mtx if self.mdp else None
+        if not terrain:
+            return []
+
+        # Choose nearest frontier to station and counter
+        start_pair = (my_pos, tuple(my_ori))
+
+        station_goal = min(station_frontier, key=lambda mo: abs(mo[0][0] - my_pos[0]) + abs(mo[0][1] - my_pos[1])) if station_frontier else None
+        if not station_goal:
+            return []
+        to_station = self.movement_planner.get_action_plan(start_pair, station_goal)
+        if not to_station:
+            return []
+        # Prepare counter frontier
+        counter_frontier = compute_frontier([drop_counter], terrain)
+        counter_goal = min(counter_frontier, key=lambda mo: abs(mo[0][0] - station_goal[0][0]) + abs(mo[0][1] - station_goal[0][1])) if counter_frontier else None
+        if not counter_goal:
+            return []
+        to_counter = self.movement_planner.get_action_plan(station_goal, counter_goal)
+        if to_counter is None:
+            to_counter = []
+
+        plan = []
+        plan.extend(to_station)
+        plan.append(Action.INTERACT)  # pick up wrong item
+        plan.extend(to_counter)
+        plan.append(Action.INTERACT)  # drop on counter
+        return plan
+
     def actions(self, states, agent_indices):
         return [self.action(s) for s in states]
+
+    # --------------------
+    # Human prompt hook
+    # --------------------
+    def _emit_uncertainty_prompt(self, state_snapshot: dict, available_actions: List[str]):
+        """
+        Placeholder for emitting a human prompt. In production, this should send over socket/UI.
+        """
+        print(f"[HUMAN PROMPT] Uncertain now. State: {state_snapshot}")
+        print(f"Options: {available_actions}")
+        print("Reply with STEP: <next action> or PREF: <preference>.")

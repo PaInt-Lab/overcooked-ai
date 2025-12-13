@@ -1,6 +1,7 @@
 """Detects and handles blocking situations."""
 
 from typing import Tuple, List, Optional
+from collections import deque
 
 
 class BlockingDetector:
@@ -153,4 +154,25 @@ class BlockingDetector:
         action_plan = get_action_plan_func(start_pair, goal_pair)
         
         return best_pos, action_plan
+
+    def find_nearest_empty_counter(self, state, avoid_positions: set) -> Optional[Tuple[int, int]]:
+        """
+        Find the nearest counter tile that is currently empty and not in avoid_positions.
+        Uses BFS from any starting point provided (we'll call from caller with a start).
+        """
+        if not self.tile_manager or not self.tile_manager.counter_tiles:
+            return None
+
+        sd = state.to_dict()
+        occupied = {tuple(obj["position"]) for obj in sd.get("objects", [])}
+        targets = [pos for pos in self.tile_manager.counter_tiles if pos not in occupied and pos not in avoid_positions]
+        if not targets:
+            return None
+        # Simple nearest by manhattan distance
+        start_positions = []
+        # use both player positions as potential starts
+        for pos in state.player_positions:
+            start_positions.append(pos)
+        best = min(targets, key=lambda p: min(abs(p[0]-s[0]) + abs(p[1]-s[1]) for s in start_positions))
+        return best
 

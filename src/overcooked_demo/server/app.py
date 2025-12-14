@@ -175,6 +175,11 @@ def cleanup_game(game: OvercookedGame):
     if FREE_MAP[game.id]:
         raise ValueError("Double free on a game")
 
+    # Clear any pending confirmation before closing
+    if game.confirmation_manager.pending_confirmation:
+        socketio.emit('button_dismissed', room=game.id)
+        game.confirmation_manager.pending_confirmation = None
+
     # User tracking
     for user_id in game.players:
         leave_curr_room(user_id)
@@ -717,6 +722,28 @@ def on_human_message(data):
         return
 
 
+@socketio.on("confirm_action")
+def on_confirm_action(data):
+    """
+    Handle human confirmation of primary actions (chop, wash, salt, pepper).
+    Payload: { "action_type": "chop", "ingredient_name": "onion" }
+    """
+    user_id = request.sid
+    game = get_curr_game(user_id)
+
+    if not game or not game.confirmation_manager.pending_confirmation:
+        return
+
+    # Execute the action
+    game.confirmation_manager.execute_confirmation_action()
+
+    # Clear pending state
+    game.confirmation_manager.pending_confirmation = None
+
+    # Notify frontend
+    socketio.emit('button_dismissed', room=game.id)
+
+
 @socketio.on("connect")
 def on_connect():
     user_id = request.sid
@@ -725,6 +752,17 @@ def on_connect():
         return
 
     USERS[user_id] = Lock()
+
+    # Re-send pending confirmation to reconnected client
+    game = get_curr_game(user_id)
+    if game and game.confirmation_manager.pending_confirmation:
+        pending = game.confirmation_manager.pending_confirmation
+        socketio.emit('confirmation_required', {
+            'action_type': pending.action_type,
+            'ingredient_name': pending.ingredient_name,
+            'station_location': pending.station_location,
+            'display_text': f"{pending.action_type.title()} {pending.ingredient_name.title()}"
+        })
 
 
 @socketio.on("disconnect")
@@ -781,7 +819,25 @@ def play_game(game: OvercookedGame, fps=6):
                 # Process any pending human actions immediately
                 game.apply_actions()
                 status = game.tick()
-            
+
+                # Check for confirmation state changes
+                if game.pending_confirmation:
+                    # Check if ingredient was removed
+                    if game._clear_confirmation_if_ingredient_removed():
+                        socketio.emit('button_dismissed', room=game.id)
+                        game.pending_confirmation = None
+                else:
+                    # Check for new confirmation requirement
+                    new_confirmation = game._detect_ingredient_at_station()
+                    if new_confirmation:
+                        game.pending_confirmation = new_confirmation
+                        socketio.emit('confirmation_required', {
+                            'action_type': new_confirmation.action_type,
+                            'ingredient_name': new_confirmation.ingredient_name,
+                            'station_location': new_confirmation.station_location,
+                            'display_text': f"{new_confirmation.action_type.title()} {new_confirmation.ingredient_name.title()}"
+                        }, room=game.id)
+
             if status == Game.Status.RESET:
                 with game.lock:
                     data = game.get_data()

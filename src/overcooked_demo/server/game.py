@@ -6,6 +6,7 @@ from abc import ABC, abstractmethod
 from queue import Empty, Full, LifoQueue, Queue
 from threading import Lock, Thread
 from time import time
+from typing import Optional, Dict, List
 
 import ray
 from utils import DOCKER_VOLUME, create_dirs
@@ -20,6 +21,7 @@ from overcooked_ai_py.planning.planners import (
     NO_COUNTERS_PARAMS,
     MotionPlanner,
 )
+from confirmation_system import ConfirmationManager
 
 # Relative path to where all static pre-trained agents are stored on server
 AGENT_DIR = None
@@ -499,6 +501,37 @@ class OvercookedGame(Game):
 
         self.trajectory = []
 
+        # Confirmation system manager
+        self.confirmation_manager = ConfirmationManager(self)
+
+    # Delegation properties for confirmation system (for backward compatibility)
+    @property
+    def pending_confirmation(self):
+        """Delegate to confirmation manager."""
+        return self.confirmation_manager.pending_confirmation
+
+    @pending_confirmation.setter
+    def pending_confirmation(self, value):
+        """Delegate to confirmation manager."""
+        self.confirmation_manager.pending_confirmation = value
+
+    @property
+    def last_placement(self):
+        """Delegate to confirmation manager."""
+        return self.confirmation_manager.last_placement
+
+    def _detect_ingredient_at_station(self):
+        """Delegate to confirmation manager."""
+        return self.confirmation_manager.detect_ingredient_at_station()
+
+    def _clear_confirmation_if_ingredient_removed(self):
+        """Delegate to confirmation manager."""
+        return self.confirmation_manager.clear_if_ingredient_removed()
+
+    def _execute_confirmation_action(self):
+        """Delegate to confirmation manager."""
+        self.confirmation_manager.execute_confirmation_action()
+
     def _curr_game_over(self):
         return time() - self.start_time >= self.max_time
 
@@ -554,6 +587,8 @@ class OvercookedGame(Game):
         Game is ready to be activated if there are a sufficient number of players and at least one human (spectator or player)
         """
         return super(OvercookedGame, self).is_ready() and not self.is_empty()
+
+    # ===== Confirmation System Methods =====
 
     def apply_action(self, player_idx, action):
         """Buffer action for execution at end of current turn cycle"""
@@ -617,6 +652,12 @@ class OvercookedGame(Game):
             # Apply overcooked game logic to get state transition
             prev_state = self.state
             self.state, info = self.mdp.get_state_transition(prev_state, joint_action)
+
+            # Track ingredient placement for confirmation system
+            for player_idx, action in enumerate(joint_action):
+                self.confirmation_manager.track_placement(
+                    player_idx, action, self.state, self.curr_tick, self.human_players
+                )
 
             for agent in self.npc_policies.values():
                 agent.last_info = info
@@ -751,8 +792,9 @@ class OvercookedGame(Game):
                 elif npc_policy.endswith('_1'):
                     agent.set_agent_index(1)
             # Set MDP after reset to ensure it is not cleared
+            # Pass game reference for confirmation state checking
             if hasattr(agent, 'set_mdp'):
-                agent.set_mdp(self.mdp)
+                agent.set_mdp(self.mdp, game=self)
             self.npc_state_queues[npc_policy].put(self.state)
             t = Thread(target=self.npc_policy_consumer, args=(npc_policy,))
             self.threads.append(t)

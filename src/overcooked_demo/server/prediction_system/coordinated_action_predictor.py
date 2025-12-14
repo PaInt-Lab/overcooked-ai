@@ -91,6 +91,9 @@ class CoordinatedActionPredictorAgent(Agent):
             advice_fresh_turns=3,
         )
 
+        # Game reference for checking confirmation state
+        self.game = None
+
     def _initialize_complete_state_graph(self):
         """Initialize the complete state graph using global singleton"""
         if self.complete_state_graph is None:
@@ -189,10 +192,11 @@ class CoordinatedActionPredictorAgent(Agent):
         
         return primary_tasks
 
-    def set_mdp(self, mdp: OvercookedGridworld):
+    def set_mdp(self, mdp: OvercookedGridworld, game=None):
         super().set_mdp(mdp)
         self.mdp = mdp
-        
+        self.game = game  # Store game reference for checking confirmation state
+
         # Initialize tile manager from MDP
         self.tile_manager.initialize_from_mdp(mdp)
         
@@ -241,6 +245,11 @@ class CoordinatedActionPredictorAgent(Agent):
 
     def action(self, state):
         """Main action selection using optimized coordination system."""
+        # Check if confirmation pending - agent must wait
+        if hasattr(self, 'game') and self.game and self.game.pending_confirmation is not None:
+            print("[Agent] Waiting for human confirmation - returning NOOP")
+            return Action.STAY
+
         assert self.agent_index is not None, "agent_index is None in action!"
         self.turn_counter += 1
 

@@ -46,10 +46,13 @@ class ActionTracker:
         self.last_action: Optional[str] = None
         self.sequence_start_time: Optional[float] = None
         self.recipe_type: Optional[str] = None
-        
+
         # Mode tracking
         self.sequential_mode: bool = False
-        
+
+        # Reference plan for TES calculation
+        self.reference_plan: List[str] = []  # Store expected action sequence
+
         # State recording flags
         self.onion_chopped_recorded: bool = False
         self.onion_washed_recorded: bool = False
@@ -217,20 +220,27 @@ class ActionTracker:
         self.last_action = None
         self.sequence_start_time = None
         self.recipe_type = None
-        
+
         # Reset mode tracking
         self.sequential_mode = False
-        
+
+        # Reset reference plan
+        self.reference_plan.clear()
+
         # Reset state recording flags
         self.onion_chopped_recorded = False
         self.onion_washed_recorded = False
+        self.onion_salted_recorded = False
+        self.onion_peppered_recorded = False
         self.onion_staged_recorded = False
         self.onion_in_pot_recorded = False
         self.tomato_chopped_recorded = False
         self.tomato_washed_recorded = False
+        self.tomato_salted_recorded = False
+        self.tomato_peppered_recorded = False
         self.tomato_staged_recorded = False
         self.tomato_in_pot_recorded = False
-        
+
         # Reset human grab action flags
         self.human_grab_onion_recorded = False
         self.human_grab_tomato_recorded = False
@@ -238,7 +248,45 @@ class ActionTracker:
     def set_recipe_type(self, recipe_type: str) -> None:
         """Set the recipe type for the current sequence."""
         self.recipe_type = recipe_type
-    
+
+    def set_reference_plan(self, plan_events: List[dict]):
+        """Store reference plan for TES calculation."""
+        # Extract primary actions from plan
+        self.reference_plan = []
+        for event in plan_events:
+            self.reference_plan.extend(event.get('primary', []))
+
+    def calculate_plan_adherence(self) -> float:
+        """
+        Calculate Plan Adherence Score (TES).
+
+        Measures how closely the actual action sequence matches the reference plan.
+        Uses current_sequence which contains all state changes from both human and agent.
+
+        Returns:
+            Float between 0.0 and 1.0, where 1.0 = perfect adherence
+        """
+        if not self.reference_plan or not self.current_sequence:
+            return 0.0
+
+        # Extract action names from current sequence
+        actual_sequence = [action['action'] for action in self.current_sequence]
+
+        # Calculate sequence similarity using difflib
+        from difflib import SequenceMatcher
+        matcher = SequenceMatcher(None, self.reference_plan, actual_sequence)
+        return matcher.ratio()
+
+    def get_session_data(self) -> dict:
+        """Export all tracking data for analysis."""
+        return {
+            'action_sequence': self.current_sequence,
+            'plan_adherence': self.calculate_plan_adherence(),
+            'duration': self.get_sequence_duration(),
+            'recipe_type': self.recipe_type,
+            'reference_plan': self.reference_plan
+        }
+
 
 
 

@@ -129,9 +129,16 @@ class StateSummarizer:
                 "onion" in tile_contents.get(pos, [])
                 for pos in self.tile_manager.onion_chopping_stations
             )
-            
+
+            # MODIFIED: Only mark as chopped if object state is actually 'chopped'
+            # This requires human confirmation button click before processing
             if onion_at_chopping:
-                self.onion_chopped = True
+                # Check if the onion at the chopping station is actually chopped
+                for pos in self.tile_manager.onion_chopping_stations:
+                    obj = state.get_object(pos)
+                    if obj and obj.name == 'onion' and hasattr(obj, 'state') and obj.state == 'chopped':
+                        self.onion_chopped = True
+                        break
 
             tomato_staged = any(
                 "tomato" in tile_contents.get(pos, [])
@@ -142,9 +149,14 @@ class StateSummarizer:
                 "tomato" in tile_contents.get(pos, [])
                 for pos in self.tile_manager.tomato_chopping_stations
             )
-            
+
+            # MODIFIED: Only mark as chopped if object state is actually 'chopped'
             if tomato_at_chopping:
-                self.tomato_chopped = True
+                for pos in self.tile_manager.tomato_chopping_stations:
+                    obj = state.get_object(pos)
+                    if obj and obj.name == 'tomato' and hasattr(obj, 'state') and obj.state == 'chopped':
+                        self.tomato_chopped = True
+                        break
 
             dish_staged = any(
                 "dish" in tile_contents.get(pos, [])
@@ -167,12 +179,20 @@ class StateSummarizer:
                 for pos in self.tile_manager.sink_stations
             )
             
-            # Track washing completion state
+            # MODIFIED: Track washing completion state - check actual object state
             if onion_at_sink:
-                self.onion_washed = True
-                
+                for pos in self.tile_manager.sink_stations:
+                    obj = state.get_object(pos)
+                    if obj and obj.name == 'onion' and hasattr(obj, 'state') and obj.state == 'washed':
+                        self.onion_washed = True
+                        break
+
             if tomato_at_sink:
-                self.tomato_washed = True
+                for pos in self.tile_manager.sink_stations:
+                    obj = state.get_object(pos)
+                    if obj and obj.name == 'tomato' and hasattr(obj, 'state') and obj.state == 'washed':
+                        self.tomato_washed = True
+                        break
 
             # Check salt station-related states
             onion_at_salt_station = any(
@@ -185,12 +205,23 @@ class StateSummarizer:
                 for pos in self.tile_manager.salt_stations
             )
             
-            # Track salting completion state
+            # MODIFIED: Track salting completion state - check if object has 'salted' property
             if onion_at_salt_station:
-                self.onion_salted = True
-                
+                for pos in self.tile_manager.salt_stations:
+                    obj = state.get_object(pos)
+                    if obj and obj.name == 'onion':
+                        # Check if object has salted property
+                        if hasattr(obj, 'properties') and 'salted' in obj.properties:
+                            self.onion_salted = True
+                            break
+
             if tomato_at_salt_station:
-                self.tomato_salted = True
+                for pos in self.tile_manager.salt_stations:
+                    obj = state.get_object(pos)
+                    if obj and obj.name == 'tomato':
+                        if hasattr(obj, 'properties') and 'salted' in obj.properties:
+                            self.tomato_salted = True
+                            break
 
             # Check pepper station-related states
             onion_at_pepper_station = any(
@@ -203,12 +234,22 @@ class StateSummarizer:
                 for pos in self.tile_manager.pepper_stations
             )
             
-            # Track peppering completion state
+            # MODIFIED: Track peppering completion state - check if object has 'peppered' property
             if onion_at_pepper_station:
-                self.onion_peppered = True
-                
+                for pos in self.tile_manager.pepper_stations:
+                    obj = state.get_object(pos)
+                    if obj and obj.name == 'onion':
+                        if hasattr(obj, 'properties') and 'peppered' in obj.properties:
+                            self.onion_peppered = True
+                            break
+
             if tomato_at_pepper_station:
-                self.tomato_peppered = True
+                for pos in self.tile_manager.pepper_stations:
+                    obj = state.get_object(pos)
+                    if obj and obj.name == 'tomato':
+                        if hasattr(obj, 'properties') and 'peppered' in obj.properties:
+                            self.tomato_peppered = True
+                            break
 
         soup_served = False
         soup_delivered_by = "none"

@@ -136,12 +136,19 @@
         <button id="leave" style="display: none">Leave</button>
       </div>
       <div style="display: flex; gap: 16px; align-items: flex-start; flex-wrap: nowrap; justify-content: center; margin-top: 12px; width: 100%;">
-        <div id="overcooked-container" class="text-center">
+        <div id="overcooked-container" class="text-center" style="position: relative;">
           <h4 id="game-title" style="display: none">Game in Progress</h4>
           <h4 id="game-over" style="display: none">Game Over</h4>
           <div id="overcooked"></div>
           <div id="error-exit" style="display: none">
             Game ended unexpectedly (probably due to another user disconnecting)
+          </div>
+
+          <!-- Confirmation Button Overlay -->
+          <div id="confirmation-container" style="display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1000;">
+            <button id="confirmation-button" class="btn btn-lg btn-success">
+              <span id="confirmation-text">Confirm Action</span>
+            </button>
           </div>
         </div>
 

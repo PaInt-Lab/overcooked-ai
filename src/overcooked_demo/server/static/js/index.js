@@ -233,6 +233,51 @@ socket.on("end_lobby", function () {
   window.intervalID = -1;
 });
 
+/* * * * * * * * * * * * * * * * * * *
+ * Confirmation Button Event Handlers *
+ * * * * * * * * * * * * * * * * * * */
+
+// Receive confirmation_required event
+socket.on("confirmation_required", function (data) {
+  // Update button text
+  $("#confirmation-text").text(data.display_text);
+
+  // Show button
+  const container = $("#confirmation-container");
+  container.show();
+
+  // Store data for confirmation
+  container.data("actionType", data.action_type);
+  container.data("ingredientName", data.ingredient_name);
+});
+
+// Button click handler
+$(function () {
+  $("#confirmation-button").click(function () {
+    const container = $("#confirmation-container");
+
+    // Disable button to prevent double-click
+    $(this).prop("disabled", true);
+
+    // Send confirmation to server
+    socket.emit("confirm_action", {
+      action_type: container.data("actionType"),
+      ingredient_name: container.data("ingredientName"),
+    });
+
+    // Hide immediately (will be confirmed by button_dismissed)
+    container.hide();
+    $(this).prop("disabled", false);
+  });
+});
+
+// Receive button_dismissed event
+socket.on("button_dismissed", function () {
+  const container = $("#confirmation-container");
+  container.hide();
+  $("#confirmation-button").prop("disabled", false);
+});
+
 /* * * * * * * * * * * * * *
  * Game Key Event Listener *
  * * * * * * * * * * * * * */

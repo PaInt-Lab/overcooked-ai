@@ -73,39 +73,45 @@ class ConfirmationManager:
 
         # Check chopping stations
         for station_pos in chop_stations:
-            obj = self.game.state.get_object(station_pos)
-            if obj and obj.name in ['onion', 'tomato'] and not hasattr(obj, 'state') or obj.state != 'chopped':
-                return self._create_pending_confirmation(
-                    'chop', obj.name, station_pos, id(obj)
-                )
+            if self.game.state.has_object(station_pos):
+                obj = self.game.state.get_object(station_pos)
+                if obj.name in ['onion', 'tomato']:
+                    if not hasattr(obj, 'state') or obj.state != 'chopped':
+                        return self._create_pending_confirmation(
+                            'chop', obj.name, station_pos, id(obj)
+                        )
 
         # Check sink stations (washing)
         for station_pos in sink_stations:
-            obj = self.game.state.get_object(station_pos)
-            if obj and obj.name in ['onion', 'tomato'] and (not hasattr(obj, 'state') or obj.state != 'washed'):
-                return self._create_pending_confirmation(
-                    'wash', obj.name, station_pos, id(obj)
-                )
+            if self.game.state.has_object(station_pos):
+                obj = self.game.state.get_object(station_pos)
+                if obj.name in ['onion', 'tomato']:
+                    if not hasattr(obj, 'state') or obj.state != 'washed':
+                        return self._create_pending_confirmation(
+                            'wash', obj.name, station_pos, id(obj)
+                        )
 
         # Check salt stations
         for station_pos in salt_stations:
-            obj = self.game.state.get_object(station_pos)
-            if obj and obj.name in ['onion', 'tomato']:
-                # Check if not already salted
-                if not (hasattr(obj, 'properties') and 'salted' in obj.properties):
-                    return self._create_pending_confirmation(
-                        'salt', obj.name, station_pos, id(obj)
-                    )
+            if self.game.state.has_object(station_pos):
+                obj = self.game.state.get_object(station_pos)
+                if obj.name in ['onion', 'tomato']:
+                    # Check if not already salted
+                    if not (hasattr(obj, 'properties') and 'salted' in obj.properties):
+                        return self._create_pending_confirmation(
+                            'salt', obj.name, station_pos, id(obj)
+                        )
 
         # Check pepper stations
         for station_pos in pepper_stations:
-            obj = self.game.state.get_object(station_pos)
-            if obj and obj.name in ['onion', 'tomato']:
-                # Check if not already peppered
-                if not (hasattr(obj, 'properties') and 'peppered' in obj.properties):
-                    return self._create_pending_confirmation(
-                        'pepper', obj.name, station_pos, id(obj)
-                    )
+            if self.game.state.has_object(station_pos):
+                obj = self.game.state.get_object(station_pos)
+                if obj.name in ['onion', 'tomato']:
+                    # Check if not already peppered
+                    if not (hasattr(obj, 'properties') and 'peppered' in obj.properties):
+                        return self._create_pending_confirmation(
+                            'pepper', obj.name, station_pos, id(obj)
+                        )
 
         return None
 
@@ -214,8 +220,8 @@ class ConfirmationManager:
         if action == Action.INTERACT:
             player_pos = state.players[player_idx].position
             # Check if placing ingredient at station
-            obj_at_pos = state.get_object(player_pos)
-            if obj_at_pos:
+            if state.has_object(player_pos):
+                obj_at_pos = state.get_object(player_pos)
                 player_id = self.game.players[player_idx]
                 self.last_placement[player_pos] = {
                     'player': 'human' if player_id in human_players else 'agent',

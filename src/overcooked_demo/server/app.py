@@ -175,10 +175,10 @@ def cleanup_game(game: OvercookedGame):
     if FREE_MAP[game.id]:
         raise ValueError("Double free on a game")
 
-    # Clear any pending confirmation before closing
-    if game.confirmation_manager.pending_confirmation:
+    # Clear any pending confirmation pause before closing
+    if getattr(game, "confirmation_pause", None):
         socketio.emit('button_dismissed', room=game.id)
-        game.confirmation_manager.pending_confirmation = None
+        game.confirmation_pause = None
 
     # User tracking
     for user_id in game.players:
@@ -731,32 +731,37 @@ def on_confirm_action(data):
     user_id = request.sid
     game = get_curr_game(user_id)
 
-    if not game or not game.confirmation_manager.pending_confirmation:
+    if not game:
         return
 
-    # Execute the action (mutates object state)
-    game.confirmation_manager.execute_confirmation_action()
+    # Confirm must be atomic with respect to game state
+    with game.lock:
+        confirmed = game.confirm_current_processing_action()
+        if not confirmed:
+            return
 
-    # DON'T clear pending_confirmation here - let the game loop detect
-    # that the ingredient has been processed and clear it naturally.
-    # This prevents re-detection of the same ingredient before state updates.
+        # Clear buffered actions to prevent stale actions from executing
+        # This is necessary because confirmation mutates state outside normal game loop
+        game.buffered_actions = [None] * len(game.players)
 
-    # Clear buffered actions to prevent stale actions from executing
-    # This is necessary because confirmation mutates state outside normal game loop
-    game.buffered_actions = [None] * len(game.players)
+        # Clear pending action queues for all agents
+        for i in range(len(game.players)):
+            if game.players[i] not in game.human_players:
+                if hasattr(game.pending_actions[i], 'empty'):
+                    try:
+                        while not game.pending_actions[i].empty():
+                            game.pending_actions[i].get_nowait()
+                    except Exception:
+                        pass
 
-    # Clear pending action queues for all agents
-    for i in range(len(game.players)):
-        if game.players[i] not in game.human_players:
-            if hasattr(game.pending_actions[i], 'empty'):
-                # Drain the queue
-                try:
-                    while not game.pending_actions[i].empty():
-                        game.pending_actions[i].get_nowait()
-                except:
-                    pass
-
-    # Button will be dismissed by game loop when confirmation is cleared
+        # Kick agents to recompute immediately from the newly-mutated state.
+        # Otherwise, if we just cleared their queued action and no new env transition occurs,
+        # the agent thread may have nothing to consume and the game can appear "frozen".
+        for npc_id in getattr(game, "npc_policies", {}):
+            try:
+                game.npc_state_queues[npc_id].put(game.state, block=False)
+            except Exception:
+                pass
 
 
 @socketio.on("connect")
@@ -770,14 +775,17 @@ def on_connect():
 
     # Re-send pending confirmation to reconnected client
     game = get_curr_game(user_id)
-    if game and game.confirmation_manager.pending_confirmation:
-        pending = game.confirmation_manager.pending_confirmation
-        socketio.emit('confirmation_required', {
-            'action_type': pending.action_type,
-            'ingredient_name': pending.ingredient_name,
-            'station_location': pending.station_location,
-            'display_text': f"{pending.action_type.title()} {pending.ingredient_name.title()}"
-        })
+    if game and getattr(game, "confirmation_pause", None):
+        pending = game.confirmation_pause
+        socketio.emit(
+            'confirmation_required',
+            {
+                'action_type': pending.action_type,
+                'ingredient_name': pending.ingredient_name,
+                'station_location': pending.station_location,
+                'display_text': f"{pending.action_type.title()} {pending.ingredient_name.title()}",
+            },
+        )
 
 
 @socketio.on("disconnect")

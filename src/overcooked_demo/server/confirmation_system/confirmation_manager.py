@@ -221,7 +221,12 @@ class ConfirmationManager:
         if getattr(self.game, "pending_confirmation_event", None) is None:
             # Only emit a dismissal if one is not already queued
             self.game.pending_confirmation_event = {"type": "dismissed"}
+        # Clear both manager-level and game-level flags to guarantee unblocking
         self.pending_confirmation = None
+        try:
+            self.game.pending_confirmation = None
+        except Exception:
+            pass
 
     def track_placement(self, player_idx: int, action, state, curr_tick: int, human_players: set):
         """

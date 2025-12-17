@@ -253,7 +253,9 @@ socket.on("confirmation_required", function (data) {
 
 // Button click handler
 $(function () {
-  $("#confirmation-button").click(function () {
+  $("#confirmation-button").click(function (e) {
+    // Prevent any form submit / page refresh
+    if (e && typeof e.preventDefault === "function") e.preventDefault();
     const container = $("#confirmation-container");
 
     // Disable button to prevent double-click
@@ -287,11 +289,6 @@ function enable_key_listener() {
     // Ignore key events when typing in form controls
     const tag = e.target.tagName.toLowerCase();
     if (tag === "input" || tag === "textarea" || tag === "select" || e.target.isContentEditable) {
-      return;
-    }
-
-    // Ignore key events when confirmation is pending
-    if ($("#confirmation-container").is(":visible")) {
       return;
     }
 

@@ -406,7 +406,21 @@ class ObjectState(object):
         return self.name in ["onion", "tomato", "dish"]
 
     def deepcopy(self):
-        return ObjectState(self.name, self.position)
+        # Preserve any extra attributes used by extended game mechanics
+        # (e.g. confirmation-gated processing: washed/chopped/salted/peppered).
+        new_obj = ObjectState(self.name, self.position)
+        if hasattr(self, "state"):
+            try:
+                new_obj.state = self.state
+            except Exception:
+                pass
+        if hasattr(self, "properties"):
+            try:
+                # Normalize to a list for mutability, but preserve contents
+                new_obj.properties = list(self.properties) if self.properties is not None else []
+            except Exception:
+                pass
+        return new_obj
 
     def __eq__(self, other):
         return (
@@ -422,12 +436,32 @@ class ObjectState(object):
         return "{}@{}".format(self.name, self.position)
 
     def to_dict(self):
-        return {"name": self.name, "position": self.position}
+        d = {"name": self.name, "position": self.position}
+        # Optional extended fields
+        if hasattr(self, "state"):
+            d["state"] = getattr(self, "state", None)
+        if hasattr(self, "properties"):
+            d["properties"] = list(getattr(self, "properties", []) or [])
+        return d
 
     @classmethod
     def from_dict(cls, obj_dict):
         obj_dict = copy.deepcopy(obj_dict)
-        return ObjectState(**obj_dict)
+        # Pull out optional extended fields so __init__ stays compatible
+        extra_state = obj_dict.pop("state", None) if isinstance(obj_dict, dict) else None
+        extra_props = obj_dict.pop("properties", None) if isinstance(obj_dict, dict) else None
+        obj = ObjectState(**obj_dict)
+        if extra_state is not None:
+            try:
+                obj.state = extra_state
+            except Exception:
+                pass
+        if extra_props is not None:
+            try:
+                obj.properties = list(extra_props) if extra_props is not None else []
+            except Exception:
+                pass
+        return obj
 
 
 class SoupState(ObjectState):

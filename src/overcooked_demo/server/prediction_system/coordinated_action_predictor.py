@@ -269,12 +269,12 @@ class CoordinatedActionPredictorAgent(Agent):
                 return self._execute_robot_action(noop_action, state, "WAITING_FOR_HUMAN", 
                                                  "NOOP", [])
         
-        # Check if confirmation pending - agent must wait
+        # Check if agent is paused for confirmation - agent must wait
         if hasattr(self, 'game') and self.game:
-            pending = self.game.pending_confirmation
-            print(f"[Agent DEBUG] Checking confirmation: pending={pending}")
-            if pending is not None:
-                print(f"[Agent] Waiting for human confirmation ({pending.action_type} {pending.ingredient_name}) - returning NOOP")
+            paused = getattr(self.game, "agent_paused_for_confirmation", False)
+            pause_obj = getattr(self.game, "confirmation_pause", None)
+            print(f"[Agent DEBUG] Checking confirmation pause: paused={paused} pause={pause_obj}")
+            if paused:
                 noop_action = "NOOP"
                 return self._execute_robot_action(noop_action, state, "WAITING_FOR_CONFIRMATION",
                                                  "NOOP", [])
@@ -417,16 +417,11 @@ class CoordinatedActionPredictorAgent(Agent):
         # Track primary action for plan adaptation
         self._track_and_adapt_plan(predicted_human_action)
 
-        # Check if confirmation pending - override to NOOP
-        if hasattr(self, 'game') and self.game and self.game.pending_confirmation is not None:
+        # Get robot action using our smart coordination system
+        try:
+            robot_action = select_secondary_action(self.last_summary, self.task_title, predicted_human_action)
+        except Exception as e:
             robot_action = "NOOP"
-            print(f"[Agent] Confirmation pending - overriding robot action to NOOP")
-        else:
-            # Get robot action using our smart coordination system
-            try:
-                robot_action = select_secondary_action(self.last_summary, self.task_title, predicted_human_action)
-            except Exception as e:
-                robot_action = "NOOP"
 
         print(f"LLM PREDICTION: {predicted_human_action}")
         print(f"ROBOT ACTION: {robot_action}")

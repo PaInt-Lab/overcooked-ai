@@ -2,6 +2,7 @@ import json
 import os
 import pickle
 import random
+from dataclasses import dataclass
 from abc import ABC, abstractmethod
 from queue import Empty, Full, LifoQueue, Queue
 from threading import Lock, Thread
@@ -21,7 +22,16 @@ from overcooked_ai_py.planning.planners import (
     NO_COUNTERS_PARAMS,
     MotionPlanner,
 )
-from confirmation_system import ConfirmationManager
+
+
+@dataclass
+class ConfirmationPause:
+    """Simple pause flag for agent-only confirmation gating."""
+
+    action_type: str  # 'wash' | 'chop' | 'salt' | 'pepper'
+    ingredient_name: str  # 'onion' | 'tomato'
+    station_location: tuple  # (x, y)
+    set_tick: int
 
 # Relative path to where all static pre-trained agents are stored on server
 AGENT_DIR = None
@@ -501,38 +511,128 @@ class OvercookedGame(Game):
 
         self.trajectory = []
 
-        # Confirmation system manager
-        self.confirmation_manager = ConfirmationManager(self)
-        # Track whether the UI needs to be notified about confirmation changes
+        # === Simple confirmation pause flag (agent-only) ===
+        self.confirmation_pause: Optional[ConfirmationPause] = None
+        # UI event consumed by app.py loop (required/dismissed)
         self.pending_confirmation_event = None
-
-    # Delegation properties for confirmation system (for backward compatibility)
-    @property
-    def pending_confirmation(self):
-        """Delegate to confirmation manager."""
-        return self.confirmation_manager.pending_confirmation
-
-    @pending_confirmation.setter
-    def pending_confirmation(self, value):
-        """Delegate to confirmation manager."""
-        self.confirmation_manager.pending_confirmation = value
+        # Filled in activate() from TileManager
+        self._processing_stations: Dict[str, List[tuple]] = {}
 
     @property
-    def last_placement(self):
-        """Delegate to confirmation manager."""
-        return self.confirmation_manager.last_placement
+    def agent_paused_for_confirmation(self) -> bool:
+        return self.confirmation_pause is not None
 
-    def _detect_ingredient_at_station(self):
-        """Delegate to confirmation manager."""
-        return self.confirmation_manager.detect_ingredient_at_station()
+    def _obj_sig_at(self, state, pos: tuple):
+        if not state.has_object(pos):
+            return None
+        obj = state.get_object(pos)
+        props = None
+        if hasattr(obj, "properties"):
+            try:
+                props = tuple(obj.properties)
+            except Exception:
+                props = None
+        return (getattr(obj, "name", None), getattr(obj, "state", None), props)
 
-    def _clear_confirmation_if_ingredient_removed(self):
-        """Delegate to confirmation manager."""
-        return self.confirmation_manager.clear_if_ingredient_removed()
+    def _is_processed(self, action_type: str, obj) -> bool:
+        if action_type == "wash":
+            return hasattr(obj, "state") and obj.state == "washed"
+        if action_type == "chop":
+            return hasattr(obj, "state") and obj.state == "chopped"
+        if action_type == "salt":
+            return hasattr(obj, "properties") and "salted" in getattr(obj, "properties", [])
+        if action_type == "pepper":
+            return hasattr(obj, "properties") and "peppered" in getattr(obj, "properties", [])
+        return False
 
-    def _execute_confirmation_action(self):
-        """Delegate to confirmation manager."""
-        self.confirmation_manager.execute_confirmation_action()
+    def _emit_confirmation_required(self, pause: ConfirmationPause):
+        self.pending_confirmation_event = {
+            "type": "required",
+            "payload": {
+                "action_type": pause.action_type,
+                "ingredient_name": pause.ingredient_name,
+                "station_location": pause.station_location,
+                "display_text": f"{pause.action_type.title()} {pause.ingredient_name.title()}",
+            },
+        }
+
+    def _emit_confirmation_dismissed(self):
+        self.pending_confirmation_event = {"type": "dismissed"}
+
+    def _update_confirmation_pause(self, prev_state, next_state):
+        # If paused, clear when removed/changed/processed
+        if self.confirmation_pause is not None:
+            pos = self.confirmation_pause.station_location
+            if not next_state.has_object(pos):
+                self.confirmation_pause = None
+                self._emit_confirmation_dismissed()
+                return
+            obj = next_state.get_object(pos)
+            if getattr(obj, "name", None) != self.confirmation_pause.ingredient_name:
+                self.confirmation_pause = None
+                self._emit_confirmation_dismissed()
+                return
+            if self._is_processed(self.confirmation_pause.action_type, obj):
+                self.confirmation_pause = None
+                self._emit_confirmation_dismissed()
+                return
+            return
+
+        # Not paused: detect newly-appeared unprocessed ingredient at stations
+        for action_type, positions in self._processing_stations.items():
+            for pos in positions:
+                pre_sig = self._obj_sig_at(prev_state, pos)
+                post_sig = self._obj_sig_at(next_state, pos)
+                if pre_sig == post_sig:
+                    continue
+                if not next_state.has_object(pos):
+                    continue
+                obj = next_state.get_object(pos)
+                if getattr(obj, "name", None) not in ["onion", "tomato"]:
+                    continue
+                if self._is_processed(action_type, obj):
+                    continue
+                self.confirmation_pause = ConfirmationPause(
+                    action_type=action_type,
+                    ingredient_name=obj.name,
+                    station_location=pos,
+                    set_tick=self.curr_tick,
+                )
+                self._emit_confirmation_required(self.confirmation_pause)
+                return
+
+    def confirm_current_processing_action(self) -> bool:
+        if self.confirmation_pause is None:
+            return False
+        pos = self.confirmation_pause.station_location
+        if not self.state.has_object(pos):
+            self.confirmation_pause = None
+            self._emit_confirmation_dismissed()
+            return False
+        obj = self.state.get_object(pos)
+        if getattr(obj, "name", None) != self.confirmation_pause.ingredient_name:
+            self.confirmation_pause = None
+            self._emit_confirmation_dismissed()
+            return False
+
+        if self.confirmation_pause.action_type == "wash":
+            obj.state = "washed"
+        elif self.confirmation_pause.action_type == "chop":
+            obj.state = "chopped"
+        elif self.confirmation_pause.action_type == "salt":
+            if not hasattr(obj, "properties") or obj.properties is None:
+                obj.properties = []
+            if "salted" not in obj.properties:
+                obj.properties.append("salted")
+        elif self.confirmation_pause.action_type == "pepper":
+            if not hasattr(obj, "properties") or obj.properties is None:
+                obj.properties = []
+            if "peppered" not in obj.properties:
+                obj.properties.append("peppered")
+
+        self.confirmation_pause = None
+        self._emit_confirmation_dismissed()
+        return True
 
     def _curr_game_over(self):
         return time() - self.start_time >= self.max_time
@@ -613,8 +713,8 @@ class OvercookedGame(Game):
         # Collect agent actions into the buffer (non-blocking, just check if available)
         for i in range(len(self.players)):
             if self.players[i] not in self.human_players:
-                # If confirmation is pending, drain agent actions and force NOOP
-                if self.pending_confirmation is not None:
+                # If paused for confirmation, drain agent actions and force NOOP (agent only)
+                if self.agent_paused_for_confirmation:
                     if hasattr(self.pending_actions[i], 'get'):
                         try:
                             while True:
@@ -633,12 +733,6 @@ class OvercookedGame(Game):
                 except Empty:
                     # No action available yet, that's fine
                     pass
-
-        # If confirmation is pending, force all players to stay still
-        if self.pending_confirmation is not None:
-            for i in range(len(self.buffered_actions)):
-                if self.buffered_actions[i] is None:
-                    self.buffered_actions[i] = Action.STAY
 
         # Check if the turn cycle has completed
         if time_in_turn < self.action_delay:
@@ -671,39 +765,8 @@ class OvercookedGame(Game):
             prev_state = self.state
             self.state, info = self.mdp.get_state_transition(prev_state, joint_action)
 
-            # Track ingredient placement for confirmation system
-            for player_idx, action in enumerate(joint_action):
-                self.confirmation_manager.track_placement(
-                    player_idx, action, self.state, self.curr_tick, self.human_players
-                )
-
-            # Update confirmation state immediately after state transition
-            prev_pending = self.pending_confirmation
-
-            # Clear if ingredient removed/processed
-            if self.pending_confirmation and self.confirmation_manager.clear_if_ingredient_removed():
-                self.pending_confirmation = None
-
-            # Detect new confirmation if none pending
-            if self.pending_confirmation is None:
-                new_confirmation = self.confirmation_manager.detect_ingredient_at_station()
-                if new_confirmation:
-                    self.pending_confirmation = new_confirmation
-
-            # Record UI event if confirmation state changed
-            if prev_pending != self.pending_confirmation:
-                if self.pending_confirmation is None and prev_pending is not None:
-                    self.pending_confirmation_event = {"type": "dismissed"}
-                elif self.pending_confirmation is not None:
-                    self.pending_confirmation_event = {
-                        "type": "required",
-                        "payload": {
-                            "action_type": self.pending_confirmation.action_type,
-                            "ingredient_name": self.pending_confirmation.ingredient_name,
-                            "station_location": self.pending_confirmation.station_location,
-                            "display_text": f"{self.pending_confirmation.action_type.title()} {self.pending_confirmation.ingredient_name.title()}",
-                        },
-                    }
+            # Update confirmation pause state immediately after state transition
+            self._update_confirmation_pause(prev_state, self.state)
             # If no change and no existing event, leave as-is (may be consumed later)
 
             for agent in self.npc_policies.values():
@@ -771,11 +834,6 @@ class OvercookedGame(Game):
         if player_id in self.human_players:
             player_idx = self.players.index(player_id)
 
-            # Don't buffer human actions if confirmation is pending
-            # This prevents stale human actions from executing during confirmation wait
-            if self.confirmation_manager.pending_confirmation is not None:
-                return
-
             # Human actions are buffered directly
             self.buffered_actions[player_idx] = overcooked_action
         else:
@@ -814,6 +872,13 @@ class OvercookedGame(Game):
         
         # Initialize tile manager from MDP for graphics rendering (works with any agent)
         self.tile_manager.initialize_from_mdp(self.mdp)
+        self._processing_stations = {
+            "wash": list(getattr(self.tile_manager, "sink_stations", [])),
+            "salt": list(getattr(self.tile_manager, "salt_stations", [])),
+            "pepper": list(getattr(self.tile_manager, "pepper_stations", [])),
+            "chop": list(getattr(self.tile_manager, "onion_chopping_stations", []))
+            + list(getattr(self.tile_manager, "tomato_chopping_stations", [])),
+        }
 
         if self.show_potential:
             self.mp = MotionPlanner.from_pickle_or_compute(

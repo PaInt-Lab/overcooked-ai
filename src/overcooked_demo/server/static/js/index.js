@@ -290,6 +290,11 @@ function enable_key_listener() {
       return;
     }
 
+    // Ignore key events when confirmation is pending
+    if ($("#confirmation-container").is(":visible")) {
+      return;
+    }
+
     let action = "STAY";
     switch (e.which) {
       case 37: // left

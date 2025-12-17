@@ -245,11 +245,6 @@ class CoordinatedActionPredictorAgent(Agent):
 
     def action(self, state):
         """Main action selection using optimized coordination system."""
-        # Check if confirmation pending - agent must wait
-        if hasattr(self, 'game') and self.game and self.game.pending_confirmation is not None:
-            print("[Agent] Waiting for human confirmation - returning NOOP")
-            return Action.STAY
-
         assert self.agent_index is not None, "agent_index is None in action!"
         self.turn_counter += 1
 
@@ -274,12 +269,22 @@ class CoordinatedActionPredictorAgent(Agent):
                 return self._execute_robot_action(noop_action, state, "WAITING_FOR_HUMAN", 
                                                  "NOOP", [])
         
+        # Check if confirmation pending - agent must wait
+        if hasattr(self, 'game') and self.game:
+            pending = self.game.pending_confirmation
+            print(f"[Agent DEBUG] Checking confirmation: pending={pending}")
+            if pending is not None:
+                print(f"[Agent] Waiting for human confirmation ({pending.action_type} {pending.ingredient_name}) - returning NOOP")
+                noop_action = "NOOP"
+                return self._execute_robot_action(noop_action, state, "WAITING_FOR_CONFIRMATION",
+                                                 "NOOP", [])
+
         # Get available primary actions from our complete state graph with washing
         try:
             available_primary_actions = self.get_available_primary_actions(state, {})
         except Exception as e:
             available_primary_actions = []
-        
+
         # FALLBACK: If no actions available from complete state graph, provide basic actions
         if not available_primary_actions:
             print("WARNING: No actions from complete state graph, using fallback actions")
@@ -411,13 +416,18 @@ class CoordinatedActionPredictorAgent(Agent):
         
         # Track primary action for plan adaptation
         self._track_and_adapt_plan(predicted_human_action)
-        
-        # Get robot action using our smart coordination system
-        try:
-            robot_action = select_secondary_action(self.last_summary, self.task_title, predicted_human_action)
-        except Exception as e:
+
+        # Check if confirmation pending - override to NOOP
+        if hasattr(self, 'game') and self.game and self.game.pending_confirmation is not None:
             robot_action = "NOOP"
-        
+            print(f"[Agent] Confirmation pending - overriding robot action to NOOP")
+        else:
+            # Get robot action using our smart coordination system
+            try:
+                robot_action = select_secondary_action(self.last_summary, self.task_title, predicted_human_action)
+            except Exception as e:
+                robot_action = "NOOP"
+
         print(f"LLM PREDICTION: {predicted_human_action}")
         print(f"ROBOT ACTION: {robot_action}")
         print(f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")

@@ -503,6 +503,8 @@ class OvercookedGame(Game):
 
         # Confirmation system manager
         self.confirmation_manager = ConfirmationManager(self)
+        # Track whether the UI needs to be notified about confirmation changes
+        self.pending_confirmation_event = None
 
     # Delegation properties for confirmation system (for backward compatibility)
     @property
@@ -611,6 +613,16 @@ class OvercookedGame(Game):
         # Collect agent actions into the buffer (non-blocking, just check if available)
         for i in range(len(self.players)):
             if self.players[i] not in self.human_players:
+                # If confirmation is pending, drain agent actions and force NOOP
+                if self.pending_confirmation is not None:
+                    if hasattr(self.pending_actions[i], 'get'):
+                        try:
+                            while True:
+                                self.pending_actions[i].get(block=False)
+                        except Empty:
+                            pass
+                    self.buffered_actions[i] = Action.STAY
+                    continue
                 try:
                     # Check if pending_actions[i] is actually a Queue (not EMPTY string)
                     if hasattr(self.pending_actions[i], 'get'):
@@ -621,7 +633,13 @@ class OvercookedGame(Game):
                 except Empty:
                     # No action available yet, that's fine
                     pass
-        
+
+        # If confirmation is pending, force all players to stay still
+        if self.pending_confirmation is not None:
+            for i in range(len(self.buffered_actions)):
+                if self.buffered_actions[i] is None:
+                    self.buffered_actions[i] = Action.STAY
+
         # Check if the turn cycle has completed
         if time_in_turn < self.action_delay:
             # Still within the current turn, don't execute yet
@@ -658,6 +676,35 @@ class OvercookedGame(Game):
                 self.confirmation_manager.track_placement(
                     player_idx, action, self.state, self.curr_tick, self.human_players
                 )
+
+            # Update confirmation state immediately after state transition
+            prev_pending = self.pending_confirmation
+
+            # Clear if ingredient removed/processed
+            if self.pending_confirmation and self.confirmation_manager.clear_if_ingredient_removed():
+                self.pending_confirmation = None
+
+            # Detect new confirmation if none pending
+            if self.pending_confirmation is None:
+                new_confirmation = self.confirmation_manager.detect_ingredient_at_station()
+                if new_confirmation:
+                    self.pending_confirmation = new_confirmation
+
+            # Record UI event if confirmation state changed
+            if prev_pending != self.pending_confirmation:
+                if self.pending_confirmation is None and prev_pending is not None:
+                    self.pending_confirmation_event = {"type": "dismissed"}
+                elif self.pending_confirmation is not None:
+                    self.pending_confirmation_event = {
+                        "type": "required",
+                        "payload": {
+                            "action_type": self.pending_confirmation.action_type,
+                            "ingredient_name": self.pending_confirmation.ingredient_name,
+                            "station_location": self.pending_confirmation.station_location,
+                            "display_text": f"{self.pending_confirmation.action_type.title()} {self.pending_confirmation.ingredient_name.title()}",
+                        },
+                    }
+            # If no change and no existing event, leave as-is (may be consumed later)
 
             for agent in self.npc_policies.values():
                 agent.last_info = info
@@ -719,10 +766,16 @@ class OvercookedGame(Game):
 
     def enqueue_action(self, player_id, action):
         overcooked_action = self.action_to_overcooked_action[action]
-        
+
         # Buffer the action for execution at the end of the current turn cycle
         if player_id in self.human_players:
             player_idx = self.players.index(player_id)
+
+            # Don't buffer human actions if confirmation is pending
+            # This prevents stale human actions from executing during confirmation wait
+            if self.confirmation_manager.pending_confirmation is not None:
+                return
+
             # Human actions are buffered directly
             self.buffered_actions[player_idx] = overcooked_action
         else:

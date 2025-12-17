@@ -734,14 +734,29 @@ def on_confirm_action(data):
     if not game or not game.confirmation_manager.pending_confirmation:
         return
 
-    # Execute the action
+    # Execute the action (mutates object state)
     game.confirmation_manager.execute_confirmation_action()
 
-    # Clear pending state
-    game.confirmation_manager.pending_confirmation = None
+    # DON'T clear pending_confirmation here - let the game loop detect
+    # that the ingredient has been processed and clear it naturally.
+    # This prevents re-detection of the same ingredient before state updates.
 
-    # Notify frontend
-    socketio.emit('button_dismissed', room=game.id)
+    # Clear buffered actions to prevent stale actions from executing
+    # This is necessary because confirmation mutates state outside normal game loop
+    game.buffered_actions = [None] * len(game.players)
+
+    # Clear pending action queues for all agents
+    for i in range(len(game.players)):
+        if game.players[i] not in game.human_players:
+            if hasattr(game.pending_actions[i], 'empty'):
+                # Drain the queue
+                try:
+                    while not game.pending_actions[i].empty():
+                        game.pending_actions[i].get_nowait()
+                except:
+                    pass
+
+    # Button will be dismissed by game loop when confirmation is cleared
 
 
 @socketio.on("connect")
@@ -820,23 +835,14 @@ def play_game(game: OvercookedGame, fps=6):
                 game.apply_actions()
                 status = game.tick()
 
-                # Check for confirmation state changes
-                if game.pending_confirmation:
-                    # Check if ingredient was removed
-                    if game._clear_confirmation_if_ingredient_removed():
+                # Emit confirmation UI events generated during state transition
+                event = getattr(game, "pending_confirmation_event", None)
+                if event:
+                    if event.get("type") == "dismissed":
                         socketio.emit('button_dismissed', room=game.id)
-                        game.pending_confirmation = None
-                else:
-                    # Check for new confirmation requirement
-                    new_confirmation = game._detect_ingredient_at_station()
-                    if new_confirmation:
-                        game.pending_confirmation = new_confirmation
-                        socketio.emit('confirmation_required', {
-                            'action_type': new_confirmation.action_type,
-                            'ingredient_name': new_confirmation.ingredient_name,
-                            'station_location': new_confirmation.station_location,
-                            'display_text': f"{new_confirmation.action_type.title()} {new_confirmation.ingredient_name.title()}"
-                        }, room=game.id)
+                    elif event.get("type") == "required":
+                        socketio.emit('confirmation_required', event.get("payload", {}), room=game.id)
+                    game.pending_confirmation_event = None
 
             if status == Game.Status.RESET:
                 with game.lock:
@@ -864,6 +870,13 @@ def play_game(game: OvercookedGame, fps=6):
         while status != Game.Status.DONE and status != Game.Status.INACTIVE:
             with game.lock:
                 status = game.tick()
+                event = getattr(game, "pending_confirmation_event", None)
+                if event:
+                    if event.get("type") == "dismissed":
+                        socketio.emit('button_dismissed', room=game.id)
+                    elif event.get("type") == "required":
+                        socketio.emit('confirmation_required', event.get("payload", {}), room=game.id)
+                    game.pending_confirmation_event = None
             if status == Game.Status.RESET:
                 with game.lock:
                     data = game.get_data()

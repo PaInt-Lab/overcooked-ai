@@ -143,13 +143,6 @@
           <div id="error-exit" style="display: none">
             Game ended unexpectedly (probably due to another user disconnecting)
           </div>
-
-          <!-- Confirmation Button Overlay -->
-          <div id="confirmation-container" style="display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 1000;">
-            <button id="confirmation-button" class="btn btn-lg btn-success">
-              <span id="confirmation-text">Confirm Action</span>
-            </button>
-          </div>
         </div>
 
         <div id="human-guidance" class="mt-3" style="display: none; max-width: 420px; width: 420px;">
@@ -187,6 +180,13 @@
                 STEP = immediate advice; PREF = longer-lived preference.
               </small>
             </div>
+          </div>
+
+          <!-- Confirmation Button -->
+          <div id="confirmation-container" style="display: none; margin-top: 16px;">
+            <button id="confirmation-button" class="btn btn-lg btn-success btn-block">
+              <span id="confirmation-text">Confirm Action</span>
+            </button>
           </div>
         </div>
       </div>

@@ -153,13 +153,18 @@ class ConfirmationManager:
         if not self.pending_confirmation:
             return False
 
-        obj = self.game.state.get_object(self.pending_confirmation.station_location)
-
-        # Object removed or changed
-        if not obj or str(id(obj)) != self.pending_confirmation.ingredient_id:
+        # Check if object still exists at station
+        if not self.game.state.has_object(self.pending_confirmation.station_location):
             return True
 
-        # Already processed (shouldn't happen, but check)
+        obj = self.game.state.get_object(self.pending_confirmation.station_location)
+
+        # Check if it's the right type of ingredient
+        if obj.name != self.pending_confirmation.ingredient_name:
+            # Different ingredient type - clear confirmation
+            return True
+
+        # Already processed - clear confirmation
         if self.pending_confirmation.action_type == 'chop':
             if hasattr(obj, 'state') and obj.state == 'chopped':
                 return True
@@ -173,6 +178,7 @@ class ConfirmationManager:
             if hasattr(obj, 'properties') and 'peppered' in obj.properties:
                 return True
 
+        # Ingredient is still there and not processed - keep confirmation
         return False
 
     def execute_confirmation_action(self):
@@ -180,9 +186,14 @@ class ConfirmationManager:
         if not self.pending_confirmation:
             return
 
-        obj = self.game.state.get_object(self.pending_confirmation.station_location)
-        if not obj or str(id(obj)) != self.pending_confirmation.ingredient_id:
+        # Check if object still exists at station
+        if not self.game.state.has_object(self.pending_confirmation.station_location):
             print("[ConfirmationManager] Confirmation cancelled - ingredient removed")
+            return
+
+        obj = self.game.state.get_object(self.pending_confirmation.station_location)
+        if obj.name != self.pending_confirmation.ingredient_name:
+            print("[ConfirmationManager] Confirmation cancelled - ingredient changed")
             return
 
         # Apply transformation based on action type
@@ -205,6 +216,12 @@ class ConfirmationManager:
             if 'peppered' not in obj.properties:
                 obj.properties.append('peppered')
             print(f"[ConfirmationManager] Peppered {obj.name} at {self.pending_confirmation.station_location}")
+
+        # Mark confirmation as completed and queue UI dismissal
+        if getattr(self.game, "pending_confirmation_event", None) is None:
+            # Only emit a dismissal if one is not already queued
+            self.game.pending_confirmation_event = {"type": "dismissed"}
+        self.pending_confirmation = None
 
     def track_placement(self, player_idx: int, action, state, curr_tick: int, human_players: set):
         """

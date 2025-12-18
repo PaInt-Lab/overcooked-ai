@@ -252,30 +252,12 @@ h1 {
   font-size: 30px; /* Adjust font size here */
 }
 
-/* Confirmation Button Styling */
+/* Confirmation Button Styling
+   Keep this consistent with the "plan" buttons (Bootstrap defaults). */
 #confirmation-container {
-    background: rgba(0, 0, 0, 0.85);
-    padding: 30px;
-    border-radius: 15px;
-    box-shadow: 0 0 30px rgba(0, 255, 0, 0.6);
+    /* layout handled via Bootstrap utility classes in index.html */
 }
 
 #confirmation-button {
-    font-size: 24px;
-    padding: 20px 50px;
-    font-weight: bold;
-    border: 3px solid #fff;
-    animation: pulse 1.5s infinite;
-    cursor: pointer;
-}
-
-@keyframes pulse {
-    0%, 100% {
-        transform: scale(1);
-        box-shadow: 0 0 10px rgba(0, 255, 0, 0.5);
-    }
-    50% {
-        transform: scale(1.05);
-        box-shadow: 0 0 20px rgba(0, 255, 0, 0.8);
-    }
+    /* style handled via Bootstrap (.btn / .btn-success) */
 }

@@ -53,8 +53,25 @@ $(function () {
   $("#sendHumanMessage").click(function () {
     sendHumanMessage();
   });
-  $("#humanMessageInput").keypress(function (e) {
-    if (e.which === 13) {
+
+  // Auto-grow textarea so the full message stays visible
+  function autoGrowGuidanceInput() {
+    const el = document.getElementById("humanMessageInput");
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }
+
+  // Initialize height + update on input
+  $("#humanMessageInput").on("input", function () {
+    autoGrowGuidanceInput();
+  });
+  autoGrowGuidanceInput();
+
+  // Enter sends; Shift+Enter inserts newline
+  $("#humanMessageInput").on("keydown", function (e) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
       sendHumanMessage();
       return false;
     }
@@ -74,6 +91,11 @@ function sendHumanMessage() {
       : `${type}: ${message}`;
   socket.emit("human_message", { message: prefixed });
   $("#humanMessageInput").val("");
+  // Reset textarea height after sending
+  const el = document.getElementById("humanMessageInput");
+  if (el) {
+    el.style.height = "auto";
+  }
 }
 
 /* * * * * * * * * * * * *

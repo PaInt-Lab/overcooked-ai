@@ -252,6 +252,37 @@ h1 {
   font-size: 30px; /* Adjust font size here */
 }
 
+/* Human guidance (LLM channel) UI */
+#human-guidance .btn-group-toggle .btn {
+  text-align: left;
+  padding-top: 10px;
+  padding-bottom: 10px;
+  white-space: normal;
+  overflow: hidden;
+}
+
+#human-guidance .guidance-tab-label {
+  font-weight: 600;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+
+/* Keep the help text readable across active/inactive states */
+#human-guidance .btn.active .guidance-tab-label {
+  color: #fff;
+}
+
+#human-guidance #humanMessageInput {
+  min-height: 52px;
+  line-height: 1.25;
+  resize: none;
+  overflow: hidden; /* auto-grow via JS */
+}
+
+#human-guidance #sendHumanMessage {
+  white-space: nowrap;
+}
+
 /* Confirmation Button Styling
    Keep this consistent with the "plan" buttons (Bootstrap defaults). */
 #confirmation-container {

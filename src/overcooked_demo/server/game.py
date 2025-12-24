@@ -515,6 +515,9 @@ class OvercookedGame(Game):
         self.confirmation_pause: Optional[ConfirmationPause] = None
         # UI event consumed by app.py loop (required/dismissed)
         self.pending_confirmation_event = None
+        # Track most recent human message to allow confirmation overrides
+        self.latest_human_message_tick: Optional[int] = None
+        self.latest_human_message_ts: float = 0.0
         # Filled in activate() from TileManager
         self._processing_stations: Dict[str, List[tuple]] = {}
 
@@ -558,6 +561,19 @@ class OvercookedGame(Game):
 
     def _emit_confirmation_dismissed(self):
         self.pending_confirmation_event = {"type": "dismissed"}
+
+    def register_human_message(self):
+        """
+        Record a human message arrival and clear confirmation pause if newer.
+
+        Call while holding the game lock to keep state changes atomic.
+        """
+        self.latest_human_message_tick = self.curr_tick
+        self.latest_human_message_ts = time()
+        if self.confirmation_pause and self.latest_human_message_tick >= self.confirmation_pause.set_tick:
+            print("[Confirmation] Human override clearing pending confirmation")
+            self.confirmation_pause = None
+            self._emit_confirmation_dismissed()
 
     def _update_confirmation_pause(self, prev_state, next_state):
         # If paused, clear when removed/changed/processed

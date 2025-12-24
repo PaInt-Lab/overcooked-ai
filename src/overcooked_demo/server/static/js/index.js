@@ -310,7 +310,12 @@ function enable_key_listener() {
   $(document).on("keydown", function (e) {
     // Ignore key events when typing in form controls
     const tag = e.target.tagName.toLowerCase();
-    if (tag === "input" || tag === "textarea" || tag === "select" || e.target.isContentEditable) {
+    if (
+      tag === "input" ||
+      tag === "textarea" ||
+      tag === "select" ||
+      e.target.isContentEditable
+    ) {
       return;
     }
 

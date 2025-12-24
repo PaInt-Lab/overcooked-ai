@@ -215,6 +215,11 @@ def _smart_select_secondary_action(game_state: Dict, predicted_primary_action: s
     
     # Handle washing actions
     if predicted_primary_action == "Wash Onion":
+        # If sink blocked by tomato, clear it first
+        if game_state.get('tomato_at_sink'):
+            if game_state.get('onion_hand') == 'agent':
+                return "place(onion, counter_tile)"
+            return "pickup(tomato)"
         # If onion already at sink:
         # - If it's already washed, pick it up to move to next step.
         # - If not washed yet (confirmation pending), stay put.
@@ -233,6 +238,12 @@ def _smart_select_secondary_action(game_state: Dict, predicted_primary_action: s
             return "pickup(onion)"
 
     if predicted_primary_action == "Wash Tomato":
+        # If sink blocked by onion, clear it first
+        if game_state.get('onion_at_sink'):
+            # If we're holding the tomato already, park it on a counter before clearing
+            if game_state.get('tomato_hand') == 'agent':
+                return "place(tomato, counter_tile)"
+            return "pickup(onion)"
         # If tomato already at sink:
         # - If it's already washed, pick it up to move to next step.
         # - If not washed yet (confirmation pending), stay put.

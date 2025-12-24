@@ -669,7 +669,7 @@ class CoordinatedActionPredictorAgent(Agent):
         If the target station (sink/chopping/salt/pepper) has the wrong ingredient,
         build a plan to move that item to a safe counter before executing the intended action.
         """
-        # Only apply to station-bound actions
+        # Only apply to station-bound actions (sink/chop/salt/pepper)
         target_station = None
         desired = None
         station_frontier = None
@@ -701,7 +701,7 @@ class CoordinatedActionPredictorAgent(Agent):
         if not target_station or not station_frontier:
             return []
 
-        # Check occupancy
+        # Check occupancy: if a different ingredient is on the target station, clear it first
         wrong_pos = None
         for pos, ing in any_obj_on(target_station):
             if ing != desired:

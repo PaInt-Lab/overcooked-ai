@@ -707,6 +707,11 @@ def on_human_message(data):
     if not game:
         return
 
+    # Record human intervention and clear confirmation pause if appropriate
+    with game.lock:
+        if hasattr(game, "register_human_message"):
+            game.register_human_message()
+
     # Find the LLM agent (overcooked_llm) in this game
     agent = None
     for policy in getattr(game, "npc_policies", {}).values():

@@ -515,6 +515,10 @@ class OvercookedGame(Game):
         self.confirmation_pause: Optional[ConfirmationPause] = None
         # UI event consumed by app.py loop (required/dismissed)
         self.pending_confirmation_event = None
+        # Track objects that were just confirmed to avoid re-triggering
+        self._recently_confirmed_ids: set = set()
+        # Track stations with already-confirmed processed items (pos -> ingredient)
+        self._confirmed_stations: Dict[tuple, str] = {}
         # Track most recent human message to allow confirmation overrides
         self.latest_human_message_tick: Optional[int] = None
         self.latest_human_message_ts: float = 0.0
@@ -579,6 +583,15 @@ class OvercookedGame(Game):
         # If paused, clear when removed/changed/processed
         if self.confirmation_pause is not None:
             pos = self.confirmation_pause.station_location
+            # If the object is now processed, clear and cache
+            if next_state.has_object(pos):
+                obj = next_state.get_object(pos)
+                if getattr(obj, "name", None) == self.confirmation_pause.ingredient_name and self._is_processed(self.confirmation_pause.action_type, obj):
+                    self._confirmed_stations[pos] = getattr(obj, "name", None)
+                    self._recently_confirmed_ids.discard(id(obj))
+                    self.confirmation_pause = None
+                    self._emit_confirmation_dismissed()
+                    return
             if not next_state.has_object(pos):
                 self.confirmation_pause = None
                 self._emit_confirmation_dismissed()
@@ -589,6 +602,9 @@ class OvercookedGame(Game):
                 self._emit_confirmation_dismissed()
                 return
             if self._is_processed(self.confirmation_pause.action_type, obj):
+                # Cache this station/ingredient as confirmed while processed item remains
+                self._confirmed_stations[pos] = getattr(obj, "name", None)
+                self._recently_confirmed_ids.discard(id(obj))
                 self.confirmation_pause = None
                 self._emit_confirmation_dismissed()
                 return
@@ -597,6 +613,17 @@ class OvercookedGame(Game):
         # Not paused: detect newly-appeared unprocessed ingredient at stations
         for action_type, positions in self._processing_stations.items():
             for pos in positions:
+                # If this station has a confirmed processed item, skip until it changes
+                if pos in self._confirmed_stations:
+                    if not next_state.has_object(pos):
+                        del self._confirmed_stations[pos]
+                        continue
+                    obj = next_state.get_object(pos)
+                    # If same ingredient and already processed, keep skipping
+                    if getattr(obj, "name", None) == self._confirmed_stations[pos] and self._is_processed(action_type, obj):
+                        continue
+                    # Ingredient changed or became unprocessed; drop the cache entry
+                    del self._confirmed_stations[pos]
                 pre_sig = self._obj_sig_at(prev_state, pos)
                 post_sig = self._obj_sig_at(next_state, pos)
                 if pre_sig == post_sig:
@@ -604,6 +631,15 @@ class OvercookedGame(Game):
                 if not next_state.has_object(pos):
                     continue
                 obj = next_state.get_object(pos)
+                # If already processed for this action type, skip (no confirmation needed)
+                if self._is_processed(action_type, obj):
+                    # Also cache that this station is processed to avoid future prompts
+                    self._confirmed_stations[pos] = getattr(obj, "name", None)
+                    continue
+                obj_id = id(obj)
+                # Skip if this object was just confirmed and remains on the station
+                if obj_id in self._recently_confirmed_ids:
+                    continue
                 if getattr(obj, "name", None) not in ["onion", "tomato"]:
                     continue
                 if self._is_processed(action_type, obj):
@@ -645,6 +681,13 @@ class OvercookedGame(Game):
                 obj.properties = []
             if "peppered" not in obj.properties:
                 obj.properties.append("peppered")
+
+        # Remember this object/station as confirmed to avoid re-trigger while it stays processed here
+        try:
+            self._recently_confirmed_ids.add(id(obj))
+            self._confirmed_stations[self.confirmation_pause.station_location] = self.confirmation_pause.ingredient_name
+        except Exception:
+            pass
 
         self.confirmation_pause = None
         self._emit_confirmation_dismissed()

@@ -613,14 +613,14 @@ class OvercookedGame(Game):
         # Not paused: detect newly-appeared unprocessed ingredient at stations
         for action_type, positions in self._processing_stations.items():
             for pos in positions:
-                # If this station has a confirmed processed item, skip until it changes
+                # If this station has a confirmed processed item, skip until it changes or is removed
                 if pos in self._confirmed_stations:
                     if not next_state.has_object(pos):
                         del self._confirmed_stations[pos]
                         continue
                     obj = next_state.get_object(pos)
-                    # If same ingredient and already processed, keep skipping
-                    if getattr(obj, "name", None) == self._confirmed_stations[pos] and self._is_processed(action_type, obj):
+                    # If same ingredient remains, keep skipping (assume still processed)
+                    if getattr(obj, "name", None) == self._confirmed_stations[pos]:
                         continue
                     # Ingredient changed or became unprocessed; drop the cache entry
                     del self._confirmed_stations[pos]

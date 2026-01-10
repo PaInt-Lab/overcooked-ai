@@ -595,6 +595,15 @@ class CoordinatedActionPredictorAgent(Agent):
                 elif func_name == "place":
                     if isinstance(item_info, tuple):
                         item_to_place, destination = item_info
+                        # If placing on counter_tile, find an empty counter first
+                        if destination == "counter_tile":
+                            empty_counter = self.tile_manager.find_empty_counter_tile(state, [my_pos])
+                            if empty_counter:
+                                # Use specific counter tile location
+                                destination = f"counter_tile_{empty_counter[0]}_{empty_counter[1]}"
+                            else:
+                                # No empty counter found, fallback to generic (may fail but better than nothing)
+                                pass
                         action_plan = self.movement_planner.place(item_to_place, my_pos, my_ori, destination)
                     else:
                         action_plan = self.movement_planner.place(item_info, my_pos, my_ori, "default")

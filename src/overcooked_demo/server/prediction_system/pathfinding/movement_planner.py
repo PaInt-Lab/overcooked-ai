@@ -143,6 +143,24 @@ class MovementPlanner:
             elif destination == "counter_tile":
                 # Use counter tiles for dropping wrong objects
                 choices = self.counter_frontier
+            elif destination.startswith("counter_tile_"):
+                # Use specific counter tile position
+                try:
+                    # Parse position from location string (e.g., "counter_tile_3_4")
+                    parts = destination.split("_")
+                    if len(parts) == 4 and parts[0] == "counter" and parts[1] == "tile":
+                        x, y = int(parts[2]), int(parts[3])
+                        specific_pos = (x, y)
+                        # Find frontier tiles adjacent to this specific counter tile
+                        from ..state_management.tile_manager import compute_frontier
+                        if self.mdp:
+                            choices = compute_frontier([specific_pos], self.mdp.terrain_mtx)
+                        else:
+                            choices = self.counter_frontier  # Fallback
+                    else:
+                        choices = self.counter_frontier  # Fallback
+                except (ValueError, IndexError):
+                    choices = self.counter_frontier  # Fallback
             else:
                 frontier_map = {
                     "dish": self.dish_staging_frontier,

@@ -207,6 +207,17 @@ def _smart_select_secondary_action(game_state: Dict, predicted_primary_action: s
         return "place(soup)"
     if game_state.get('soup_staged', False) and game_state.get('soup_hand') == 'none':
         # Soup is staged and ready, robot should pick it up for serving
+        # But first check if robot is holding something else - if so, drop it first
+        if (game_state.get('onion_hand') == 'agent' or
+            game_state.get('tomato_hand') == 'agent' or
+            game_state.get('dish_hand') == 'agent'):
+            # Robot is holding something, drop it first before picking up soup
+            if game_state.get('onion_hand') == 'agent':
+                return "place(onion, counter_tile)"
+            elif game_state.get('tomato_hand') == 'agent':
+                return "place(tomato, counter_tile)"
+            elif game_state.get('dish_hand') == 'agent':
+                return "place(dish, counter_tile)"
         return "pickup(soup)"
     
     # Handle NOOP case (when no primary action predicted)

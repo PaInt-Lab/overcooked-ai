@@ -1053,6 +1053,12 @@ BASE_REW_SHAPING_PARAMS = {
     "PLACEMENT_IN_POT_REW": 3,
     "DISH_PICKUP_REWARD": 3,
     "SOUP_PICKUP_REWARD": 5,
+    "CHOP_REWARD": 2,
+    "WASH_REWARD": 2,
+    "SALT_REWARD": 2,
+    "PEPPER_REWARD": 2,
+    "COOKING_COMPLETE_REW": 5,
+    "SOUP_SERVE_REW": 5,
     "DISH_DISP_DISTANCE_REW": 0,
     "POT_DISTANCE_REW": 0,
     "SOUP_DISTANCE_REW": 0,
@@ -1443,8 +1449,12 @@ class OvercookedGridworld(object):
         # Resolve player movements
         self.resolve_movement(new_state, joint_action)
 
+        # Detect processing action rewards (chop/wash/salt/pepper)
+        # These happen via confirmation system, so we detect state changes
+        self._detect_processing_rewards(state, new_state, shaped_reward_by_agent)
+
         # Finally, environment effects
-        self.step_environment_effects(new_state)
+        self.step_environment_effects(new_state, state, shaped_reward_by_agent)
 
         # Additional dense reward logic
         # shaped_reward += self.calculate_distance_based_shaped_reward(state, new_state)
@@ -1673,7 +1683,8 @@ class OvercookedGridworld(object):
         assert soup.is_ready, "Tried to deliever soup that isn't ready"
         player.remove_object()
 
-        return self.get_recipe_value(state, soup.recipe)
+        # Return fixed serving reward instead of recipe value
+        return self.reward_shaping_params.get("SOUP_SERVE_REW", 5)
 
     def resolve_movement(self, state, joint_action):
         """Resolve player movement and deal with possible collisions"""
@@ -1722,7 +1733,51 @@ class OvercookedGridworld(object):
             for pos0, pos1 in itertools.combinations(joint_position, 2)
         )
 
-    def step_environment_effects(self, state):
+    def _detect_processing_rewards(self, prev_state, new_state, shaped_reward_by_agent):
+        """
+        Detect processing action rewards (chop/wash/salt/pepper) by comparing
+        object states before and after confirmation system mutations.
+        """
+        # Check all objects in the new state
+        for pos, obj in new_state.objects.items():
+            if obj.name not in Recipe.ALL_INGREDIENTS:
+                continue
+            
+            # Get corresponding object from previous state
+            prev_obj = prev_state.objects.get(pos)
+            if not prev_obj or prev_obj.name != obj.name:
+                continue
+            
+            # Detect chop: state changed to 'chopped'
+            if (not hasattr(prev_obj, 'state') or prev_obj.state != 'chopped') and \
+               (hasattr(obj, 'state') and obj.state == 'chopped'):
+                reward = self.reward_shaping_params.get("CHOP_REWARD", 0)
+                # Give reward to both agents (shared reward for processing)
+                for i in range(self.num_players):
+                    shaped_reward_by_agent[i] += reward
+            
+            # Detect wash: state changed to 'washed'
+            if (not hasattr(prev_obj, 'state') or prev_obj.state != 'washed') and \
+               (hasattr(obj, 'state') and obj.state == 'washed'):
+                reward = self.reward_shaping_params.get("WASH_REWARD", 0)
+                for i in range(self.num_players):
+                    shaped_reward_by_agent[i] += reward
+            
+            # Detect salt: 'salted' property added
+            prev_props = getattr(prev_obj, 'properties', [])
+            curr_props = getattr(obj, 'properties', [])
+            if 'salted' not in prev_props and 'salted' in curr_props:
+                reward = self.reward_shaping_params.get("SALT_REWARD", 0)
+                for i in range(self.num_players):
+                    shaped_reward_by_agent[i] += reward
+            
+            # Detect pepper: 'peppered' property added
+            if 'peppered' not in prev_props and 'peppered' in curr_props:
+                reward = self.reward_shaping_params.get("PEPPER_REWARD", 0)
+                for i in range(self.num_players):
+                    shaped_reward_by_agent[i] += reward
+
+    def step_environment_effects(self, state, prev_state=None, shaped_reward_by_agent=None):
         state.timestep += 1
         for obj in state.objects.values():
             if obj.name == "soup":
@@ -1734,7 +1789,16 @@ class OvercookedGridworld(object):
                 ):
                     obj.begin_cooking()
                 if obj.is_cooking:
+                    was_ready = obj.is_ready
                     obj.cook()
+                    # Give cooking completion reward when soup becomes ready
+                    if prev_state and shaped_reward_by_agent is not None:
+                        prev_obj = prev_state.objects.get(obj.position)
+                        if prev_obj and prev_obj.name == "soup" and not prev_obj.is_ready and obj.is_ready:
+                            # Soup just became ready - give reward to both agents (shared reward)
+                            reward = self.reward_shaping_params.get("COOKING_COMPLETE_REW", 0)
+                            for i in range(self.num_players):
+                                shaped_reward_by_agent[i] += reward
 
     def _handle_collisions(self, old_positions, new_positions):
         """If agents collide, they stay at their old locations"""
@@ -3008,8 +3072,8 @@ class OvercookedGridworld(object):
             "gamma": gamma,
             "tomato_value": Recipe._tomato_value
             if Recipe._tomato_value
-            else 13,
-            "onion_value": Recipe._onion_value if Recipe._onion_value else 21,
+            else 20,
+            "onion_value": Recipe._onion_value if Recipe._onion_value else 20,
             **POTENTIAL_CONSTANTS.get(
                 self.layout_name, POTENTIAL_CONSTANTS["default"]
             ),

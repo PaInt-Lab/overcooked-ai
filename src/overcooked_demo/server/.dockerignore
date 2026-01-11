@@ -1,0 +1,33 @@
+# Data directories (not needed in image - mounted as volume)
+data/
+*.pkl
+*.pickle
+*.npy
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Logs
+*.log
+app.log
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Large cache files
+complete_state_graph_cache.pkl
+complete_state_graph_meta.json

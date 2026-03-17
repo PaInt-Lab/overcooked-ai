@@ -70,6 +70,9 @@ class ActionTracker:
         # Human grab action flags
         self.human_grab_onion_recorded: bool = False
         self.human_grab_tomato_recorded: bool = False
+
+        # Phase 2 global seen set — prevents any action appearing more than once
+        self._phase2_seen: set = set()
     
     def record_action(self, action: str, game_state: dict) -> None:
         """
@@ -166,7 +169,11 @@ class ActionTracker:
         Args:
             action: The predicted primary action string
         """
-        # Only record if different from last action (deduplication)
+        # Skip if already recorded in Phase 2 (global deduplication)
+        if action in self._phase2_seen:
+            return
+
+        # Only record if different from last action (consecutive deduplication)
         if action != self.last_action:
             # Initialize sequence start time if this is the first action
             if not self.sequence_start_time:
@@ -180,6 +187,7 @@ class ActionTracker:
             
             self.current_sequence.append(action_record)
             self.last_action = action
+            self._phase2_seen.add(action)
     
     def get_current_sequence(self) -> List[str]:
         """
@@ -244,6 +252,9 @@ class ActionTracker:
         # Reset human grab action flags
         self.human_grab_onion_recorded = False
         self.human_grab_tomato_recorded = False
+
+        # Reset Phase 2 seen set
+        self._phase2_seen.clear()
     
     def set_recipe_type(self, recipe_type: str) -> None:
         """Set the recipe type for the current sequence."""

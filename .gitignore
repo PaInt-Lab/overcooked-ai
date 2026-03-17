@@ -177,6 +177,11 @@ node_modules/
 # Ignore copied overcooked_ai directory in server
 src/overcooked_demo/server/overcooked_ai/
 
+# Demo server: keep locally, do not push
+src/overcooked_demo/server/metrics/
+src/overcooked_demo/server/plans/
+src/overcooked_demo/server/app.log
+
 # Ignore large cache files
 *.pkl
 complete_state_graph_cache.pkl

@@ -597,11 +597,13 @@ def on_create(data):
         params = data.get("params", {})
         plan_id = data.get("plan_session_id")
         preloaded_plans = data.get("preloaded_plans", [])
-        
+        memoryless = data.get("memoryless", False)
+
         if plan_id:
             params["plan_session_id"] = plan_id
         if preloaded_plans:
             params["preloaded_plans"] = preloaded_plans
+        params["memoryless"] = memoryless
         creation_params(params)
 
         game_name = data.get("game_name", "overcooked")
@@ -914,6 +916,11 @@ def play_game(game: OvercookedGame, fps=6):
         socketio.emit(
             "end_game", {"status": status, "data": data}, room=game.id
         )
+
+        # Write incomplete-game metrics row for any LLM agents that didn't serve soup
+        for agent in getattr(game, "npc_policies", {}).values():
+            if hasattr(agent, "on_game_end"):
+                agent.on_game_end()
 
         if status != Game.Status.INACTIVE:
             game.deactivate()

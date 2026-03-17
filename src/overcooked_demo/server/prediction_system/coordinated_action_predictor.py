@@ -7,6 +7,7 @@ with coordination quality while adapting to human actions dynamically.
 """
 
 from typing import List, Dict, Optional, Tuple
+from uuid import uuid4
 from overcooked_ai_py.agents.agent import Agent
 from overcooked_ai_py.mdp.overcooked_mdp import OvercookedGridworld
 from overcooked_ai_py.planning.planners import MotionPlanner
@@ -25,6 +26,7 @@ from .state_management.tile_manager import compute_frontier
 from .complete_state_graph import CompleteRecipeState
 from .graph_manager import get_global_graph
 from .human_channel import HumanInteractionChannel
+from metrics_writer import MetricsWriter
 
 
 class CoordinatedActionPredictorAgent(Agent):
@@ -77,6 +79,24 @@ class CoordinatedActionPredictorAgent(Agent):
         self.action_tracker = ActionTracker()
         self.plan_repository = PlanRepository()
         self.soup_served_flag = False
+
+        # Memoryless baseline: if True, skip retrieval from plan repository
+        # Plans are still tracked and saved for analysis, just not fed to the LLM
+        self.memoryless = False
+
+        # Unique identifier for this game session (used in metric CSV rows)
+        self.game_id: str = uuid4().hex[:8]
+
+        # Snapshot of how many plans were in the repo when this game started
+        # (captured on the first action() call, after load_preloaded_plans)
+        self._plans_in_repo_at_start: Optional[int] = None
+
+        # Guard to prevent double-writing game row (soup-served writes True;
+        # on_game_end() writes only if still False)
+        self._game_row_written: bool = False
+
+        # CSV metrics writer
+        self.metrics_writer = MetricsWriter()
         
         # Plan session
         self.plan = None
@@ -248,6 +268,10 @@ class CoordinatedActionPredictorAgent(Agent):
         assert self.agent_index is not None, "agent_index is None in action!"
         self.turn_counter += 1
 
+        # Snapshot repo size on first turn (load_preloaded_plans runs after __init__)
+        if self._plans_in_repo_at_start is None:
+            self._plans_in_repo_at_start = self.plan_repository.get_plan_count()
+
         # Get current state summary (last_info contains event_infos from game.py)
         self.last_summary = self.summarize_state(state, getattr(self, 'last_info', {}))
 
@@ -392,10 +416,42 @@ class CoordinatedActionPredictorAgent(Agent):
         # Display essential information for testing
         self._print_debug_info(available_primary_actions)
 
-        
+        # --- Turn-level timing and logging ---
+        import time
+        turn_start = time.time()
+
         # Call LLM to get predictions (using fixed temperature for consistency)
-        response = query_openai(prompt, self.selected_model, temperature=0.0)
-        
+        api_start = time.time()
+        response, usage = query_openai(prompt, self.selected_model, temperature=0.0)
+        api_latency_ms = (time.time() - api_start) * 1000
+
+        turn_elapsed_ms = (time.time() - turn_start) * 1000
+        action_delay_ms = 2000.0  # 2.0-second window from config
+        exceeded_window = turn_elapsed_ms > action_delay_ms
+
+        print(
+            f"[TURN LOG] turn={self.turn_counter} | "
+            f"api_latency={api_latency_ms:.0f}ms | "
+            f"turn_total={turn_elapsed_ms:.0f}ms | "
+            f"prompt_tokens={usage.get('prompt_tokens', '?')} | "
+            f"completion_tokens={usage.get('completion_tokens', '?')} | "
+            f"total_tokens={usage.get('total_tokens', '?')} | "
+            f"memoryless={self.memoryless} | "
+            f"exceeded_window={exceeded_window}"
+        )
+
+        self.metrics_writer.write_turn_row(
+            game_id=self.game_id,
+            turn=self.turn_counter,
+            api_latency_ms=api_latency_ms,
+            turn_total_ms=turn_elapsed_ms,
+            prompt_tokens=usage.get("prompt_tokens", ""),
+            completion_tokens=usage.get("completion_tokens", ""),
+            total_tokens=usage.get("total_tokens", ""),
+            memoryless=self.memoryless,
+            exceeded_window=exceeded_window,
+        )
+
         # Parse the response - only need primary action now
         predicted_human_action = self.action_parser.parse_primary_action(response)
         reported_certainty = self.action_parser.parse_certainty(response)
@@ -460,28 +516,36 @@ class CoordinatedActionPredictorAgent(Agent):
             if self.plan_time and self.plan_day:
                 time_info = f" ({self.plan_day} at {self.plan_time})"
             
-            # Format as training sequence
-            sequence_label = f"SEQUENCE #{sequence_counter}{time_info}"
+            # Format as user-defined current sequence
+            sequence_label = f"USER DEFINED CURRENT SEQUENCE{time_info}"
             actions_str = " → ".join(self.primary_tasks)
             training_lines.append(f"{sequence_label}:\n{actions_str}")
             sequence_counter += 1
         
-        # Add all successful sequences from repository
-        if not self.plan_repository.is_empty():
-            all_plans = self.plan_repository.get_plans_sorted_by_recency()
+        # Add relevant successful sequences from repository (skipped in memoryless mode)
+        if not self.memoryless and not self.plan_repository.is_empty():
+            max_plans = None # Have it not capped for now
+            recipe_type = self._infer_recipe_type()
+            relevant_plans = self.plan_repository.get_relevant_plans(
+                recipe_type=recipe_type,
+                plan_day=self.plan_day,
+                plan_time=self.plan_time,
+                top_k=max_plans
+            )
             
-            for plan in all_plans:
+            past_sequence_counter = 1
+            for plan in relevant_plans:
                 # Build time/day info if available
                 time_info = ""
                 if plan.get('plan_time') and plan.get('plan_day'):
                     time_info = f" ({plan['plan_day']} at {plan['plan_time']})"
                 
-                # Format as training sequence
-                sequence_label = f"SEQUENCE #{sequence_counter}{time_info}"
+                # Format as past completed sequence
+                sequence_label = f"PAST COMPLETED SEQUENCE #{past_sequence_counter}{time_info}"
                 
                 actions_str = " → ".join(plan['actions'])
                 training_lines.append(f"{sequence_label}:\n{actions_str}")
-                sequence_counter += 1
+                past_sequence_counter += 1
         
         # Return combined training data or indicate none available
         if training_lines:
@@ -541,12 +605,13 @@ class CoordinatedActionPredictorAgent(Agent):
                 print("\n" + "="*80)
                 print("PLAN COMPLETED - DEBUG OUTPUT")
                 print("="*80)
+                total_moves = getattr(self.game, 'total_player_moves', [0, 0]) if self.game else [0, 0]
                 print(f"Soup served by: {self.last_summary.get('soup_delivered_by', 'unknown')}")
                 print(f"Recipe type: {recipe_type}")
                 print(f"Duration: {successful_plan['duration']:.1f}s")
                 print(f"Plan time: {self.plan_time}")
                 print(f"Plan day: {self.plan_day}")
-                print(f"Number of actions: {len(successful_plan['actions'])}")
+                print(f"Agent moves (P0): {total_moves[0] if len(total_moves) > 0 else '?'} | Human moves (P1): {total_moves[1] if len(total_moves) > 1 else '?'}")
                 print(f"\nAction sequence:")
                 for i, action in enumerate(successful_plan['actions'], 1):
                     print(f"  {i}. {action}")
@@ -558,10 +623,26 @@ class CoordinatedActionPredictorAgent(Agent):
                 # Now save to repository
                 self.plan_repository.add_successful_plan(successful_plan)
                 print(f"✓ PLAN SAVED: Repository now has {self.plan_repository.get_plan_count()} total plans")
+
+                self.metrics_writer.write_game_row(
+                    game_id=self.game_id,
+                    recipe_type=recipe_type,
+                    plan_day=self.plan_day,
+                    plan_time=self.plan_time,
+                    duration_s=successful_plan["duration"],
+                    num_actions=len(successful_plan["actions"]),
+                    memoryless=self.memoryless,
+                    plans_in_repo_at_start=self._plans_in_repo_at_start if self._plans_in_repo_at_start is not None else 0,
+                    completed=True,
+                    pref_count=self.human_channel.pref_count,
+                    step_count=self.human_channel.step_count,
+                )
+                self._game_row_written = True
                 
                 # Reset tracker for next sequence
                 self.action_tracker.reset()
                 print("PLAN TRACKING: Reset tracker for new sequence")
+                print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
                 
                 # Reset the soup served flag and processing states after processing
                 self.soup_served_flag = False
@@ -754,6 +835,31 @@ class CoordinatedActionPredictorAgent(Agent):
         plan.extend(to_counter)
         plan.append(Action.INTERACT)  # drop on counter
         return plan
+
+    def on_game_end(self) -> None:
+        """
+        Called by the game loop when the game ends (time out or disconnect).
+        Writes a games.csv row for incomplete games only — soup-served games
+        already wrote their row with completed=True.
+        """
+        if self._game_row_written:
+            return
+        import time as _time
+        duration_s = self.action_tracker.get_sequence_duration() if not self.action_tracker.is_empty() else 0.0
+        self.metrics_writer.write_game_row(
+            game_id=self.game_id,
+            recipe_type=self._infer_recipe_type() or "unknown",
+            plan_day=self.plan_day,
+            plan_time=self.plan_time,
+            duration_s=duration_s,
+            num_actions=len(self.action_tracker.get_current_sequence()),
+            memoryless=self.memoryless,
+            plans_in_repo_at_start=self._plans_in_repo_at_start if self._plans_in_repo_at_start is not None else 0,
+            completed=False,
+            pref_count=self.human_channel.pref_count,
+            step_count=self.human_channel.step_count,
+        )
+        self._game_row_written = True
 
     def actions(self, states, agent_indices):
         return [self.action(s) for s in states]

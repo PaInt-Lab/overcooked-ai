@@ -2,10 +2,12 @@ import json
 import os
 import pickle
 import random
+from dataclasses import dataclass
 from abc import ABC, abstractmethod
 from queue import Empty, Full, LifoQueue, Queue
 from threading import Lock, Thread
 from time import time
+from typing import Optional, Dict, List
 
 import ray
 from utils import DOCKER_VOLUME, create_dirs
@@ -20,6 +22,16 @@ from overcooked_ai_py.planning.planners import (
     NO_COUNTERS_PARAMS,
     MotionPlanner,
 )
+
+
+@dataclass
+class ConfirmationPause:
+    """Simple pause flag for agent-only confirmation gating."""
+
+    action_type: str  # 'wash' | 'chop' | 'salt' | 'pepper'
+    ingredient_name: str  # 'onion' | 'tomato'
+    station_location: tuple  # (x, y)
+    set_tick: int
 
 # Relative path to where all static pre-trained agents are stored on server
 AGENT_DIR = None
@@ -434,6 +446,7 @@ class OvercookedGame(Game):
         ticks_per_ai_action=1,
         plan_session_id=None,
         preloaded_plans=None,
+        memoryless=False,
         **kwargs
     ):
         super(OvercookedGame, self).__init__(**kwargs)
@@ -462,8 +475,10 @@ class OvercookedGame(Game):
         self.npc_players = set()
         self.plan_session_id = plan_session_id
         self.preloaded_plans = preloaded_plans if preloaded_plans is not None else []
+        self.memoryless = memoryless
         # Track moves for each player (excluding STAY actions)
-        self.player_moves = [0] * int(num_players)  # One counter per player
+        self.player_moves = [0] * int(num_players)  # Per-turn counter (resets each cycle)
+        self.total_player_moves = [0] * int(num_players)  # Full-game accumulator
         
         # TileManager for graphics rendering (works with any agent type)
         self.tile_manager = TileManager()
@@ -498,6 +513,188 @@ class OvercookedGame(Game):
             self.write_data = False
 
         self.trajectory = []
+
+        # === Simple confirmation pause flag (agent-only) ===
+        self.confirmation_pause: Optional[ConfirmationPause] = None
+        # UI event consumed by app.py loop (required/dismissed)
+        self.pending_confirmation_event = None
+        # Track objects that were just confirmed to avoid re-triggering
+        self._recently_confirmed_ids: set = set()
+        # Track stations with already-confirmed processed items (pos -> ingredient)
+        self._confirmed_stations: Dict[tuple, str] = {}
+        # Track most recent human message to allow confirmation overrides
+        self.latest_human_message_tick: Optional[int] = None
+        self.latest_human_message_ts: float = 0.0
+        # Filled in activate() from TileManager
+        self._processing_stations: Dict[str, List[tuple]] = {}
+
+    @property
+    def agent_paused_for_confirmation(self) -> bool:
+        return self.confirmation_pause is not None
+
+    def _obj_sig_at(self, state, pos: tuple):
+        if not state.has_object(pos):
+            return None
+        obj = state.get_object(pos)
+        props = None
+        if hasattr(obj, "properties"):
+            try:
+                props = tuple(obj.properties)
+            except Exception:
+                props = None
+        return (getattr(obj, "name", None), getattr(obj, "state", None), props)
+
+    def _is_processed(self, action_type: str, obj) -> bool:
+        if action_type == "wash":
+            return hasattr(obj, "state") and obj.state == "washed"
+        if action_type == "chop":
+            return hasattr(obj, "state") and obj.state == "chopped"
+        if action_type == "salt":
+            return hasattr(obj, "properties") and "salted" in getattr(obj, "properties", [])
+        if action_type == "pepper":
+            return hasattr(obj, "properties") and "peppered" in getattr(obj, "properties", [])
+        return False
+
+    def _emit_confirmation_required(self, pause: ConfirmationPause):
+        self.pending_confirmation_event = {
+            "type": "required",
+            "payload": {
+                "action_type": pause.action_type,
+                "ingredient_name": pause.ingredient_name,
+                "station_location": pause.station_location,
+                "display_text": f"{pause.action_type.title()} {pause.ingredient_name.title()}",
+            },
+        }
+
+    def _emit_confirmation_dismissed(self):
+        self.pending_confirmation_event = {"type": "dismissed"}
+
+    def register_human_message(self):
+        """
+        Record a human message arrival and clear confirmation pause if newer.
+
+        Call while holding the game lock to keep state changes atomic.
+        """
+        self.latest_human_message_tick = self.curr_tick
+        self.latest_human_message_ts = time()
+        if self.confirmation_pause and self.latest_human_message_tick >= self.confirmation_pause.set_tick:
+            print("[Confirmation] Human override clearing pending confirmation")
+            self.confirmation_pause = None
+            self._emit_confirmation_dismissed()
+
+    def _update_confirmation_pause(self, prev_state, next_state):
+        # If paused, clear when removed/changed/processed
+        if self.confirmation_pause is not None:
+            pos = self.confirmation_pause.station_location
+            # If the object is now processed, clear and cache
+            if next_state.has_object(pos):
+                obj = next_state.get_object(pos)
+                if getattr(obj, "name", None) == self.confirmation_pause.ingredient_name and self._is_processed(self.confirmation_pause.action_type, obj):
+                    self._confirmed_stations[pos] = getattr(obj, "name", None)
+                    self._recently_confirmed_ids.discard(id(obj))
+                    self.confirmation_pause = None
+                    self._emit_confirmation_dismissed()
+                    return
+            if not next_state.has_object(pos):
+                self.confirmation_pause = None
+                self._emit_confirmation_dismissed()
+                return
+            obj = next_state.get_object(pos)
+            if getattr(obj, "name", None) != self.confirmation_pause.ingredient_name:
+                self.confirmation_pause = None
+                self._emit_confirmation_dismissed()
+                return
+            if self._is_processed(self.confirmation_pause.action_type, obj):
+                # Cache this station/ingredient as confirmed while processed item remains
+                self._confirmed_stations[pos] = getattr(obj, "name", None)
+                self._recently_confirmed_ids.discard(id(obj))
+                self.confirmation_pause = None
+                self._emit_confirmation_dismissed()
+                return
+            return
+
+        # Not paused: detect newly-appeared unprocessed ingredient at stations
+        for action_type, positions in self._processing_stations.items():
+            for pos in positions:
+                # If this station has a confirmed processed item, skip until it changes or is removed
+                if pos in self._confirmed_stations:
+                    if not next_state.has_object(pos):
+                        del self._confirmed_stations[pos]
+                        continue
+                    obj = next_state.get_object(pos)
+                    # If same ingredient remains, keep skipping (assume still processed)
+                    if getattr(obj, "name", None) == self._confirmed_stations[pos]:
+                        continue
+                    # Ingredient changed or became unprocessed; drop the cache entry
+                    del self._confirmed_stations[pos]
+                pre_sig = self._obj_sig_at(prev_state, pos)
+                post_sig = self._obj_sig_at(next_state, pos)
+                if pre_sig == post_sig:
+                    continue
+                if not next_state.has_object(pos):
+                    continue
+                obj = next_state.get_object(pos)
+                # If already processed for this action type, skip (no confirmation needed)
+                if self._is_processed(action_type, obj):
+                    # Also cache that this station is processed to avoid future prompts
+                    self._confirmed_stations[pos] = getattr(obj, "name", None)
+                    continue
+                obj_id = id(obj)
+                # Skip if this object was just confirmed and remains on the station
+                if obj_id in self._recently_confirmed_ids:
+                    continue
+                if getattr(obj, "name", None) not in ["onion", "tomato"]:
+                    continue
+                if self._is_processed(action_type, obj):
+                    continue
+                self.confirmation_pause = ConfirmationPause(
+                    action_type=action_type,
+                    ingredient_name=obj.name,
+                    station_location=pos,
+                    set_tick=self.curr_tick,
+                )
+                self._emit_confirmation_required(self.confirmation_pause)
+                return
+
+    def confirm_current_processing_action(self) -> bool:
+        if self.confirmation_pause is None:
+            return False
+        pos = self.confirmation_pause.station_location
+        if not self.state.has_object(pos):
+            self.confirmation_pause = None
+            self._emit_confirmation_dismissed()
+            return False
+        obj = self.state.get_object(pos)
+        if getattr(obj, "name", None) != self.confirmation_pause.ingredient_name:
+            self.confirmation_pause = None
+            self._emit_confirmation_dismissed()
+            return False
+
+        if self.confirmation_pause.action_type == "wash":
+            obj.state = "washed"
+        elif self.confirmation_pause.action_type == "chop":
+            obj.state = "chopped"
+        elif self.confirmation_pause.action_type == "salt":
+            if not hasattr(obj, "properties") or obj.properties is None:
+                obj.properties = []
+            if "salted" not in obj.properties:
+                obj.properties.append("salted")
+        elif self.confirmation_pause.action_type == "pepper":
+            if not hasattr(obj, "properties") or obj.properties is None:
+                obj.properties = []
+            if "peppered" not in obj.properties:
+                obj.properties.append("peppered")
+
+        # Remember this object/station as confirmed to avoid re-trigger while it stays processed here
+        try:
+            self._recently_confirmed_ids.add(id(obj))
+            self._confirmed_stations[self.confirmation_pause.station_location] = self.confirmation_pause.ingredient_name
+        except Exception:
+            pass
+
+        self.confirmation_pause = None
+        self._emit_confirmation_dismissed()
+        return True
 
     def _curr_game_over(self):
         return time() - self.start_time >= self.max_time
@@ -555,6 +752,8 @@ class OvercookedGame(Game):
         """
         return super(OvercookedGame, self).is_ready() and not self.is_empty()
 
+    # ===== Confirmation System Methods =====
+
     def apply_action(self, player_idx, action):
         """Buffer action for execution at end of current turn cycle"""
         if player_idx >= len(self.players):
@@ -576,6 +775,16 @@ class OvercookedGame(Game):
         # Collect agent actions into the buffer (non-blocking, just check if available)
         for i in range(len(self.players)):
             if self.players[i] not in self.human_players:
+                # If paused for confirmation, drain agent actions and force NOOP (agent only)
+                if self.agent_paused_for_confirmation:
+                    if hasattr(self.pending_actions[i], 'get'):
+                        try:
+                            while True:
+                                self.pending_actions[i].get(block=False)
+                        except Empty:
+                            pass
+                    self.buffered_actions[i] = Action.STAY
+                    continue
                 try:
                     # Check if pending_actions[i] is actually a Queue (not EMPTY string)
                     if hasattr(self.pending_actions[i], 'get'):
@@ -586,7 +795,7 @@ class OvercookedGame(Game):
                 except Empty:
                     # No action available yet, that's fine
                     pass
-        
+
         # Check if the turn cycle has completed
         if time_in_turn < self.action_delay:
             # Still within the current turn, don't execute yet
@@ -613,10 +822,15 @@ class OvercookedGame(Game):
             for i in range(len(joint_action)):
                 if joint_action[i] != Action.STAY:
                     self.player_moves[i] += 1
+                    self.total_player_moves[i] += 1
             
             # Apply overcooked game logic to get state transition
             prev_state = self.state
             self.state, info = self.mdp.get_state_transition(prev_state, joint_action)
+
+            # Update confirmation pause state immediately after state transition
+            self._update_confirmation_pause(prev_state, self.state)
+            # If no change and no existing event, leave as-is (may be consumed later)
 
             for agent in self.npc_policies.values():
                 agent.last_info = info
@@ -678,10 +892,11 @@ class OvercookedGame(Game):
 
     def enqueue_action(self, player_id, action):
         overcooked_action = self.action_to_overcooked_action[action]
-        
+
         # Buffer the action for execution at the end of the current turn cycle
         if player_id in self.human_players:
             player_idx = self.players.index(player_id)
+
             # Human actions are buffered directly
             self.buffered_actions[player_idx] = overcooked_action
         else:
@@ -720,6 +935,13 @@ class OvercookedGame(Game):
         
         # Initialize tile manager from MDP for graphics rendering (works with any agent)
         self.tile_manager.initialize_from_mdp(self.mdp)
+        self._processing_stations = {
+            "wash": list(getattr(self.tile_manager, "sink_stations", [])),
+            "salt": list(getattr(self.tile_manager, "salt_stations", [])),
+            "pepper": list(getattr(self.tile_manager, "pepper_stations", [])),
+            "chop": list(getattr(self.tile_manager, "onion_chopping_stations", []))
+            + list(getattr(self.tile_manager, "tomato_chopping_stations", [])),
+        }
 
         if self.show_potential:
             self.mp = MotionPlanner.from_pickle_or_compute(
@@ -739,6 +961,7 @@ class OvercookedGame(Game):
         self.buffered_actions = [None] * len(self.players)
         # Reset move counters for new game
         self.player_moves = [0] * len(self.players)
+        self.total_player_moves = [0] * len(self.players)
         
         self.threads = []
         for npc_policy in self.npc_policies:
@@ -751,8 +974,9 @@ class OvercookedGame(Game):
                 elif npc_policy.endswith('_1'):
                     agent.set_agent_index(1)
             # Set MDP after reset to ensure it is not cleared
+            # Pass game reference for confirmation state checking
             if hasattr(agent, 'set_mdp'):
-                agent.set_mdp(self.mdp)
+                agent.set_mdp(self.mdp, game=self)
             self.npc_state_queues[npc_policy].put(self.state)
             t = Thread(target=self.npc_policy_consumer, args=(npc_policy,))
             self.threads.append(t)
@@ -918,6 +1142,9 @@ class OvercookedGame(Game):
             assert idx is not None, "Agent index must not be None for LLM agent!"
             agent = CoordinatedActionPredictorAgent()
             agent.set_agent_index(idx)
+            agent.memoryless = getattr(self, "memoryless", False)
+            if agent.memoryless:
+                print("[EXPERIMENT] Memoryless mode enabled — past plans blocked from LLM prompt")
             plan_id = getattr(self, "plan_session_id", None)
             if plan_id:
                 agent.set_plan(plan_id)

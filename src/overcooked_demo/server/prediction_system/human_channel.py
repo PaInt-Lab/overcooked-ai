@@ -24,6 +24,9 @@ class HumanInteractionChannel:
         self.pending_step_advice: Optional[Dict] = None
         self.live_channel_inbox: List[Tuple[str, Optional[dict]]] = []
 
+        self.pref_count: int = 0
+        self.step_count: int = 0
+
         self.waiting_for_human: bool = False
         self.waiting_turn_started: int = 0
 
@@ -69,6 +72,7 @@ class HumanInteractionChannel:
         pref_entry = {"text": clean_text, "turn": turn, "state": snapshot or {}}
         self.global_preferences.append(pref_entry)
         self.global_preferences = self.global_preferences[-5:]
+        self.pref_count += 1
 
     def _store_step_advice(self, message: str, snapshot: Optional[dict], turn: int):
         clean_text = message.replace("STEP:", "").replace("step:", "").strip()
@@ -76,6 +80,7 @@ class HumanInteractionChannel:
             self.pending_step_advice = None
             print("[HUMAN ADVICE] Cleared by user request (STEP: clear)")
             return
+        self.step_count += 1
         self.pending_step_advice = {
             "text": clean_text,
             "turn": turn,

@@ -113,6 +113,14 @@
                 name="dataCollection"
                 checked
               />
+              <label
+                for="memoryless"
+                data-toggle="tooltip"
+                data-placement="top"
+                title="When checked, the LLM agent ignores the plan repository and receives no past successful sequences. Use this for the memoryless baseline condition."
+                >Memoryless?</label
+              >
+              <input type="checkbox" id="memoryless" name="memoryless" />
             </div>
           </div>
         </div>
@@ -136,7 +144,7 @@
         <button id="leave" style="display: none">Leave</button>
       </div>
       <div style="display: flex; gap: 16px; align-items: flex-start; flex-wrap: nowrap; justify-content: center; margin-top: 12px; width: 100%;">
-        <div id="overcooked-container" class="text-center">
+        <div id="overcooked-container" class="text-center" style="position: relative;">
           <h4 id="game-title" style="display: none">Game in Progress</h4>
           <h4 id="game-over" style="display: none">Game Over</h4>
           <div id="overcooked"></div>
@@ -150,36 +158,42 @@
           <div class="card">
             <div class="card-body">
               <div class="mb-2">
-                <div class="btn-group btn-group-toggle" data-toggle="buttons">
-                  <label class="btn btn-outline-primary active" id="guidanceStepLabel">
+                <div class="btn-group btn-group-toggle d-flex w-100" data-toggle="buttons">
+                  <label class="btn btn-outline-primary active flex-fill" id="guidanceStepLabel">
                     <input type="radio" name="guidanceType" id="guidanceTypeStep" value="STEP" autocomplete="off" checked />
-                    Next Step Instruction
+                    <div class="guidance-tab-label">Next Step Instruction</div>
                   </label>
-                  <label class="btn btn-outline-secondary" id="guidancePrefLabel">
+                  <label class="btn btn-outline-primary flex-fill" id="guidancePrefLabel">
                     <input type="radio" name="guidanceType" id="guidanceTypePref" value="PREF" autocomplete="off" />
-                    Cooking Preference
+                    <div class="guidance-tab-label">Cooking Preference</div>
                   </label>
                 </div>
               </div>
-              <div class="input-group">
-                <input
-                  type="text"
+              <div class="d-flex align-items-stretch">
+                <textarea
                   id="humanMessageInput"
                   class="form-control"
                   placeholder="e.g., wash onions next"
                   aria-label="Human guidance input"
-                  style="min-width: 0; width: 100%; height: 42px;"
-                />
-                <div class="input-group-append">
-                  <button id="sendHumanMessage" class="btn btn-primary" type="button">
-                    Send
-                  </button>
-                </div>
+                  rows="2"
+                  style="min-width: 0; width: 100%;"
+                ></textarea>
+                <button
+                  id="sendHumanMessage"
+                  class="btn btn-primary ml-2"
+                  type="button"
+                >
+                  Send
+                </button>
               </div>
-              <small class="form-text text-muted mt-1">
-                STEP = immediate advice; PREF = longer-lived preference.
-              </small>
             </div>
+          </div>
+
+          <!-- Confirmation Button -->
+          <div id="confirmation-container" class="text-center mt-3" style="display: none;">
+            <button id="confirmation-button" type="button" class="btn btn-success">
+              <span id="confirmation-text">Confirm Action</span>
+            </button>
           </div>
         </div>
       </div>

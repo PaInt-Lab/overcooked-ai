@@ -175,6 +175,11 @@ def cleanup_game(game: OvercookedGame):
     if FREE_MAP[game.id]:
         raise ValueError("Double free on a game")
 
+    # Clear any pending confirmation pause before closing
+    if getattr(game, "confirmation_pause", None):
+        socketio.emit('button_dismissed', room=game.id)
+        game.confirmation_pause = None
+
     # User tracking
     for user_id in game.players:
         leave_curr_room(user_id)
@@ -592,11 +597,13 @@ def on_create(data):
         params = data.get("params", {})
         plan_id = data.get("plan_session_id")
         preloaded_plans = data.get("preloaded_plans", [])
-        
+        memoryless = data.get("memoryless", False)
+
         if plan_id:
             params["plan_session_id"] = plan_id
         if preloaded_plans:
             params["preloaded_plans"] = preloaded_plans
+        params["memoryless"] = memoryless
         creation_params(params)
 
         game_name = data.get("game_name", "overcooked")
@@ -702,6 +709,11 @@ def on_human_message(data):
     if not game:
         return
 
+    # Record human intervention and clear confirmation pause if appropriate
+    with game.lock:
+        if hasattr(game, "register_human_message"):
+            game.register_human_message()
+
     # Find the LLM agent (overcooked_llm) in this game
     agent = None
     for policy in getattr(game, "npc_policies", {}).values():
@@ -717,6 +729,48 @@ def on_human_message(data):
         return
 
 
+@socketio.on("confirm_action")
+def on_confirm_action(data):
+    """
+    Handle human confirmation of primary actions (chop, wash, salt, pepper).
+    Payload: { "action_type": "chop", "ingredient_name": "onion" }
+    """
+    user_id = request.sid
+    game = get_curr_game(user_id)
+
+    if not game:
+        return
+
+    # Confirm must be atomic with respect to game state
+    with game.lock:
+        confirmed = game.confirm_current_processing_action()
+        if not confirmed:
+            return
+
+        # Clear buffered actions to prevent stale actions from executing
+        # This is necessary because confirmation mutates state outside normal game loop
+        game.buffered_actions = [None] * len(game.players)
+
+        # Clear pending action queues for all agents
+        for i in range(len(game.players)):
+            if game.players[i] not in game.human_players:
+                if hasattr(game.pending_actions[i], 'empty'):
+                    try:
+                        while not game.pending_actions[i].empty():
+                            game.pending_actions[i].get_nowait()
+                    except Exception:
+                        pass
+
+        # Kick agents to recompute immediately from the newly-mutated state.
+        # Otherwise, if we just cleared their queued action and no new env transition occurs,
+        # the agent thread may have nothing to consume and the game can appear "frozen".
+        for npc_id in getattr(game, "npc_policies", {}):
+            try:
+                game.npc_state_queues[npc_id].put(game.state, block=False)
+            except Exception:
+                pass
+
+
 @socketio.on("connect")
 def on_connect():
     user_id = request.sid
@@ -725,6 +779,20 @@ def on_connect():
         return
 
     USERS[user_id] = Lock()
+
+    # Re-send pending confirmation to reconnected client
+    game = get_curr_game(user_id)
+    if game and getattr(game, "confirmation_pause", None):
+        pending = game.confirmation_pause
+        socketio.emit(
+            'confirmation_required',
+            {
+                'action_type': pending.action_type,
+                'ingredient_name': pending.ingredient_name,
+                'station_location': pending.station_location,
+                'display_text': f"{pending.action_type.title()} {pending.ingredient_name.title()}",
+            },
+        )
 
 
 @socketio.on("disconnect")
@@ -781,7 +849,16 @@ def play_game(game: OvercookedGame, fps=6):
                 # Process any pending human actions immediately
                 game.apply_actions()
                 status = game.tick()
-            
+
+                # Emit confirmation UI events generated during state transition
+                event = getattr(game, "pending_confirmation_event", None)
+                if event:
+                    if event.get("type") == "dismissed":
+                        socketio.emit('button_dismissed', room=game.id)
+                    elif event.get("type") == "required":
+                        socketio.emit('confirmation_required', event.get("payload", {}), room=game.id)
+                    game.pending_confirmation_event = None
+
             if status == Game.Status.RESET:
                 with game.lock:
                     data = game.get_data()
@@ -808,6 +885,13 @@ def play_game(game: OvercookedGame, fps=6):
         while status != Game.Status.DONE and status != Game.Status.INACTIVE:
             with game.lock:
                 status = game.tick()
+                event = getattr(game, "pending_confirmation_event", None)
+                if event:
+                    if event.get("type") == "dismissed":
+                        socketio.emit('button_dismissed', room=game.id)
+                    elif event.get("type") == "required":
+                        socketio.emit('confirmation_required', event.get("payload", {}), room=game.id)
+                    game.pending_confirmation_event = None
             if status == Game.Status.RESET:
                 with game.lock:
                     data = game.get_data()
@@ -832,6 +916,11 @@ def play_game(game: OvercookedGame, fps=6):
         socketio.emit(
             "end_game", {"status": status, "data": data}, room=game.id
         )
+
+        # Write incomplete-game metrics row for any LLM agents that didn't serve soup
+        for agent in getattr(game, "npc_policies", {}).values():
+            if hasattr(agent, "on_game_end"):
+                agent.on_game_end()
 
         if status != Game.Status.INACTIVE:
             game.deactivate()

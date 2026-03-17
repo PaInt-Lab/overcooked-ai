@@ -317,4 +317,42 @@ class TileManager:
                 return counter_pos
         
         return None
+    
+    def find_empty_counter_tile(self, state, start_positions: List[Tuple[int, int]] = None) -> Optional[Tuple[int, int]]:
+        """
+        Find the nearest empty counter tile that can be used for dropping items.
+        Excludes important counter tiles (staging, chopping, washing, stove stations).
+        
+        Args:
+            state: Full game state
+            start_positions: List of positions to calculate distance from (defaults to player positions)
+            
+        Returns:
+            Position of empty counter tile, or None if none available
+        """
+        if not self.counter_tiles:
+            return None
+        
+        sd = state.to_dict()
+        occupied = {tuple(obj["position"]) for obj in sd.get("objects", [])}
+        
+        # Filter to only empty counter tiles
+        empty_counters = [pos for pos in self.counter_tiles if pos not in occupied]
+        
+        if not empty_counters:
+            return None
+        
+        # Use provided start positions or default to player positions
+        if start_positions is None:
+            players = sd.get("players", [])
+            start_positions = [tuple(p["position"]) for p in players if "position" in p]
+        
+        if not start_positions:
+            # Fallback: return first empty counter
+            return empty_counters[0]
+        
+        # Find nearest empty counter by Manhattan distance
+        best = min(empty_counters, 
+                  key=lambda p: min(abs(p[0] - s[0]) + abs(p[1] - s[1]) for s in start_positions))
+        return best
 

@@ -15,6 +15,7 @@ $(function () {
       plan_session_id: window.planSessionId,
       preloaded_plans: window.preloadedPlans || [],
       create_if_not_found: false,
+      memoryless: $("#memoryless").is(":checked"),
     };
     socket.emit("create", data);
     $("#waiting").show();
@@ -53,8 +54,25 @@ $(function () {
   $("#sendHumanMessage").click(function () {
     sendHumanMessage();
   });
-  $("#humanMessageInput").keypress(function (e) {
-    if (e.which === 13) {
+
+  // Auto-grow textarea so the full message stays visible
+  function autoGrowGuidanceInput() {
+    const el = document.getElementById("humanMessageInput");
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }
+
+  // Initialize height + update on input
+  $("#humanMessageInput").on("input", function () {
+    autoGrowGuidanceInput();
+  });
+  autoGrowGuidanceInput();
+
+  // Enter sends; Shift+Enter inserts newline
+  $("#humanMessageInput").on("keydown", function (e) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
       sendHumanMessage();
       return false;
     }
@@ -74,6 +92,11 @@ function sendHumanMessage() {
       : `${type}: ${message}`;
   socket.emit("human_message", { message: prefixed });
   $("#humanMessageInput").val("");
+  // Reset textarea height after sending
+  const el = document.getElementById("humanMessageInput");
+  if (el) {
+    el.style.height = "auto";
+  }
 }
 
 /* * * * * * * * * * * * *
@@ -233,6 +256,53 @@ socket.on("end_lobby", function () {
   window.intervalID = -1;
 });
 
+/* * * * * * * * * * * * * * * * * * *
+ * Confirmation Button Event Handlers *
+ * * * * * * * * * * * * * * * * * * */
+
+// Receive confirmation_required event
+socket.on("confirmation_required", function (data) {
+  // Update button text
+  $("#confirmation-text").text(data.display_text);
+
+  // Show button
+  const container = $("#confirmation-container");
+  container.show();
+
+  // Store data for confirmation
+  container.data("actionType", data.action_type);
+  container.data("ingredientName", data.ingredient_name);
+});
+
+// Button click handler
+$(function () {
+  $("#confirmation-button").click(function (e) {
+    // Prevent any form submit / page refresh
+    if (e && typeof e.preventDefault === "function") e.preventDefault();
+    const container = $("#confirmation-container");
+
+    // Disable button to prevent double-click
+    $(this).prop("disabled", true);
+
+    // Send confirmation to server
+    socket.emit("confirm_action", {
+      action_type: container.data("actionType"),
+      ingredient_name: container.data("ingredientName"),
+    });
+
+    // Hide immediately (will be confirmed by button_dismissed)
+    container.hide();
+    $(this).prop("disabled", false);
+  });
+});
+
+// Receive button_dismissed event
+socket.on("button_dismissed", function () {
+  const container = $("#confirmation-container");
+  container.hide();
+  $("#confirmation-button").prop("disabled", false);
+});
+
 /* * * * * * * * * * * * * *
  * Game Key Event Listener *
  * * * * * * * * * * * * * */
@@ -241,7 +311,12 @@ function enable_key_listener() {
   $(document).on("keydown", function (e) {
     // Ignore key events when typing in form controls
     const tag = e.target.tagName.toLowerCase();
-    if (tag === "input" || tag === "textarea" || tag === "select" || e.target.isContentEditable) {
+    if (
+      tag === "input" ||
+      tag === "textarea" ||
+      tag === "select" ||
+      e.target.isContentEditable
+    ) {
       return;
     }
 

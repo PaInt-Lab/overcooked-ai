@@ -23,7 +23,8 @@ RUN sed -i '/^tensorflow==2\.0\.3/d;/^greenlet==0\.4\.16/d;/^dnspython==1\.16\.0
 RUN pip install "numpy<2.0"
 
 # 4. Install Python deps (without openai for now)
-RUN pip install --no-cache-dir -r requirements.txt
+# Use legacy resolver to avoid dependency resolution hell with langchain packages
+RUN pip install --no-cache-dir --use-deprecated=legacy-resolver -r requirements.txt
 
 # 4.5. Downgrade NumPy for compatibility (ADD THIS)
 RUN pip install "numpy<2.0" --force-reinstall

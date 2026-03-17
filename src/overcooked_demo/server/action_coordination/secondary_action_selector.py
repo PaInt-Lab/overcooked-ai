@@ -207,6 +207,17 @@ def _smart_select_secondary_action(game_state: Dict, predicted_primary_action: s
         return "place(soup)"
     if game_state.get('soup_staged', False) and game_state.get('soup_hand') == 'none':
         # Soup is staged and ready, robot should pick it up for serving
+        # But first check if robot is holding something else - if so, drop it first
+        if (game_state.get('onion_hand') == 'agent' or
+            game_state.get('tomato_hand') == 'agent' or
+            game_state.get('dish_hand') == 'agent'):
+            # Robot is holding something, drop it first before picking up soup
+            if game_state.get('onion_hand') == 'agent':
+                return "place(onion, counter_tile)"
+            elif game_state.get('tomato_hand') == 'agent':
+                return "place(tomato, counter_tile)"
+            elif game_state.get('dish_hand') == 'agent':
+                return "place(dish, counter_tile)"
         return "pickup(soup)"
     
     # Handle NOOP case (when no primary action predicted)
@@ -215,6 +226,18 @@ def _smart_select_secondary_action(game_state: Dict, predicted_primary_action: s
     
     # Handle washing actions
     if predicted_primary_action == "Wash Onion":
+        # If sink blocked by tomato, clear it first
+        if game_state.get('tomato_at_sink'):
+            if game_state.get('onion_hand') == 'agent':
+                return "place(onion, counter_tile)"
+            return "pickup(tomato)"
+        # If onion already at sink:
+        # - If it's already washed, pick it up to move to next step.
+        # - If not washed yet (confirmation pending), stay put.
+        if game_state.get('onion_at_sink'):
+            if game_state.get('onion_washed'):
+                return "pickup(onion)"
+            return "NOOP"
         # If human has the onion, let them wash it themselves
         if game_state.get('onion_hand') == 'partner':
             return "NOOP"
@@ -224,8 +247,21 @@ def _smart_select_secondary_action(game_state: Dict, predicted_primary_action: s
         elif game_state.get('onion_hand') == 'none':
             # Robot needs to pick up onion first
             return "pickup(onion)"
-    
+
     if predicted_primary_action == "Wash Tomato":
+        # If sink blocked by onion, clear it first
+        if game_state.get('onion_at_sink'):
+            # If we're holding the tomato already, park it on a counter before clearing
+            if game_state.get('tomato_hand') == 'agent':
+                return "place(tomato, counter_tile)"
+            return "pickup(onion)"
+        # If tomato already at sink:
+        # - If it's already washed, pick it up to move to next step.
+        # - If not washed yet (confirmation pending), stay put.
+        if game_state.get('tomato_at_sink'):
+            if game_state.get('tomato_washed'):
+                return "pickup(tomato)"
+            return "NOOP"
         # If human has the tomato, let them wash it themselves
         if game_state.get('tomato_hand') == 'partner':
             return "NOOP"
@@ -236,8 +272,11 @@ def _smart_select_secondary_action(game_state: Dict, predicted_primary_action: s
             # Robot needs to pick up tomato first
             return "pickup(tomato)"
     
-    # Handle chopping actions  
+    # Handle chopping actions
     if predicted_primary_action == "Chop Onion":
+        # If onion already at chopping station (waiting for confirmation), NOOP
+        if game_state.get('onion_at_chopping'):
+            return "NOOP"
         # If human has the onion, let them chop it themselves
         if game_state.get('onion_hand') == 'partner':
             return "NOOP"
@@ -247,8 +286,11 @@ def _smart_select_secondary_action(game_state: Dict, predicted_primary_action: s
         elif game_state.get('onion_hand') == 'none':
             # Robot needs to pick up onion first
             return "pickup(onion)"
-    
+
     if predicted_primary_action == "Chop Tomato":
+        # If tomato already at chopping station (waiting for confirmation), NOOP
+        if game_state.get('tomato_at_chopping'):
+            return "NOOP"
         # If human has the tomato, let them chop it themselves
         if game_state.get('tomato_hand') == 'partner':
             return "NOOP"
@@ -258,9 +300,12 @@ def _smart_select_secondary_action(game_state: Dict, predicted_primary_action: s
         elif game_state.get('tomato_hand') == 'none':
             # Robot needs to pick up tomato first
             return "pickup(tomato)"
-    
+
     # Handle seasoning actions
     if predicted_primary_action == "Salt Onion":
+        # If onion already at salt station (waiting for confirmation), NOOP
+        if game_state.get('onion_at_salt_station'):
+            return "NOOP"
         # If human has the onion, let them salt it themselves
         if game_state.get('onion_hand') == 'partner':
             return "NOOP"
@@ -270,8 +315,11 @@ def _smart_select_secondary_action(game_state: Dict, predicted_primary_action: s
         elif game_state.get('onion_hand') == 'none':
             # Robot needs to pick up onion first
             return "pickup(onion)"
-    
+
     if predicted_primary_action == "Salt Tomato":
+        # If tomato already at salt station (waiting for confirmation), NOOP
+        if game_state.get('tomato_at_salt_station'):
+            return "NOOP"
         # If human has the tomato, let them salt it themselves
         if game_state.get('tomato_hand') == 'partner':
             return "NOOP"
@@ -281,8 +329,11 @@ def _smart_select_secondary_action(game_state: Dict, predicted_primary_action: s
         elif game_state.get('tomato_hand') == 'none':
             # Robot needs to pick up tomato first
             return "pickup(tomato)"
-    
+
     if predicted_primary_action == "Pepper Onion":
+        # If onion already at pepper station (waiting for confirmation), NOOP
+        if game_state.get('onion_at_pepper_station'):
+            return "NOOP"
         # If human has the onion, let them pepper it themselves
         if game_state.get('onion_hand') == 'partner':
             return "NOOP"
@@ -292,8 +343,11 @@ def _smart_select_secondary_action(game_state: Dict, predicted_primary_action: s
         elif game_state.get('onion_hand') == 'none':
             # Robot needs to pick up onion first
             return "pickup(onion)"
-    
+
     if predicted_primary_action == "Pepper Tomato":
+        # If tomato already at pepper station (waiting for confirmation), NOOP
+        if game_state.get('tomato_at_pepper_station'):
+            return "NOOP"
         # If human has the tomato, let them pepper it themselves
         if game_state.get('tomato_hand') == 'partner':
             return "NOOP"

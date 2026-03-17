@@ -15,6 +15,7 @@ $(function () {
       plan_session_id: window.planSessionId,
       preloaded_plans: window.preloadedPlans || [],
       create_if_not_found: false,
+      memoryless: $("#memoryless").is(":checked"),
     };
     socket.emit("create", data);
     $("#waiting").show();

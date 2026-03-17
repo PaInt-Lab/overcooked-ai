@@ -446,6 +446,7 @@ class OvercookedGame(Game):
         ticks_per_ai_action=1,
         plan_session_id=None,
         preloaded_plans=None,
+        memoryless=False,
         **kwargs
     ):
         super(OvercookedGame, self).__init__(**kwargs)
@@ -474,8 +475,10 @@ class OvercookedGame(Game):
         self.npc_players = set()
         self.plan_session_id = plan_session_id
         self.preloaded_plans = preloaded_plans if preloaded_plans is not None else []
+        self.memoryless = memoryless
         # Track moves for each player (excluding STAY actions)
-        self.player_moves = [0] * int(num_players)  # One counter per player
+        self.player_moves = [0] * int(num_players)  # Per-turn counter (resets each cycle)
+        self.total_player_moves = [0] * int(num_players)  # Full-game accumulator
         
         # TileManager for graphics rendering (works with any agent type)
         self.tile_manager = TileManager()
@@ -819,6 +822,7 @@ class OvercookedGame(Game):
             for i in range(len(joint_action)):
                 if joint_action[i] != Action.STAY:
                     self.player_moves[i] += 1
+                    self.total_player_moves[i] += 1
             
             # Apply overcooked game logic to get state transition
             prev_state = self.state
@@ -957,6 +961,7 @@ class OvercookedGame(Game):
         self.buffered_actions = [None] * len(self.players)
         # Reset move counters for new game
         self.player_moves = [0] * len(self.players)
+        self.total_player_moves = [0] * len(self.players)
         
         self.threads = []
         for npc_policy in self.npc_policies:
@@ -1137,6 +1142,9 @@ class OvercookedGame(Game):
             assert idx is not None, "Agent index must not be None for LLM agent!"
             agent = CoordinatedActionPredictorAgent()
             agent.set_agent_index(idx)
+            agent.memoryless = getattr(self, "memoryless", False)
+            if agent.memoryless:
+                print("[EXPERIMENT] Memoryless mode enabled — past plans blocked from LLM prompt")
             plan_id = getattr(self, "plan_session_id", None)
             if plan_id:
                 agent.set_plan(plan_id)

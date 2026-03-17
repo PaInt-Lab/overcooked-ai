@@ -515,12 +515,15 @@ class CoordinatedActionPredictorAgent(Agent):
             time_info = ""
             if self.plan_time and self.plan_day:
                 time_info = f" ({self.plan_day} at {self.plan_time})"
-            
+
             # Format as user-defined current sequence
             sequence_label = f"USER DEFINED CURRENT SEQUENCE{time_info}"
             actions_str = " → ".join(self.primary_tasks)
             training_lines.append(f"{sequence_label}:\n{actions_str}")
             sequence_counter += 1
+        elif hasattr(self, 'task_title') and self.task_title:
+            # Recipe Only mode — no predetermined steps, learn from interaction
+            training_lines.append(f"RECIPE: {self.task_title}\nNo predetermined sequence — learn coordination preferences from human interaction.")
         
         # Add relevant successful sequences from repository (skipped in memoryless mode)
         if not self.memoryless and not self.plan_repository.is_empty():

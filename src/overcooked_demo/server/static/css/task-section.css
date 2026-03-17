@@ -108,6 +108,18 @@
   color: #212121;
 }
 
+/* No Subtasks button styling */
+.btn-light-red {
+  background-color: #ffd7d7;
+  border-color: #f5c6c6;
+  color: #7b1a1a;
+}
+.btn-light-red:hover {
+  background-color: #f5c6c6;
+  border-color: #f0aaaa;
+  color: #5a1010;
+}
+
 /* Make Soup Recipe button styling */
 .btn-light-blue {
   background-color: #d1ecf1;

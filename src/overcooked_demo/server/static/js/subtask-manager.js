@@ -438,6 +438,63 @@
     }
     confirmBtn.addEventListener("click", toggleConfirm);
 
+    // No Subtasks button — skips subtask pipeline, sends empty subtasks
+    document
+      .getElementById("noSubtasksBtn")
+      .addEventListener("click", async function (e) {
+        e.preventDefault();
+        const taskTitle = document.getElementById("taskTitle").value.trim();
+        if (!taskTitle) {
+          alert("Please enter a task title first");
+          return;
+        }
+        if (isConfirmed) {
+          // Toggle back to edit mode
+          isConfirmed = false;
+          this.textContent = "No Subtasks";
+          this.classList.remove("btn-secondary");
+          this.classList.add("btn-light-red");
+          return;
+        }
+
+        this.disabled = true;
+        this.textContent = "Setting up...";
+
+        const planTime = document.getElementById("planTime").value;
+        const planDay = document.getElementById("planDay").value;
+
+        try {
+          const resp = await fetch("/confirm_subtasks", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              subtasks: [],
+              taskTitle: taskTitle,
+              planTime: planTime,
+              planDay: planDay,
+            }),
+          });
+          const data = await resp.json();
+          if (data.status === "success") {
+            window.planSessionId = data.session_id;
+            window.taskTitle = data.taskTitle;
+            window.planTime = data.planTime;
+            window.planDay = data.planDay;
+            isConfirmed = true;
+            this.textContent = "No Subtasks ✓";
+            this.classList.remove("btn-light-red");
+            this.classList.add("btn-secondary");
+          } else {
+            throw new Error(data.error || "Failed to create plan");
+          }
+        } catch (err) {
+          alert("Failed: " + err.message);
+          this.textContent = "No Subtasks";
+        } finally {
+          this.disabled = false;
+        }
+      });
+
     // Make time picker open when clicking anywhere on the input
     const planTimeInput = document.getElementById("planTime");
     planTimeInput.addEventListener("click", function () {

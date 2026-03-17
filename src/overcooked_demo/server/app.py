@@ -506,11 +506,14 @@ def confirm_subtasks():
     print(f"Plan time: {plan_time}, Plan day: {plan_day}")
 
     try:
-        # 1. Tag
-        tagged = classify_subtasks(subtasks)
-
-        # 2. Group
-        events = group_events(tagged)
+        if subtasks:
+            # 1. Tag
+            tagged = classify_subtasks(subtasks)
+            # 2. Group
+            events = group_events(tagged)
+        else:
+            # Recipe Only mode — no subtask pipeline
+            events = []
 
         # norm_events = normalize_events(events)
 

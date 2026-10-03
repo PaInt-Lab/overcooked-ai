@@ -8,7 +8,7 @@
 
 This repository **extends** [Overcooked-AI](https://github.com/HumanCompatibleAI/overcooked_ai) (Carroll et al., NeurIPS 2019), a cooperative human–AI benchmark from the [Center for Human-Compatible AI](https://humancompatible.ai/). The original environment is based on the video game [_Overcooked_](http://www.ghosttowngames.com/overcooked/) by Ghost Town Games. We keep their environment, layouts, and demo infrastructure, and add an **LLM Agent** stack for coordinated navigation, plan adaptation, and state graph-based decision making.
 
-- **LLM-powered coordination**: Uses OpenAI's GPT-4o-mini for intelligent action prediction and planning
+- **LLM-powered coordination**: Uses OpenAI's GPT-5.4-mini for intelligent action prediction and planning
 - **Plan adaptation**: Learns from successful action sequences and adapts future behavior
 - **State graph navigation**: Goal-directed navigation through complete state space
 - **Real-time coordination**: Dynamic human-robot collaboration with WebSocket communication

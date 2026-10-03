@@ -14,8 +14,6 @@
 - **Real-time coordination**: Dynamic human-robot collaboration with WebSocket communication
 - **Advanced workflows**: Supports ingredient washing, chopping, and complex cooking sequences
 
-> **Note:** This system represents a significant advancement over traditional RL/BC approaches, focusing on natural language understanding and adaptive coordination.
-
 ---
 
 ## System Architecture

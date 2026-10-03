@@ -6,7 +6,7 @@
 
 ## Overview
 
-**Overcooked-AI** is a research platform for human-AI coordination, now supercharged with a sophisticated **LLM Agent** system that uses coordinated navigation, plan adaptation, and state graph-based decision making. This project introduces a novel approach to human-AI collaboration that combines large language models with graph-based state navigation for intelligent coordination in the Overcooked environment.
+This repository **extends** [Overcooked-AI](https://github.com/HumanCompatibleAI/overcooked_ai) (Carroll et al., NeurIPS 2019), a cooperative human–AI benchmark from the [Center for Human-Compatible AI](https://humancompatible.ai/). The original environment is based on the video game [_Overcooked_](http://www.ghosttowngames.com/overcooked/) by Ghost Town Games. We keep their environment, layouts, and demo infrastructure, and add an **LLM Agent** stack for coordinated navigation, plan adaptation, and state graph-based decision making.
 
 - **LLM-powered coordination**: Uses OpenAI's GPT-4o-mini for intelligent action prediction and planning
 - **Plan adaptation**: Learns from successful action sequences and adapts future behavior
@@ -14,23 +14,28 @@
 - **Real-time coordination**: Dynamic human-robot collaboration with WebSocket communication
 - **Advanced workflows**: Supports ingredient washing, chopping, and complex cooking sequences
 
----
+> **What comes from the original project:** game MDP/engine, layouts, Flask + Phaser demo (`overcooked_demo`), and related tooling from [HumanCompatibleAI/overcooked_ai](https://github.com/HumanCompatibleAI/overcooked_ai).
+>
+> **What this fork adds:** LLM agents, subtask planning UI, state-graph navigation, plan adaptation, and Docker/Ollama deployment for those components. This is a different coordination approach on their environment (natural language planning rather than RL/BC), not a replacement of the original benchmark.
 
 ## System Architecture
 
 The system consists of three main layers:
 
 ### **Web Layer** (Flask + WebSocket)
+
 - Real-time communication between humans and AI agents
 - Task definition and plan management interface
 - Live game visualization with Phaser.js
 
 ### **Game Engine** (Overcooked Environment)
+
 - Core game mechanics and state management
 - Agent coordination and action processing
 - Real-time game loop and scoring
 
 ### **AI Layer** (LLM Agents + State Navigation)
+
 - **Coordinated Action Predictor**: Main LLM agent using OpenAI GPT-4o-mini
 - **Complete State Graph**: Pre-computed state space for washing+chopping recipes
 - **Plan Adaptation**: Learning system that stores and adapts from successful sequences
@@ -41,24 +46,28 @@ The system consists of three main layers:
 ## Key Features
 
 ### **Intelligent Coordination**
+
 - **Human Action Prediction**: LLM predicts what humans will do next
 - **Smart Robot Actions**: Robot selects complementary actions based on predictions
 - **Conflict Resolution**: Handles object mismatches and blocking situations
 - **State-Aware Decisions**: Considers complete game state for optimal coordination
 
 ### **Plan Learning & Adaptation**
+
 - **Success Tracking**: Records successful action sequences automatically
 - **Plan Repository**: Stores and retrieves effective coordination patterns
 - **Adaptive Behavior**: Uses learned patterns to improve future performance
 - **Two-Phase Learning**: State-based and sequential action recording
 
 ### **Advanced State Navigation**
+
 - **Complete State Graph**: Pre-computed navigation for washing+chopping workflows
 - **Flexible Processing**: Supports any order of ingredient preparation
-- **Goal-Directed Navigation**: A* pathfinding through state space
+- **Goal-Directed Navigation**: A\* pathfinding through state space
 - **Caching System**: Fast state lookup and action prediction
 
 ### **Rich User Experience**
+
 - **Drag & Drop Interface**: Visual subtask creation and reordering
 - **LLM Task Generation**: "Ask LLM" button for automatic subtask creation
 - **Real-time Visualization**: Live game rendering with special station indicators
@@ -69,19 +78,23 @@ The system consists of three main layers:
 ## Quick Start
 
 ### Prerequisites
+
 - [Docker](https://docs.docker.com/get-docker/) installed
 - OpenAI API key (for GPT-4o-mini)
 
 ### 1. Environment Setup
 
 #### **Clone the Repository**
+
 ```bash
 git clone <your-repo-url>
 cd Overcooked-AI
 ```
 
 #### **Setup OpenAI API Key**
+
 Create a `.env` file in `src/overcooked_demo/` with your OpenAI API key:
+
 ```bash
 cd src/overcooked_demo
 echo "OPENAI_API_KEY=your-openai-api-key-here" > .env
@@ -92,13 +105,17 @@ echo "OPENAI_API_KEY=your-openai-api-key-here" > .env
 ### 2. Docker Container Setup
 
 #### **Step 1: Create Docker Network**
+
 ```bash
 docker network create overcook-net
 ```
+
 This creates a dedicated network for container communication. Only needs to be executed once during initial setup.
 
 #### **Step 2: Create Ollama Models**
+
 Navigate to the Ollama models directory and create the required models:
+
 ```bash
 cd ollama_models/task_tagger
 ollama create task_tagger -f Modelfile
@@ -108,6 +125,7 @@ ollama create subtask_creator -f Modelfile
 ```
 
 #### **Step 3: Build Docker Images**
+
 ```bash
 # Return to overcooked_demo directory
 cd ../..
@@ -122,6 +140,7 @@ docker build --no-cache -t overcooked-llm .
 #### **Step 4: Deploy Containers**
 
 **Run Ollama Container:**
+
 ```bash
 docker run -d \
   --name ollama-model \
@@ -133,6 +152,7 @@ docker run -d \
 ```
 
 **Run Overcooked Application Container:**
+
 ```bash
 docker run -d \
   --name overcooked-app \
@@ -146,7 +166,9 @@ docker run -d \
 > **Note for Windows users:** Replace `$HOME` with `$env:USERPROFILE` in the Ollama container command.
 
 #### **Alternative: Docker Compose (Simpler)**
+
 If you prefer a simpler setup, you can use Docker Compose:
+
 ```bash
 cd src/overcooked_demo
 ./up.sh  # Development mode
@@ -165,31 +187,40 @@ cd src/overcooked_demo
 ### 4. Container Management
 
 #### **Access Container Shell**
+
 For debugging or manual command execution:
+
 ```bash
 docker exec -it overcooked-app bash
 ```
 
 #### **Monitor Container Logs**
+
 View real-time logs from the application:
+
 ```bash
 docker logs --since 0s -f overcooked-app
 ```
 
 #### **Stop Containers**
+
 Using Docker Compose:
+
 ```bash
 ./down.sh
 ```
 
 Or manually:
+
 ```bash
 docker stop overcooked-app ollama-model
 docker rm overcooked-app ollama-model
 ```
 
 #### **Rebuild After Changes**
+
 If you modify files outside the `/server` folder, rebuild the image:
+
 ```bash
 docker build --no-cache -t overcooked-llm .
 docker stop overcooked-app
@@ -204,12 +235,14 @@ docker rm overcooked-app
 ## How It Works
 
 ### **Task Definition & Planning**
+
 1. **User Input**: Define high-level cooking tasks through the web interface
 2. **Subtask Generation**: LLM breaks down tasks into atomic subtasks
 3. **Task Classification**: Subtasks classified as "primary" (human) or "secondary" (robot)
 4. **Event Sequencing**: Tasks grouped into coordinated action sequences
 
 ### **Real-Time Coordination**
+
 1. **State Analysis**: Agent analyzes current game state and available actions
 2. **Human Prediction**: LLM predicts what the human will do next
 3. **Robot Action**: Secondary action selector chooses complementary robot action
@@ -217,6 +250,7 @@ docker rm overcooked-app
 5. **Learning**: Successful sequences are recorded for future adaptation
 
 ### **Plan Adaptation**
+
 1. **Success Detection**: System detects when soup is successfully served
 2. **Sequence Recording**: Complete action sequence is stored with metadata
 3. **Pattern Learning**: Future predictions can reference successful patterns
@@ -227,26 +261,31 @@ docker rm overcooked-app
 ## System Components (Major)
 
 ### **Core LLM Agent** (`coordinated_action_predictor.py`)
+
 - **Model**: OpenAI GPT-4o-mini
 - **Features**: State graph navigation, plan adaptation, human coordination
 - **Integration**: Connects to state graph, plan repository, and action selector
 
 ### **State Navigation** (`complete_state_graph.py`)
+
 - **Purpose**: Complete state space for washing+chopping recipes
 - **Features**: Flexible processing order, state validation, action mapping
 - **Performance**: Pre-computed and cached for fast lookup
 
 ### **Plan Learning** (`action_tracker.py` + `plan_repository.py`)
+
 - **Tracking**: Records successful action sequences with timestamps
 - **Storage**: Manages plan repository with metadata and retrieval
 - **Adaptation**: Enables learning from past successful interactions
 
 ### **Robot Coordination** (`secondary_action_selector.py`)
+
 - **Smart Selection**: Chooses robot actions that complement human actions
 - **Object Management**: Handles ingredient fetching, staging, and cleanup
 - **Conflict Resolution**: Manages blocking and object mismatch situations
 
 ### **Web Interface** (`index.html` + `graphics.js`)
+
 - **Task Management**: Drag & drop subtask creation and reordering
 - **LLM Integration**: "Ask LLM" button for automatic task decomposition
 - **Game Visualization**: Real-time rendering with Phaser.js
@@ -294,16 +333,19 @@ src/overcooked_demo/
 ## 🔧 Customization & Extension
 
 ### **Modify LLM Behavior**
+
 - **Prompts**: Edit `ollama_models/*/Modelfile` for custom prompts
 - **Models**: Switch between different LLM models in `coordinated_action_predictor.py`
 - **API**: Change OpenAI model or add other LLM providers
 
 ### **Add New Recipes**
+
 - **State Graph**: Extend `complete_state_graph.py` for new ingredient workflows
 - **Action Mapping**: Update `secondary_action_selector.py` for new actions
 - **UI**: Add new recipe templates in `index.html`
 
 ### **Customize Coordination**
+
 - **Learning**: Modify `action_tracker.py` for different learning strategies
 - **Planning**: Adjust plan adaptation logic in `plan_repository.py`
 - **Selection**: Customize robot action selection in `secondary_action_selector.py`
@@ -334,24 +376,41 @@ This system enables research in:
 
 ## Authors & Acknowledgments
 
-- **This Variation of Overcooked-AI:** Vito Rizzuto  
-- **Original Overcooked-AI:** Micah Carroll (mdc@berkeley.edu), Center for Human-Compatible AI
-- **Special Thanks:** OpenAI, Ollama, and the open-source LLM communities
+- **This fork / LLM Agent edition:** Vito Rizzuto
+- **Original Overcooked-AI** ([HumanCompatibleAI/overcooked_ai](https://github.com/HumanCompatibleAI/overcooked_ai)): Micah Carroll, Rohin Shah, Mark K. Ho, Thomas L. Griffiths, Sanjit A. Seshia, Pieter Abbeel, and Anca D. Dragan, Center for Human-Compatible AI. Contact for the original project: Micah Carroll (mdc@berkeley.edu).
+- **Overcooked (video game):** Ghost Town Games — the original environment is based on their game.
+- **Special thanks:** OpenAI, Ollama, and the open-source LLM communities
+
+If you use this repository, please cite **both** Carroll et al. (NeurIPS 2019) for the Overcooked-AI environment and this fork for the LLM agent work.
 
 ---
 
 ## License
 
-This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
+This project inherits the MIT License from the original Overcooked-AI codebase (Copyright (c) 2019 Center for Human-Compatible AI). See [LICENSE](LICENSE) for details.
 
 ---
 
 ## References & Further Reading
 
+Please cite the original Overcooked-AI paper when using this environment:
+
+Micah Carroll, Rohin Shah, Mark K. Ho, Thomas L. Griffiths, Sanjit A. Seshia, Pieter Abbeel, and Anca D. Dragan. [On the Utility of Learning about Humans for Human-AI Coordination](https://arxiv.org/abs/1910.05789). NeurIPS 2019.
+
+```bibtex
+@inproceedings{carroll2019overcooked,
+  author    = {Micah Carroll and Rohin Shah and Mark K. Ho and Tom Griffiths and Sanjit A. Seshia and Pieter Abbeel and Anca D. Dragan},
+  title     = {On the Utility of Learning about Humans for Human-{AI} Coordination},
+  booktitle = {Advances in Neural Information Processing Systems (NeurIPS)},
+  pages     = {5175--5186},
+  year      = {2019}
+}
+```
+
+- [Overcooked-AI (original codebase)](https://github.com/HumanCompatibleAI/overcooked_ai)
+- [BAIR blog post on Overcooked-AI](https://bair.berkeley.edu/blog/2019/10/21/coordination/)
 - [OpenAI API Documentation](https://platform.openai.com/docs)
 - [Ollama: Run open LLMs locally](https://ollama.com/)
-- [Overcooked-AI (original)](https://github.com/HumanCompatibleAI/overcooked_ai)
-- [On the Utility of Learning about Humans for Human-AI Coordination (NeurIPS 2019)](https://arxiv.org/abs/1910.05789)
 - [Phaser.js Game Framework](https://phaser.io/)
 
 ---
